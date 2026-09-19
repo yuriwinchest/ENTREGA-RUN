@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Sidebar from './Sidebar.jsx'
 import './UsuariosPage.css'
 
@@ -57,6 +57,43 @@ function CloseIcon() {
   )
 }
 
+function ChevronDownIcon({ className }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  )
+}
+
+const ROLE_OPTIONS = [
+  {
+    value: 'OPERADOR',
+    label: 'OPERADOR',
+    description: 'Entrega de kit',
+    detail: 'Apenas busca atletas e entrega kits'
+  },
+  {
+    value: 'SUPERVISOR',
+    label: 'SUPERVISOR',
+    description: 'Entrega e edição',
+    detail: 'Entrega kits e pode alterar dados do atleta'
+  },
+  {
+    value: 'ADMIN',
+    label: 'ADMIN',
+    description: 'Acesso total',
+    detail: 'Acesso total, gestão e novos usuários'
+  }
+]
+
 export default function UsuariosPage({
   user,
   onNavigate,
@@ -91,11 +128,29 @@ export default function UsuariosPage({
   })
 
   const [showAddUserModal, setShowAddUserModal] = useState(false)
+  const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false)
+  const roleDropdownRef = useRef(null)
   const [newUserForm, setNewUserForm] = useState({
     name: '',
     email: '',
     role: 'OPERADOR',
   })
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target)) {
+        setIsRoleDropdownOpen(false)
+      }
+    }
+    if (isRoleDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('touchstart', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [isRoleDropdownOpen])
 
   useEffect(() => {
     try {
@@ -273,17 +328,64 @@ export default function UsuariosPage({
                   />
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">FUNÇÃO</label>
-                  <select
-                    className="form-input"
-                    value={newUserForm.role}
-                    onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}
-                  >
-                    <option value="OPERADOR">OPERADOR (Entrega de kit)</option>
-                    <option value="SUPERVISOR">SUPERVISOR (Entrega e edição)</option>
-                    <option value="ADMIN">ADMIN (Acesso total)</option>
-                  </select>
+                <div className="form-group" ref={roleDropdownRef}>
+                  <label className="form-label" id="role-select-label">FUNÇÃO</label>
+                  <div className="custom-role-dropdown">
+                    <button
+                      type="button"
+                      className={`custom-role-trigger ${isRoleDropdownOpen ? 'open' : ''}`}
+                      onClick={() => setIsRoleDropdownOpen((prev) => !prev)}
+                      aria-haspopup="listbox"
+                      aria-expanded={isRoleDropdownOpen}
+                      aria-labelledby="role-select-label"
+                    >
+                      <div className="role-trigger-text">
+                        <span className="role-trigger-name">
+                          {ROLE_OPTIONS.find((r) => r.value === newUserForm.role)?.label || newUserForm.role}
+                        </span>
+                        <span className="role-trigger-desc">
+                          ({ROLE_OPTIONS.find((r) => r.value === newUserForm.role)?.description || ''})
+                        </span>
+                      </div>
+                      <ChevronDownIcon className={`role-chevron ${isRoleDropdownOpen ? 'rotated' : ''}`} />
+                    </button>
+
+                    {isRoleDropdownOpen && (
+                      <div className="role-options-list" role="listbox">
+                        {ROLE_OPTIONS.map((opt) => {
+                          const isSelected = newUserForm.role === opt.value
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              className={`role-option-item ${isSelected ? 'selected' : ''}`}
+                              onClick={() => {
+                                setNewUserForm((prev) => ({ ...prev, role: opt.value }))
+                                setIsRoleDropdownOpen(false)
+                              }}
+                              role="option"
+                              aria-selected={isSelected}
+                            >
+                              <div className="role-option-content">
+                                <div className="role-option-title-row">
+                                  <span className={`role-tag-badge ${opt.value.toLowerCase()}`}>
+                                    {opt.label}
+                                  </span>
+                                  <span className="role-option-desc">({opt.description})</span>
+                                </div>
+                                <p className="role-option-detail">{opt.detail}</p>
+                              </div>
+                              {isSelected && (
+                                <div className="role-selected-check">
+                                  <CheckIcon />
+                                </div>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="modal-actions-row">

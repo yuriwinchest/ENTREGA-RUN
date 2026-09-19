@@ -556,6 +556,58 @@
   - Deploy em andamento para a VPS com healthcheck 200 ativo em `https://app.entregasrun.com.br/api/health`.
 - **Próximo passo**: Yuri recarregar o celular e homologar o layout mobile.
 
+## 2026-09-19 — Refinamento Mobile: Operação (Banner, Abas e Busca) e Modal Novo Usuário (Fase A, construir)
+
+- **Demanda do Yuri (PO)**:
+  1. Tela de Operação de Evento no mobile:
+     - Card do topo (`operacao-event-banner`) com estatísticas espremidas/passando do limite da tela.
+     - Abas superiores cortando no canto direito (aba Auditoria inacessível).
+     - Botão Espelho e busca de atleta espremidos lado a lado.
+     - Card de Últimas Entregas (ex: Adriana Silva) cortando badge `ENTREGUE` na margem direita.
+  2. Modal de Novo Usuário em `UsuariosPage`:
+     - Botões Cancelar e Adicionar sem CSS (estilo padrão cinza do navegador).
+     - Select de Função expandindo para fora do simulador do smartphone.
+- **Ações Realizadas**:
+  1. `OperacaoPage.css`:
+     - `.operacao-event-banner`: reconfigurado no mobile para grid de 4 colunas centralizadas com padding adequado, mantendo os 4 números perfeitamente enquadrados sem overflow.
+     - `.operacao-tabs-row`: configurado com scroll horizontal nativo por toque (`overflow-x: auto; scrollbar-width: none`), permitindo deslizar e acessar todas as 4 abas (`Entrega de Kit`, `Atletas`, `Estatísticas`, `Auditoria`).
+     - `.kit-actions-row`: busca e botão espelho dispostos em coluna única responsiva (100% width).
+     - `.delivery-item-row`: quebra em layout responsivo com tags flexíveis, evitando cortes de badges.
+  2. `UsuariosPage.jsx` & `UsuariosPage.css`:
+     - Modal agora centralizado na tela com `.modal-backdrop` fixo, blur e `max-height: 85vh`.
+     - Botões Cancelar (`.modal-btn-cancel`) e Adicionar Usuário (`.modal-btn-save`) totalmente estilizados no padrão do design system.
+     - O select de Função agora se posiciona confortavelmente no centro da viewport, sem transbordar para fora do aparelho.
+- **Validações Reais**:
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos**.
+  - `npm run build --prefix client`: Vite build concluído em 462ms (**0 erros**).
+  - Git commit e push realizados (`dac19f7`).
+  - Deploy em andamento para a VPS com healthcheck 200 ativo em `https://app.entregasrun.com.br/api/health`.
+- **Próximo passo**: Yuri recarregar e homologar os ajustes no mobile.
+
+## 2026-09-19 — Dropdown Customizado de Função em "Novo Usuário" (Fase A, construir)
+
+- **Classificação Jev (TypeSafe System One)**:
+  - Roteado em 989ms: Especialista `ana_ui_ux` (92% de confiança), `bugfix_urgente` (100% de confiança).
+- **Demanda do Yuri (PO)**:
+  - Ao clicar no campo "FUNÇÃO" do modal de Novo Usuário para escolher entre Operador, Supervisor ou Admin, as opções nativas do `<select>` do navegador expandiam para fora do simulador de smartphone, cortando e saindo do aparelho físico.
+- **Causa Raiz Identificada**:
+  - O elemento `<select>` HTML nativo delega a renderização do menu de opções ao processo de janelas do sistema operacional (Chromium OS Popup Menu / HWND). No desktop ou simuladores com moldura de celular, essa janela nativa do Windows ignora os limites de overflow do iframe/viewport simulado e se projeta na tela do computador para fora do aparelho.
+- **Solução Implementada (Ana & Kastiel)**:
+  1. `client/src/components/UsuariosPage.jsx`:
+     - Substituição do `<select>` nativo por um componente de seleção customizado 100% renderizado dentro da árvore DOM do React (`.custom-role-dropdown`).
+     - Trigger estilizado com chevron animado (`ChevronDownIcon`), tipografia Montserrat/Inter, destaque em laranja `#ff5200` ao abrir e indicador do cargo atual e descrição.
+     - Painel de opções expansível inline (`.role-options-list`) contendo cada papel com badge colorida (`OPERADOR` laranja, `SUPERVISOR` azul, `ADMIN` escuro), descrição de permissões ("Apenas busca atletas e entrega kits", "Entrega kits e pode alterar dados do atleta", "Acesso total, gestão e novos usuários") e ícone de check (`CheckIcon`) na opção selecionada.
+     - Hook de detecção de clique fora (`useRef` + `mousedown`/`touchstart`) para fechamento automático.
+     - Por ser um elemento DOM contido no fluxo do modal, é fisicamente impossível transbordar para fora do simulador ou do celular.
+  2. `client/src/components/UsuariosPage.css`:
+     - Estilos dedicados para `.custom-role-dropdown`, `.custom-role-trigger`, `.role-options-list`, `.role-option-item`, `.role-tag-badge` e animação suave `dropdownFadeIn`.
+- **Validações Reais**:
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** em 347ms.
+  - `npm run build --prefix client`: Vite build concluído em 823ms (**0 erros**).
+- **Próximo passo**: Yuri testar o seletor de função no simulador/celular.
+
+
+
 
 
 
