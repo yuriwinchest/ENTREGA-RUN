@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import Sidebar from './Sidebar.jsx'
 import './UsuariosPage.css'
 
@@ -47,71 +48,104 @@ function TrashIcon() {
   )
 }
 
-const USERS_LIST = [
-  {
-    id: 1,
-    name: 'AGNER ISRAEL',
-    email: 'agnerisrsel@hotmail.com',
-    role: 'ADMIN',
-    status: 'ATIVO',
-    deliveries: 0,
-    avatar: 'AI',
-  },
-  {
-    id: 2,
-    name: 'AGNER ARAUJO',
-    email: 'agneraraujo@hotmail.com',
-    role: 'ADMIN',
-    status: 'ATIVO',
-    deliveries: 23,
-    avatar: 'AA',
-  },
-  {
-    id: 3,
-    name: 'entregas1',
-    email: 'entregas1@pacetime.com',
-    role: 'OPERADOR',
-    status: 'ATIVO',
-    deliveries: 361,
-    avatar: 'e',
-  },
-  {
-    id: 4,
-    name: 'entregas2',
-    email: 'entregas2@pacetime.com',
-    role: 'OPERADOR',
-    status: 'ATIVO',
-    deliveries: 0,
-    avatar: 'e',
-  },
-  {
-    id: 5,
-    name: 'entregas3',
-    email: 'entregas3@pacetime.com',
-    role: 'OPERADOR',
-    status: 'ATIVO',
-    deliveries: 0,
-    avatar: 'e',
-  },
-  {
-    id: 6,
-    name: 'FELIPE',
-    email: 'pacetime@entregas.com',
-    role: 'ADMIN',
-    status: 'ATIVO',
-    deliveries: 0,
-    avatar: 'F',
-  },
-]
+function CloseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  )
+}
 
 export default function UsuariosPage({
+  user,
   onNavigate,
   onLogout,
   onOpenTutorial,
 }) {
+  const [users, setUsers] = useState(() => {
+    try {
+      const saved = localStorage.getItem('entregas_run_users')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const cleaned = parsed.filter(
+            (u) => !['AGNER ISRAEL', 'AGNER ARAUJO', 'entregas1', 'entregas2', 'entregas3'].includes(u.name)
+          )
+          if (cleaned.length > 0) return cleaned
+        }
+      }
+    } catch {
+      // ignore
+    }
+    const defaultUser = {
+      id: user?.id || 'admin_pacetime',
+      name: user?.name || 'FELIPE',
+      email: user?.email || 'pacetime@entregas.com',
+      role: user?.role || 'ADMIN',
+      status: 'ATIVO',
+      deliveries: 0,
+      avatar: (user?.name || 'F').substring(0, 2).toUpperCase(),
+    }
+    return [defaultUser]
+  })
+
+  const [showAddUserModal, setShowAddUserModal] = useState(false)
+  const [newUserForm, setNewUserForm] = useState({
+    name: '',
+    email: '',
+    role: 'OPERADOR',
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('entregas_run_users', JSON.stringify(users))
+    } catch {
+      // ignore
+    }
+  }, [users])
+
+  function handleAddUser(e) {
+    e.preventDefault()
+    if (!newUserForm.name.trim() || !newUserForm.email.trim()) return
+
+    const newUser = {
+      id: `user-${Date.now()}`,
+      name: newUserForm.name.trim().toUpperCase(),
+      email: newUserForm.email.trim().toLowerCase(),
+      role: newUserForm.role,
+      status: 'ATIVO',
+      deliveries: 0,
+      avatar: newUserForm.name.trim().substring(0, 2).toUpperCase(),
+    }
+
+    setUsers((prev) => [newUser, ...prev])
+    setNewUserForm({ name: '', email: '', role: 'OPERADOR' })
+    setShowAddUserModal(false)
+  }
+
+  function handleToggleStatus(userId) {
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.id === userId) {
+          return { ...u, status: u.status === 'ATIVO' ? 'INATIVO' : 'ATIVO' }
+        }
+        return u
+      })
+    )
+  }
+
+  function handleRemoveUser(userId) {
+    if (userId === user?.id || userId === 'admin_pacetime') {
+      alert('Não é possível remover o administrador principal.')
+      return
+    }
+    setUsers((prev) => prev.filter((u) => u.id !== userId))
+  }
+
   return (
     <div className="usuarios-layout">
-      <Sidebar activePage="usuarios" onNavigate={onNavigate} onLogout={onLogout} />
+      <Sidebar activePage="usuarios" onNavigate={onNavigate} onLogout={onLogout} user={user} />
 
       <main className="usuarios-main">
         <header className="usuarios-header">
@@ -134,7 +168,11 @@ export default function UsuariosPage({
               <span>TUTORIAL</span>
             </button>
 
-            <button type="button" className="btn-primary-user">
+            <button
+              type="button"
+              className="btn-primary-user"
+              onClick={() => setShowAddUserModal(true)}
+            >
               <PlusIcon />
               <span>NOVO USUÁRIO</span>
             </button>
@@ -142,23 +180,23 @@ export default function UsuariosPage({
         </header>
 
         <section className="users-grid">
-          {USERS_LIST.map((user) => (
-            <article key={user.id} className="user-card">
+          {users.map((item) => (
+            <article key={item.id} className="user-card">
               <div className="user-card-top">
-                <div className="user-avatar">{user.avatar}</div>
+                <div className="user-avatar">{item.avatar || item.name?.substring(0, 2).toUpperCase() || 'U'}</div>
 
                 <div className="user-details">
-                  <h2 className="user-name">{user.name}</h2>
-                  <span className="user-email">{user.email}</span>
+                  <h2 className="user-name">{item.name}</h2>
+                  <span className="user-email">{item.email}</span>
 
                   <div className="user-badges-row">
-                    <span className={`role-pill ${user.role.toLowerCase()}`}>
-                      {user.role === 'ADMIN' ? <ShieldIcon /> : <UserIcon />}
-                      <span>{user.role}</span>
+                    <span className={`role-pill ${item.role.toLowerCase()}`}>
+                      {item.role === 'ADMIN' ? <ShieldIcon /> : <UserIcon />}
+                      <span>{item.role}</span>
                     </span>
 
-                    <span className="status-pill-user">
-                      {user.status}
+                    <span className={`status-pill-user ${item.status === 'INATIVO' ? 'inactive' : ''}`}>
+                      {item.status}
                     </span>
                   </div>
                 </div>
@@ -167,26 +205,103 @@ export default function UsuariosPage({
               <div className="user-card-footer">
                 <div className="user-deliveries-col">
                   <span className="user-deliveries-label">ENTREGAS TOTAIS</span>
-                  <span className="user-deliveries-count">{user.deliveries}</span>
+                  <span className="user-deliveries-count">{item.deliveries || 0}</span>
                 </div>
 
                 <div className="user-card-actions">
-                  <button type="button" className="btn-deactivate">
-                    DESATIVAR
-                  </button>
-
                   <button
                     type="button"
-                    className="icon-action-btn"
-                    title="Remover usuário"
+                    className="btn-deactivate"
+                    onClick={() => handleToggleStatus(item.id)}
                   >
-                    <TrashIcon />
+                    {item.status === 'ATIVO' ? 'DESATIVAR' : 'ATIVAR'}
                   </button>
+
+                  {item.id !== user?.id && item.id !== 'admin_pacetime' && (
+                    <button
+                      type="button"
+                      className="icon-action-btn"
+                      title="Remover usuário"
+                      onClick={() => handleRemoveUser(item.id)}
+                    >
+                      <TrashIcon />
+                    </button>
+                  )}
                 </div>
               </div>
             </article>
           ))}
         </section>
+
+        {showAddUserModal && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <div className="modal-header">
+                <h2 className="modal-title">NOVO USUÁRIO</h2>
+                <button
+                  type="button"
+                  className="modal-close-btn"
+                  onClick={() => setShowAddUserModal(false)}
+                  title="Fechar"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              <form className="modal-body" onSubmit={handleAddUser}>
+                <div className="form-group">
+                  <label className="form-label">NOME COMPLETO</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ex: João Silva"
+                    value={newUserForm.name}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">E-MAIL</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="Ex: joao@entregas.com"
+                    value={newUserForm.email}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">FUNÇÃO</label>
+                  <select
+                    className="form-input"
+                    value={newUserForm.role}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}
+                  >
+                    <option value="OPERADOR">OPERADOR (Entrega de kit)</option>
+                    <option value="SUPERVISOR">SUPERVISOR (Entrega e edição)</option>
+                    <option value="ADMIN">ADMIN (Acesso total)</option>
+                  </select>
+                </div>
+
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="btn-cancel"
+                    onClick={() => setShowAddUserModal(false)}
+                  >
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn-confirm">
+                    Adicionar Usuário
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )

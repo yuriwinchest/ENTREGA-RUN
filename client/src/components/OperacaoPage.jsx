@@ -266,170 +266,6 @@ function TrophyIcon() {
   )
 }
 
-const DEFAULT_OPERATORS = [
-  { id: 1, name: 'AGNER ISRAEL', role: 'ADMIN', avatar: 'AI', count: 0 },
-  { id: 2, name: 'AGNER ARAUJO', role: 'ADMIN', avatar: 'AA', count: 0 },
-  { id: 3, name: 'entregas1', role: 'OPERADOR', avatar: 'e', count: 0 },
-  { id: 4, name: 'entregas2', role: 'OPERADOR', avatar: 'e', count: 0 },
-  { id: 5, name: 'entregas3', role: 'OPERADOR', avatar: 'e', count: 0 },
-  { id: 6, name: 'FELIPE', role: 'ADMIN', avatar: 'F', count: 0 },
-]
-
-const DEFAULT_ATHLETES_TREINAO = [
-  {
-    id: '400',
-    numero: '400',
-    nome: 'DAVI VILELA',
-    doc: '70496238493',
-    nascimento: '17/02/2001',
-    sexo: 'Masculino',
-    modalidade: '5 KM',
-    categoria: 'GERAL',
-    equipe: '—',
-    nacionalidade: 'BRASIL',
-    kit: 'KIT ELITE',
-    camiseta: 'M',
-    chip: '6855',
-    morador: 'Morador',
-    contato: '',
-    entreguePara: 'DAVI VILELA',
-    entregueEm: '16/09/2026, 20:15:37',
-    entreguePor: 'f58694b1-bce0-4ff8-a71c-e2301bb0fb31',
-    status: 'ENTREGUE',
-  },
-  {
-    id: '65',
-    numero: '65',
-    nome: 'CLEBER LIMA DE BARROS',
-    doc: '12517818452',
-    nascimento: '10/05/1988',
-    sexo: 'Masculino',
-    modalidade: '5 KM',
-    categoria: '8 - ALTO DO MOURA',
-    equipe: 'BORA PRO CORRE',
-    nacionalidade: 'BRASIL',
-    kit: 'KIT ELITE',
-    camiseta: 'G',
-    chip: '4120',
-    morador: 'Morador',
-    contato: '',
-    entreguePara: 'CLEBER LIMA DE BARROS',
-    entregueEm: '16/09/2026, 20:13:00',
-    entreguePor: 'f58694b1-bce0-4ff8-a71c-e2301bb0fb31',
-    status: 'ENTREGUE',
-  },
-  {
-    id: '160',
-    numero: '160',
-    nome: 'JACK RAYA SILVA DE ALMEIDA',
-    doc: '16596881407',
-    nascimento: '22/11/1992',
-    sexo: 'Masculino',
-    modalidade: '5 KM',
-    categoria: '79 - DEMAIS ATLETAS',
-    equipe: 'SEM EQUIPE',
-    nacionalidade: 'BRASIL',
-    kit: 'Kit Padrão',
-    camiseta: 'M',
-    chip: '5219',
-    morador: 'Visitante',
-    contato: '',
-    entreguePara: 'JACK RAYA SILVA DE ALMEIDA',
-    entregueEm: '16/09/2026, 20:10:15',
-    entreguePor: 'f58694b1-bce0-4ff8-a71c-e2301bb0fb31',
-    status: 'ENTREGUE',
-  },
-  {
-    id: '42',
-    numero: '42',
-    nome: 'MARCOS VINICIUS PEREIRA',
-    doc: '09845612301',
-    nascimento: '15/03/1985',
-    sexo: 'Masculino',
-    modalidade: '5 KM',
-    categoria: '14 - MORRO DO BOM JESUS',
-    equipe: 'BORAPROCORRE',
-    nacionalidade: 'BRASIL',
-    kit: 'Kit Padrão',
-    camiseta: 'M',
-    chip: '3312',
-    morador: 'Morador',
-    contato: '',
-    entreguePara: 'MARCOS VINICIUS PEREIRA',
-    entregueEm: '16/09/2026, 20:07:22',
-    entreguePor: 'f58694b1-bce0-4ff8-a71c-e2301bb0fb31',
-    status: 'ENTREGUE',
-  },
-  {
-    id: '18',
-    numero: '18',
-    nome: 'ANA BEATRIZ SANTOS',
-    doc: '32165498700',
-    nascimento: '04/09/1995',
-    sexo: 'Feminino',
-    modalidade: '5 KM',
-    categoria: '2 - ATLETAS LOCAIS',
-    equipe: 'FORMOSO PACE CLUBE',
-    nacionalidade: 'BRASIL',
-    kit: 'KIT ATLETA',
-    camiseta: 'P',
-    chip: '1823',
-    morador: 'Morador',
-    contato: '',
-    entreguePara: 'ANA BEATRIZ SANTOS',
-    entregueEm: '16/09/2026, 20:03:40',
-    entreguePor: 'f58694b1-bce0-4ff8-a71c-e2301bb0fb31',
-    status: 'ENTREGUE',
-  },
-]
-
-const DEFAULT_DELIVERIES_TREINAO = [
-  {
-    id: 400,
-    name: 'DAVI VILELA',
-    doc: '70496238493',
-    category: 'GERAL',
-    size: 'M',
-    kit: 'KIT ELITE',
-    time: 'Há 2 min',
-  },
-  {
-    id: 65,
-    name: 'CLEBER LIMA DE BARROS',
-    doc: '12517818452',
-    category: '8 - ALTO DO MOURA',
-    size: 'G',
-    kit: 'KIT ELITE',
-    time: 'Há 5 min',
-  },
-  {
-    id: 160,
-    name: 'JACK RAYA SILVA DE ALMEIDA',
-    doc: '16596881407',
-    category: '79 - DEMAIS ATLETAS',
-    size: 'M',
-    kit: 'Kit Padrão',
-    time: 'Há 8 min',
-  },
-  {
-    id: 42,
-    name: 'MARCOS VINICIUS PEREIRA',
-    doc: '09845612301',
-    category: '14 - MORRO DO BOM JESUS',
-    size: 'M',
-    kit: 'Kit Padrão',
-    time: 'Há 11 min',
-  },
-  {
-    id: 18,
-    name: 'ANA BEATRIZ SANTOS',
-    doc: '32165498700',
-    category: '2 - ATLETAS LOCAIS',
-    size: 'P',
-    kit: 'KIT ATLETA',
-    time: 'Há 15 min',
-  },
-]
 
 const INITIAL_ATHLETE_FORM = {
   nome: '',
@@ -447,6 +283,7 @@ const INITIAL_ATHLETE_FORM = {
 
 export default function OperacaoPage({
   event,
+  user,
   onUpdateEvent,
   onNavigate,
   onLogout,
@@ -469,11 +306,11 @@ export default function OperacaoPage({
   const [detailForm, setDetailForm] = useState(null)
 
   const currentEvent = event || {
-    id: '33c3fb52-9b9d-4f50-ad9a-3bffa67b00c8',
-    name: 'YURI2TESTE',
-    date: '15 SET 2026',
-    dateInput: '15/09/2026',
-    location: 'piaui',
+    id: '',
+    name: 'SELECIONE UM EVENTO',
+    date: '',
+    dateInput: '',
+    location: '',
     total: 0,
     entregues: 0,
     pendentes: 0,
@@ -483,11 +320,9 @@ export default function OperacaoPage({
   // Load and manage athletes per event with localStorage persistence
   const [athletes, setAthletes] = useState(() => {
     try {
+      if (!currentEvent.id) return []
       const saved = localStorage.getItem(`entregas_run_athletes_${currentEvent.id}`)
       if (saved) return JSON.parse(saved)
-      if (currentEvent.id === '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6') {
-        return DEFAULT_ATHLETES_TREINAO
-      }
       return []
     } catch {
       return []
@@ -497,10 +332,12 @@ export default function OperacaoPage({
   // Save athletes to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem(
-        `entregas_run_athletes_${currentEvent.id}`,
-        JSON.stringify(athletes)
-      )
+      if (currentEvent.id) {
+        localStorage.setItem(
+          `entregas_run_athletes_${currentEvent.id}`,
+          JSON.stringify(athletes)
+        )
+      }
     } catch {
       // ignore
     }
@@ -508,14 +345,40 @@ export default function OperacaoPage({
 
   // Deliveries list
   const [deliveries, setDeliveries] = useState(() => {
-    if (currentEvent.id === '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6') {
-      return DEFAULT_DELIVERIES_TREINAO
+    try {
+      if (!currentEvent.id) return []
+      const saved = localStorage.getItem(`entregas_run_deliveries_${currentEvent.id}`)
+      if (saved) return JSON.parse(saved)
+      return []
+    } catch {
+      return []
     }
-    return []
   })
 
+  // Save deliveries to localStorage
+  useEffect(() => {
+    try {
+      if (currentEvent.id) {
+        localStorage.setItem(
+          `entregas_run_deliveries_${currentEvent.id}`,
+          JSON.stringify(deliveries)
+        )
+      }
+    } catch {
+      // ignore
+    }
+  }, [deliveries, currentEvent.id])
+
   // Operators state
-  const [operators, setOperators] = useState(DEFAULT_OPERATORS)
+  const [operators, setOperators] = useState(() => [
+    {
+      id: user?.id || 'admin_pacetime',
+      name: user?.name || 'FELIPE',
+      role: user?.role || 'ADMIN',
+      avatar: (user?.name || 'F')[0].toUpperCase(),
+      count: 0,
+    },
+  ])
 
   // Modal Importar Planilha
   const [showImportModal, setShowImportModal] = useState(false)
@@ -523,11 +386,9 @@ export default function OperacaoPage({
   // Auditoria state
   const [audits, setAudits] = useState(() => {
     try {
+      if (!currentEvent.id) return []
       const saved = localStorage.getItem(`entregas_run_audits_${currentEvent.id}`)
       if (saved) return JSON.parse(saved)
-      if (currentEvent.id === '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6') {
-        return generateDefaultAudits()
-      }
       return []
     } catch {
       return []
@@ -946,7 +807,7 @@ export default function OperacaoPage({
 
   return (
     <div className="operacao-layout">
-      <Sidebar activePage="operacao" onNavigate={onNavigate} onLogout={onLogout} />
+      <Sidebar activePage="operacao" onNavigate={onNavigate} onLogout={onLogout} user={user} />
 
       <main className="operacao-main">
         {/* Top bar with Event title on left and Tutorial / Voltar on right */}

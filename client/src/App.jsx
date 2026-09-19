@@ -8,46 +8,10 @@ import EspelhoPage from './components/EspelhoPage.jsx'
 import TutorialModal from './components/TutorialModal.jsx'
 import UsuariosPage from './components/UsuariosPage.jsx'
 
-const DEFAULT_EVENTS = [
-  {
-    id: '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6',
-    date: '16 SET 2026',
-    dateInput: '16/09/2026',
-    name: 'TREINÃO DA GALINHA',
-    location: 'SÃO BENTO DO UNA',
-    status: 'EM OPERAÇÃO',
-    active: true,
-    total: 409,
-    entregues: 392,
-    pendentes: 17,
-    concl: '95.8%',
-  },
-  {
-    id: '22c2fb52-9b9d-4f50-ad9a-3bffa67b00b7',
-    date: '19 SET 2026',
-    dateInput: '19/09/2026',
-    name: 'CORRE SURUBIM',
-    location: 'SURUBIM',
-    status: 'PLANEJADO',
-    active: false,
-    total: 350,
-    entregues: 0,
-    pendentes: 350,
-    concl: '0.0%',
-  },
-  {
-    id: '33c3fb52-9b9d-4f50-ad9a-3bffa67b00c8',
-    date: '15 SET 2026',
-    dateInput: '15/09/2026',
-    name: 'YURI2TESTE',
-    location: 'piaui',
-    status: 'PLANEJADO',
-    active: false,
-    total: 0,
-    entregues: 0,
-    pendentes: 0,
-    concl: '0.0%',
-  },
+const MOCK_EVENT_IDS = [
+  '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6',
+  '22c2fb52-9b9d-4f50-ad9a-3bffa67b00b7',
+  '33c3fb52-9b9d-4f50-ad9a-3bffa67b00c8',
 ]
 
 export default function App() {
@@ -63,11 +27,36 @@ export default function App() {
   const [events, setEvents] = useState(() => {
     try {
       const saved = localStorage.getItem('entregas_run_events')
-      return saved ? JSON.parse(saved) : DEFAULT_EVENTS
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (e) =>
+              !MOCK_EVENT_IDS.includes(e?.id) &&
+              !e?.name?.includes('GALINHA') &&
+              !e?.name?.includes('SURUBIM') &&
+              !e?.name?.includes('YURI2TESTE')
+          )
+        }
+      }
+      return []
     } catch {
-      return DEFAULT_EVENTS
+      return []
     }
   })
+
+  // Limpa resíduos de dados mockados do navegador
+  useEffect(() => {
+    try {
+      MOCK_EVENT_IDS.forEach((id) => {
+        localStorage.removeItem(`entregas_run_athletes_${id}`)
+        localStorage.removeItem(`entregas_run_deliveries_${id}`)
+        localStorage.removeItem(`entregas_run_audits_${id}`)
+      })
+    } catch {
+      // ignore
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -80,11 +69,15 @@ export default function App() {
   const [selectedEventId, setSelectedEventId] = useState(() => {
     const path = window.location.pathname
     const parts = path.split('/')
-    if (parts.length > 2 && parts[2]) {
+    if (parts.length > 2 && parts[2] && !MOCK_EVENT_IDS.includes(parts[2])) {
       return parts[2]
     }
-    return '33c3fb52-9b9d-4f50-ad9a-3bffa67b00c8'
+    return ''
   })
+
+  const effectiveEventId = selectedEventId && events.some((e) => e.id === selectedEventId)
+    ? selectedEventId
+    : (events[0]?.id || '')
 
   const [currentPage, setCurrentPage] = useState(() => {
     const path = window.location.pathname
@@ -100,7 +93,7 @@ export default function App() {
   const [tutorialStep, setTutorialStep] = useState(1)
   const [showTutorial, setShowTutorial] = useState(false)
 
-  // Sync browser back/forward buttons
+  // Sincroniza navegação via botões voltar/avançar do navegador
   useEffect(() => {
     function handlePopState() {
       const path = window.location.pathname
@@ -131,19 +124,20 @@ export default function App() {
   }, [user])
 
   function navigateTo(page, id) {
-    if (id) {
-      setSelectedEventId(id)
+    const targetId = id || effectiveEventId
+    if (targetId) {
+      setSelectedEventId(targetId)
     }
     setCurrentPage(page)
     let path = '/dashboard'
     if (page === 'espelho') {
-      path = `/espelho/${id || selectedEventId || '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6'}`
+      path = targetId ? `/espelho/${targetId}` : '/espelho'
     } else if (page === 'eventos') {
       path = '/eventos'
     } else if (page === 'operacao') {
-      path = `/operacao/${id || selectedEventId || '33c3fb52-9b9d-4f50-ad9a-3bffa67b00c8'}`
+      path = targetId ? `/operacao/${targetId}` : '/eventos'
     } else if (page === 'event-dashboard') {
-      path = `/dashboard/${id || selectedEventId || '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6'}`
+      path = targetId ? `/dashboard/${targetId}` : '/dashboard'
     } else if (page === 'usuarios') {
       path = '/usuarios'
     } else if (page === 'login') {
@@ -154,9 +148,10 @@ export default function App() {
 
   function handleLoginSuccess(userData) {
     const adminUser = {
+      id: userData?.id || 'admin_pacetime',
       email: userData?.email || 'pacetime@entregas.com',
-      name: 'FELIPE',
-      role: 'ADMIN',
+      name: userData?.name || 'Felipe Admin',
+      role: userData?.role || 'ADMIN',
     }
     setUser(adminUser)
     try {
@@ -199,16 +194,16 @@ export default function App() {
 
   // Tela de Espelho (acesso público para atletas via QR Code ou monitor secundário)
   if (currentPage === 'espelho' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/espelho'))) {
-    const currentEvent = events.find((e) => e.id === selectedEventId) || events[0]
+    const currentEvent = events.find((e) => e.id === effectiveEventId) || events[0]
     return (
       <EspelhoPage
-        eventId={selectedEventId || currentEvent?.id}
+        eventId={effectiveEventId || currentEvent?.id}
         eventName={currentEvent?.name}
       />
     )
   }
 
-  // If not logged in, render LoginPage
+  // Se não estiver autenticado, exibe a tela de login
   if (!user) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />
   }
@@ -217,6 +212,8 @@ export default function App() {
     <div className="app-container">
       {currentPage === 'dashboard' && (
         <DashboardPage
+          events={events}
+          user={user}
           onNavigate={navigateTo}
           onLogout={handleLogout}
           onOpenTutorial={handleOpenTutorial}
@@ -225,6 +222,8 @@ export default function App() {
 
       {currentPage === 'event-dashboard' && (
         <EventDashboardPage
+          event={events.find((e) => e.id === effectiveEventId) || events[0]}
+          user={user}
           onNavigate={navigateTo}
           onLogout={handleLogout}
           onOpenTutorial={handleOpenTutorial}
@@ -235,6 +234,7 @@ export default function App() {
         <EventosPage
           events={events}
           setEvents={setEvents}
+          user={user}
           onNavigate={navigateTo}
           onLogout={handleLogout}
           onOpenTutorial={handleOpenTutorial}
@@ -244,8 +244,9 @@ export default function App() {
 
       {currentPage === 'operacao' && (
         <OperacaoPage
-          key={selectedEventId}
-          event={events.find((e) => e.id === selectedEventId) || events[0]}
+          key={effectiveEventId || 'operacao'}
+          event={events.find((e) => e.id === effectiveEventId) || events[0]}
+          user={user}
           onUpdateEvent={(updatedEvent) => {
             setEvents((prev) =>
               prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e))
@@ -260,6 +261,7 @@ export default function App() {
 
       {currentPage === 'usuarios' && (
         <UsuariosPage
+          user={user}
           onNavigate={navigateTo}
           onLogout={handleLogout}
           onOpenTutorial={handleOpenTutorial}

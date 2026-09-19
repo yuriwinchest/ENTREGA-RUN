@@ -141,51 +141,12 @@ function CloseIcon() {
   )
 }
 
-const INITIAL_EVENTS = [
-  {
-    id: '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6',
-    date: '16 SET 2026',
-    dateInput: '16/09/2026',
-    name: 'TREINÃO DA GALINHA',
-    location: 'SÃO BENTO DO UNA',
-    status: 'EM OPERAÇÃO',
-    active: true,
-    total: 409,
-    entregues: 392,
-    pendentes: 17,
-    concl: '95.8%',
-  },
-  {
-    id: '22c2fb52-9b9d-4f50-ad9a-3bffa67b00b7',
-    date: '19 SET 2026',
-    dateInput: '19/09/2026',
-    name: 'CORRE SURUBIM',
-    location: 'SURUBIM',
-    status: 'PLANEJADO',
-    active: false,
-    total: 350,
-    entregues: 0,
-    pendentes: 350,
-    concl: '0.0%',
-  },
-  {
-    id: '33c3fb52-9b9d-4f50-ad9a-3bffa67b00c8',
-    date: '15 SET 2026',
-    dateInput: '15/09/2026',
-    name: 'YURI2TESTE',
-    location: 'piaui',
-    status: 'PLANEJADO',
-    active: false,
-    total: 0,
-    entregues: 0,
-    pendentes: 0,
-    concl: '0.0%',
-  },
-]
+const INITIAL_EVENTS = []
 
 export default function EventosPage({
   events: propEvents,
   setEvents: setPropEvents,
+  user,
   onNavigate,
   onLogout,
   onOpenTutorial,
@@ -289,7 +250,7 @@ export default function EventosPage({
 
   return (
     <div className="eventos-layout">
-      <Sidebar activePage="eventos" onNavigate={onNavigate} onLogout={onLogout} />
+      <Sidebar activePage="eventos" onNavigate={onNavigate} onLogout={onLogout} user={user} />
 
       <main className="eventos-main">
         <header className="eventos-header">
@@ -350,7 +311,45 @@ export default function EventosPage({
         </section>
 
         <section className="events-grid">
-          {filteredEvents.map((event) => {
+          {filteredEvents.length === 0 ? (
+            <div style={{
+              gridColumn: '1 / -1',
+              background: '#fff',
+              border: '1.5px dashed #e2e8f0',
+              borderRadius: '16px',
+              padding: '48px 24px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 600 }}>
+                {search ? 'Nenhum evento encontrado para os termos da busca.' : 'Nenhum evento cadastrado no sistema ainda.'}
+              </p>
+              <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px' }}>
+                Clique no botão abaixo para cadastrar o seu primeiro evento esportivo.
+              </p>
+              <button
+                type="button"
+                style={{
+                  marginTop: '8px',
+                  background: '#ff5200',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+                onClick={() => setShowCreateModal(true)}
+              >
+                + NOVO EVENTO
+              </button>
+            </div>
+          ) : (
+            filteredEvents.map((event) => {
             const isDropdownOpen = openDropdownId === event.id
 
             return (
@@ -501,8 +500,9 @@ export default function EventosPage({
                 </div>
               </article>
             )
-          })}
-        </section>
+          })
+        )}
+      </section>
 
         {/* MODAL: NOVO EVENTO */}
         {showCreateModal && (

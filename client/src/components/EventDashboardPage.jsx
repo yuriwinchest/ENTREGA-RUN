@@ -78,6 +78,8 @@ const KITS_DATA = [
 ]
 
 export default function EventDashboardPage({
+  event,
+  user,
   onNavigate,
   onLogout,
   onOpenTutorial,
@@ -91,9 +93,19 @@ export default function EventDashboardPage({
   const [hoveredKit, setHoveredKit] = useState(null)
   const [hoveredCategoria, setHoveredCategoria] = useState(false)
 
+  const athletes = (() => {
+    try {
+      if (!event?.id) return []
+      const saved = localStorage.getItem(`entregas_run_athletes_${event.id}`)
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })()
+
   return (
     <div className="event-dash-layout">
-      <Sidebar activePage="dashboard" onNavigate={onNavigate} onLogout={onLogout} />
+      <Sidebar activePage="dashboard" onNavigate={onNavigate} onLogout={onLogout} user={user} />
 
       <main className="event-dash-main">
         <header className="event-dash-header">
@@ -120,13 +132,56 @@ export default function EventDashboardPage({
               <span>EVENTOS</span>
             </button>
 
-            <h2 className="event-banner-title">TREINÃO DA GALINHA</h2>
-            <span className="event-banner-meta">16/09/2026 • SÃO BENTO DO UNA</span>
+            <h2 className="event-banner-title">{event?.name || 'EVENTO'}</h2>
+            <span className="event-banner-meta">
+              {event?.date || event?.dateInput || '—'}{' '}
+              {event?.location || event?.city ? `• ${event.location || event.city}` : ''}
+            </span>
           </div>
         </section>
 
-        {/* 3 subtabs bar */}
-        <div className="event-tabs-bar">
+        {athletes.length === 0 ? (
+          <div style={{
+            background: '#fff',
+            border: '1.5px dashed #e2e8f0',
+            borderRadius: '16px',
+            padding: '60px 24px',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '14px',
+            margin: '24px'
+          }}>
+            <PackageIcon />
+            <p style={{ margin: 0, color: '#64748b', fontSize: '16px', fontWeight: 600 }}>
+              Nenhum dado de atletas cadastrado para este evento ainda.
+            </p>
+            <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px', maxWidth: '440px', lineHeight: 1.5 }}>
+              Importe uma planilha oficial de atletas ou cadastre manualmente para visualizar gráficos e métricas analíticas em tempo real.
+            </p>
+            <button
+              type="button"
+              style={{
+                marginTop: '6px',
+                background: '#ff5200',
+                color: '#fff',
+                border: 'none',
+                padding: '10px 22px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
+              onClick={() => onNavigate('operacao', event?.id)}
+            >
+              IR PARA OPERAÇÃO DO EVENTO
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* 3 subtabs bar */}
+            <div className="event-tabs-bar">
           <div className="event-tabs-pill">
             <button
               type="button"
@@ -1283,6 +1338,8 @@ export default function EventDashboardPage({
               </div>
             </div>
           </div>
+        )}
+          </>
         )}
       </main>
     </div>

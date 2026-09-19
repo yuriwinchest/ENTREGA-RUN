@@ -16,7 +16,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
       const urlParams = new URLSearchParams(window.location.search)
       if (urlParams.get('eventId')) return urlParams.get('eventId')
     }
-    return '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6'
+    return ''
   })()
 
   const [config, setConfig] = useState(() => getEspelhoConfig(eventId))
@@ -32,7 +32,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     } catch {
       // fallback
     }
-    return 'TREINÃO DA GALINHA'
+    return 'EVENTO'
   })()
 
   // Sincronização em tempo real via BroadcastChannel e Storage Events

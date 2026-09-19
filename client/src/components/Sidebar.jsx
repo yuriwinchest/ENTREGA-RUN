@@ -43,7 +43,10 @@ function LogOutIcon() {
   )
 }
 
-export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout }) {
+export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, user }) {
+  const userName = user?.name || (user?.email ? user.email.split('@')[0].toUpperCase() : 'ADMIN')
+  const userRole = user?.role || 'ADMIN'
+
   return (
     <aside className="app-sidebar">
       <div className="sidebar-top">
@@ -65,7 +68,7 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout }
 
           <button
             type="button"
-            className={`nav-item ${activePage === 'eventos' || activePage === 'operacao' ? 'active' : ''}`}
+            className={`nav-item ${activePage === 'eventos' || activePage === 'operacao' || activePage === 'event-dashboard' ? 'active' : ''}`}
             onClick={() => onNavigate('eventos')}
           >
             <CalendarIcon />
@@ -86,8 +89,8 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout }
       <div className="sidebar-bottom">
         <div className="sidebar-user">
           <span className="sidebar-user-label">USUÁRIO</span>
-          <span className="sidebar-user-name">FELIPE</span>
-          <span className="sidebar-user-role">ADMIN</span>
+          <span className="sidebar-user-name">{userName}</span>
+          <span className="sidebar-user-role">{userRole}</span>
         </div>
 
         <button type="button" className="logout-btn" onClick={onLogout}>

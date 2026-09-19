@@ -60,8 +60,8 @@ export default function EspelhoModal({ isOpen, onClose, event }) {
   const bgInputRef = useRef(null)
   const logoInputRef = useRef(null)
 
-  const eventId = event?.id || '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6'
-  const eventName = event?.name || 'TREINÃO DA GALINHA'
+  const eventId = event?.id || ''
+  const eventName = event?.name || 'EVENTO'
 
   // URL do espelho (compatível com localhost ou produção)
   const getEspelhoUrl = () => {

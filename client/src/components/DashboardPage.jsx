@@ -67,15 +67,6 @@ function ActivityIcon() {
   )
 }
 
-function ClockIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  )
-}
-
 function ChevronRightIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -85,13 +76,22 @@ function ChevronRightIcon() {
 }
 
 export default function DashboardPage({
+  events = [],
+  user,
   onNavigate,
   onLogout,
   onOpenTutorial,
 }) {
+  // Métricas calculadas dinamicamente
+  const totalAtletas = events.reduce((sum, e) => sum + (Number(e.total_athletes || e.total) || 0), 0)
+  const totalEntregues = events.reduce((sum, e) => sum + (Number(e.delivered_count || e.entregues) || 0), 0)
+  const totalPendentes = Math.max(0, totalAtletas - totalEntregues)
+  const percentConcluido = totalAtletas > 0 ? ((totalEntregues / totalAtletas) * 100).toFixed(1) + '%' : '0.0%'
+  const eventosEmOperacao = events.filter((e) => e.status === 'EM OPERAÇÃO' || e.status === 'EM_OPERACAO').length
+
   return (
     <div className="dashboard-layout">
-      <Sidebar activePage="dashboard" onNavigate={onNavigate} onLogout={onLogout} />
+      <Sidebar activePage="dashboard" onNavigate={onNavigate} onLogout={onLogout} user={user} />
 
       <main className="dashboard-main">
         <header className="dashboard-header">
@@ -118,7 +118,7 @@ export default function DashboardPage({
             <div className="metric-top">
               <div className="metric-icon"><UsersIcon /></div>
             </div>
-            <div className="metric-number">779</div>
+            <div className="metric-number">{totalAtletas}</div>
             <div className="metric-label">TOTAL DE ATLETAS</div>
           </div>
 
@@ -126,7 +126,7 @@ export default function DashboardPage({
             <div className="metric-top">
               <div className="metric-icon"><CheckCircleIcon /></div>
             </div>
-            <div className="metric-number">361</div>
+            <div className="metric-number">{totalEntregues}</div>
             <div className="metric-label">KITS ENTREGUES</div>
           </div>
 
@@ -134,7 +134,7 @@ export default function DashboardPage({
             <div className="metric-top">
               <div className="metric-icon"><PackageIcon /></div>
             </div>
-            <div className="metric-number">418</div>
+            <div className="metric-number">{totalPendentes}</div>
             <div className="metric-label">KITS PENDENTES</div>
           </div>
 
@@ -142,7 +142,7 @@ export default function DashboardPage({
             <div className="metric-top">
               <div className="metric-icon"><TrendingUpIcon /></div>
             </div>
-            <div className="metric-number">46.3%</div>
+            <div className="metric-number">{percentConcluido}</div>
             <div className="metric-label">% CONCLUÍDO</div>
           </div>
 
@@ -150,7 +150,7 @@ export default function DashboardPage({
             <div className="metric-top">
               <div className="metric-icon"><ZapIcon /></div>
             </div>
-            <div className="metric-number">6</div>
+            <div className="metric-number">1</div>
             <div className="metric-label">OPERADORES ATIVOS</div>
           </div>
 
@@ -158,7 +158,7 @@ export default function DashboardPage({
             <div className="metric-top">
               <div className="metric-icon"><ActivityIcon /></div>
             </div>
-            <div className="metric-number">1</div>
+            <div className="metric-number">{eventosEmOperacao}</div>
             <div className="metric-label">EVENTOS EM OPERAÇÃO</div>
           </div>
         </section>
@@ -167,87 +167,96 @@ export default function DashboardPage({
         <section className="progress-section">
           <div className="progress-header">
             <h2 className="progress-title">PROGRESSO POR EVENTO</h2>
-            <span className="progress-count">2 EVENTOS</span>
+            <span className="progress-count">{events.length} {events.length === 1 ? 'EVENTO' : 'EVENTOS'}</span>
           </div>
 
-          <div className="progress-list">
-            <div
-              className="progress-row-card"
-              onClick={() => onNavigate('event-dashboard', '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6')}
-            >
-              <div className="event-col-info">
-                <h3 className="event-col-title">TREINÃO DA GALINHA</h3>
-                <span className="event-col-meta">16/09/2026 • SÃO BENTO DO UNA</span>
-              </div>
-
-              <div className="event-col-stats">
-                <div className="stat-item">
-                  <span className="stat-label">ENTREGUES</span>
-                  <span className="stat-value delivered">361</span>
-                </div>
-
-                <div className="stat-item">
-                  <span className="stat-label">PENDENTES</span>
-                  <span className="stat-value pending">69</span>
-                </div>
-
-                <div className="progress-bar-wrap">
-                  <span className="progress-bar-label">Progresso</span>
-                  <div className="progress-track">
-                    <div className="progress-fill" style={{ width: '84.0%' }} />
-                  </div>
-                  <span className="progress-percent-val">84.0%</span>
-                </div>
-
-                <div className="chevron-icon">
-                  <ChevronRightIcon />
-                </div>
-              </div>
+          {events.length === 0 ? (
+            <div style={{
+              background: '#fff',
+              border: '1.5px dashed #e2e8f0',
+              borderRadius: '16px',
+              padding: '48px 24px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 600 }}>
+                Nenhum evento cadastrado no sistema ainda.
+              </p>
+              <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px' }}>
+                Clique no botão abaixo para cadastrar o primeiro evento ou importar uma planilha.
+              </p>
+              <button
+                type="button"
+                style={{
+                  marginTop: '8px',
+                  background: '#ff5200',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  letterSpacing: '0.5px'
+                }}
+                onClick={() => onNavigate('eventos')}
+              >
+                + CADASTRAR EVENTO
+              </button>
             </div>
+          ) : (
+            <div className="progress-list">
+              {events.map((ev) => {
+                const total = Number(ev.total_athletes || ev.total) || 0
+                const entregues = Number(ev.delivered_count || ev.entregues) || 0
+                const pendentes = Math.max(0, total - entregues)
+                const pct = total > 0 ? ((entregues / total) * 100).toFixed(1) : '0.0'
 
-            <div
-              className="progress-row-card"
-              onClick={() => onNavigate('operacao', '22c2fb52-9b9d-4f50-ad9a-3bffa67b00b7')}
-            >
-              <div className="event-col-info">
-                <h3 className="event-col-title">CORRE SURUBIM</h3>
-                <span className="event-col-meta">19/09/2026 • SURUBIM</span>
-              </div>
+                return (
+                  <div
+                    key={ev.id}
+                    className="progress-row-card"
+                    onClick={() => onNavigate('event-dashboard', ev.id)}
+                  >
+                    <div className="event-col-info">
+                      <h3 className="event-col-title">{ev.name}</h3>
+                      <span className="event-col-meta">
+                        {ev.date || ev.dateInput || '—'} • {ev.city || ev.location || '—'}
+                      </span>
+                    </div>
 
-              <div className="event-col-stats">
-                <div className="stat-item">
-                  <span className="stat-label">ENTREGUES</span>
-                  <span className="stat-value delivered">0</span>
-                </div>
+                    <div className="event-col-stats">
+                      <div className="stat-item">
+                        <span className="stat-label">ENTREGUES</span>
+                        <span className="stat-value delivered">{entregues}</span>
+                      </div>
 
-                <div className="stat-item">
-                  <span className="stat-label">PENDENTES</span>
-                  <span className="stat-value pending">349</span>
-                </div>
+                      <div className="stat-item">
+                        <span className="stat-label">PENDENTES</span>
+                        <span className="stat-value pending">{pendentes}</span>
+                      </div>
 
-                <div className="progress-bar-wrap">
-                  <span className="progress-bar-label">Progresso</span>
-                  <div className="progress-track">
-                    <div className="progress-fill" style={{ width: '0%' }} />
+                      <div className="progress-bar-wrap">
+                        <span className="progress-bar-label">Progresso</span>
+                        <div className="progress-track">
+                          <div className="progress-fill" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="progress-percent-val">{pct}%</span>
+                      </div>
+
+                      <div className="chevron-icon">
+                        <ChevronRightIcon />
+                      </div>
+                    </div>
                   </div>
-                  <span className="progress-percent-val">0.0%</span>
-                </div>
-
-                <div className="chevron-icon">
-                  <ChevronRightIcon />
-                </div>
-              </div>
+                )
+              })}
             </div>
-          </div>
+          )}
         </section>
-
-        {/* Notice banner */}
-        <div className="demo-notice-card">
-          <div className="demo-notice-icon"><ClockIcon /></div>
-          <div>
-            <strong>Ambiente populado com dados de demonstração.</strong> Todos os registros já estão persistidos no banco de dados real com sincronização em tempo real. Para entrega ao cliente, basta zerar as tabelas do módulo.
-          </div>
-        </div>
       </main>
     </div>
   )
