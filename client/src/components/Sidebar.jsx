@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import './Sidebar.css'
 
 function LayoutGridIcon() {
@@ -43,61 +44,174 @@ function LogOutIcon() {
   )
 }
 
+function MenuIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="4" x2="20" y1="12" y2="12" />
+      <line x1="4" x2="20" y1="6" y2="6" />
+      <line x1="4" x2="20" y1="18" y2="18" />
+    </svg>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  )
+}
+
 export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, user }) {
+  const [mobileOpen, setMobileOpen] = useState(false)
   const userName = user?.name || (user?.email ? user.email.split('@')[0].toUpperCase() : 'ADMIN')
   const userRole = user?.role || 'ADMIN'
 
+  function handleNav(page) {
+    onNavigate(page)
+    setMobileOpen(false)
+  }
+
   return (
-    <aside className="app-sidebar">
-      <div className="sidebar-top">
-        <div className="sidebar-brand">
-          <div className="sidebar-brand-badge">
-            <img src="/logo.png" alt="Entregas RUN" />
-          </div>
-        </div>
-
-        <nav className="sidebar-nav">
-          <button
-            type="button"
-            className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`}
-            onClick={() => onNavigate('dashboard')}
-          >
-            <LayoutGridIcon />
-            <span>DASHBOARD</span>
-          </button>
-
-          <button
-            type="button"
-            className={`nav-item ${activePage === 'eventos' || activePage === 'operacao' || activePage === 'event-dashboard' ? 'active' : ''}`}
-            onClick={() => onNavigate('eventos')}
-          >
-            <CalendarIcon />
-            <span>EVENTOS</span>
-          </button>
-
-          <button
-            type="button"
-            className={`nav-item ${activePage === 'usuarios' ? 'active' : ''}`}
-            onClick={() => onNavigate('usuarios')}
-          >
-            <UsersIcon />
-            <span>USUÁRIOS</span>
-          </button>
-        </nav>
-      </div>
-
-      <div className="sidebar-bottom">
-        <div className="sidebar-user">
-          <span className="sidebar-user-label">USUÁRIO</span>
-          <span className="sidebar-user-name">{userName}</span>
-          <span className="sidebar-user-role">{userRole}</span>
-        </div>
-
-        <button type="button" className="logout-btn" onClick={onLogout}>
-          <LogOutIcon />
-          <span>SAIR</span>
+    <>
+      {/* 1. Barra Superior Mobile (Visível apenas <= 768px) */}
+      <div className="mobile-top-bar">
+        <button
+          type="button"
+          className="mobile-hamburger-btn"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Abrir menu lateral"
+        >
+          <MenuIcon />
         </button>
+
+        <div className="mobile-top-brand" onClick={() => handleNav('dashboard')}>
+          <img src="/logo.png" alt="Entregas RUN" className="mobile-top-logo" />
+          <span className="mobile-top-title">ENTREGAS RUN</span>
+        </div>
+
+        <div className="mobile-top-user" onClick={() => setMobileOpen(true)}>
+          <span className="mobile-user-avatar-badge">{userName.charAt(0)}</span>
+        </div>
       </div>
-    </aside>
+
+      {/* 2. Backdrop do Drawer Mobile */}
+      {mobileOpen && (
+        <div
+          className="sidebar-mobile-backdrop"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* 3. Sidebar Principal (Desktop estática / Mobile Drawer Deslizante) */}
+      <aside className={`app-sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
+        <div className="sidebar-top">
+          <div className="sidebar-brand">
+            <div className="sidebar-brand-badge">
+              <img src="/logo.png" alt="Entregas RUN" />
+            </div>
+            <span className="sidebar-brand-title-mobile">ENTREGAS RUN</span>
+            <button
+              type="button"
+              className="sidebar-mobile-close-btn"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Fechar menu"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+
+          <nav className="sidebar-nav">
+            <button
+              type="button"
+              className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`}
+              onClick={() => handleNav('dashboard')}
+            >
+              <LayoutGridIcon />
+              <span>DASHBOARD</span>
+            </button>
+
+            <button
+              type="button"
+              className={`nav-item ${activePage === 'eventos' || activePage === 'operacao' || activePage === 'event-dashboard' ? 'active' : ''}`}
+              onClick={() => handleNav('eventos')}
+            >
+              <CalendarIcon />
+              <span>EVENTOS</span>
+            </button>
+
+            <button
+              type="button"
+              className={`nav-item ${activePage === 'usuarios' ? 'active' : ''}`}
+              onClick={() => handleNav('usuarios')}
+            >
+              <UsersIcon />
+              <span>USUÁRIOS</span>
+            </button>
+          </nav>
+        </div>
+
+        <div className="sidebar-bottom">
+          <div className="sidebar-user">
+            <span className="sidebar-user-label">USUÁRIO</span>
+            <span className="sidebar-user-name">{userName}</span>
+            <span className="sidebar-user-role">{userRole}</span>
+          </div>
+
+          <button
+            type="button"
+            className="logout-btn"
+            onClick={() => {
+              setMobileOpen(false)
+              onLogout()
+            }}
+          >
+            <LogOutIcon />
+            <span>SAIR</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* 4. Bottom Navigation Bar Mobile (Visível apenas <= 768px) */}
+      <nav className="mobile-bottom-nav">
+        <button
+          type="button"
+          className={`mobile-nav-btn ${activePage === 'dashboard' ? 'active' : ''}`}
+          onClick={() => handleNav('dashboard')}
+        >
+          <LayoutGridIcon />
+          <span>Dashboard</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-nav-btn ${activePage === 'eventos' || activePage === 'operacao' || activePage === 'event-dashboard' ? 'active' : ''}`}
+          onClick={() => handleNav('eventos')}
+        >
+          <CalendarIcon />
+          <span>Eventos</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-nav-btn ${activePage === 'usuarios' ? 'active' : ''}`}
+          onClick={() => handleNav('usuarios')}
+        >
+          <UsersIcon />
+          <span>Usuários</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-nav-btn ${mobileOpen ? 'active' : ''}`}
+          onClick={() => setMobileOpen(!mobileOpen)}
+        >
+          <MenuIcon />
+          <span>Menu</span>
+        </button>
+      </nav>
+    </>
   )
 }

@@ -21,3 +21,80 @@ body {
 #root {
   min-height: 100svh;
 }
+
+/* ==========================================================================
+   RESPONSIVIDADE GERAL DE LAYOUTS (<= 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .dashboard-layout,
+  .eventos-layout,
+  .usuarios-layout,
+  .operacao-layout,
+  .event-dash-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    min-height: 100vh !important;
+    overflow-x: hidden !important;
+  }
+
+  .dashboard-main,
+  .eventos-main,
+  .usuarios-main,
+  .operacao-main,
+  .event-dash-main {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 16px 16px 88px 16px !important;
+    overflow-x: hidden !important;
+  }
+
+  .dashboard-header,
+  .eventos-header,
+  .usuarios-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .dashboard-title,
+  .eventos-title,
+  .usuarios-title {
+    font-size: 20px !important;
+  }
+
+  .dashboard-subtitle,
+  .eventos-subtitle,
+  .usuarios-subtitle {
+    font-size: 12.5px !important;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .progress-card {
+    padding: 16px 14px !important;
+  }
+
+  .progress-row-card {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    padding: 14px 16px !important;
+  }
+
+  .event-col-info {
+    width: 100% !important;
+  }
+
+  .event-col-stats {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: space-between !important;
+  }
+}
