@@ -40,7 +40,11 @@ app.get('/api/health', (_req, res) => {
 })
 
 app.get('/api/municipios', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'client', 'public', 'municipios.json'))
+  const distFile = path.join(__dirname, '..', 'client', 'dist', 'municipios.json')
+  const pubFile = path.join(__dirname, '..', 'client', 'public', 'municipios.json')
+  res.sendFile(distFile, (err) => {
+    if (err) res.sendFile(pubFile)
+  })
 })
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'pacetime@entregas.com').toLowerCase().trim()
