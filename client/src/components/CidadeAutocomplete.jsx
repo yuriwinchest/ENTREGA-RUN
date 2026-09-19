@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fetchMunicipiosIBGE, filterMunicipios } from '../utils/ibge.js'
+import { getMunicipios, filterMunicipios } from '../utils/ibge.js'
 
 function MapPinIcon() {
   return (
@@ -19,20 +19,18 @@ function CloseIcon() {
   )
 }
 
-function SpinnerIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="animate-spin" aria-hidden="true">
-      <line x1="12" y1="2" x2="12" y2="6" />
-      <line x1="12" y1="18" x2="12" y2="22" />
-      <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
-      <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
-      <line x1="2" y1="12" x2="6" y2="12" />
-      <line x1="18" y1="12" x2="22" y2="12" />
-      <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
-      <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
-    </svg>
-  )
-}
+const DEFAULT_POPULAR = [
+  'Recife/PE',
+  'Caruaru/PE',
+  'Surubim/PE',
+  'São Bento do Una/PE',
+  'São Paulo/SP',
+  'Rio de Janeiro/RJ',
+  'Salvador/BA',
+  'Fortaleza/CE',
+  'Belo Horizonte/MG',
+  'Brasília/DF',
+]
 
 export default function CidadeAutocomplete({
   value,
@@ -41,33 +39,15 @@ export default function CidadeAutocomplete({
   required = false,
   className = '',
 }) {
-  const [municipios, setMunicipios] = useState([])
-  const [loading, setLoading] = useState(true)
+  // Lista dos 5.571 municípios brasileiros inicializada instantaneamente em memória
+  const [municipios] = useState(() => getMunicipios())
   const [isOpen, setIsOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const containerRef = useRef(null)
   const inputRef = useRef(null)
+  const listRef = useRef(null)
 
-  // Pré-carrega municípios do IBGE
-  useEffect(() => {
-    let isMounted = true
-    fetchMunicipiosIBGE()
-      .then((data) => {
-        if (isMounted) {
-          setMunicipios(data || [])
-          setLoading(false)
-        }
-      })
-      .catch(() => {
-        if (isMounted) setLoading(false)
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  // Sugestões calculadas de forma reativa e memorizada
+  // Sugestões calculadas de forma reativa e memorizada com prioridade por relevância
   const suggestions = useMemo(() => {
     if (!isOpen || !municipios.length) {
       return []
@@ -75,13 +55,14 @@ export default function CidadeAutocomplete({
 
     if (!value || !value.trim()) {
       // Sugestões padrão quando o campo está focado e vazio
-      const defaults = municipios.filter((m) =>
-        ['Recife/PE', 'Caruaru/PE', 'Surubim/PE', 'São Bento do Una/PE', 'São Paulo/SP', 'Rio de Janeiro/RJ', 'Salvador/BA', 'Fortaleza/CE', 'Belo Horizonte/MG', 'Brasília/DF'].includes(m.label)
-      )
-      return defaults.length > 0 ? defaults : municipios.slice(0, 10)
+      const defaults = municipios.filter((m) => DEFAULT_POPULAR.includes(m.label))
+      const res = defaults.length > 0 ? defaults : municipios.slice(0, 10)
+      res.totalMatches = res.length
+      return res
     }
 
-    return filterMunicipios(municipios, value, 25)
+    // Busca até 80 resultados para navegação fluida e rápida
+    return filterMunicipios(municipios, value, 80)
   }, [value, isOpen, municipios])
 
   // Fecha dropdown ao clicar fora
@@ -95,6 +76,16 @@ export default function CidadeAutocomplete({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Garante que o item navegado pelo teclado fique visível
+  useEffect(() => {
+    if (highlightedIndex >= 0 && listRef.current) {
+      const activeEl = listRef.current.querySelector(`[data-index="${highlightedIndex}"]`)
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' })
+      }
+    }
+  }, [highlightedIndex])
 
   function handleSelect(cidade) {
     onChange(cidade.label)
@@ -126,6 +117,8 @@ export default function CidadeAutocomplete({
       setHighlightedIndex(-1)
     }
   }
+
+  const totalMatches = suggestions.totalMatches || suggestions.length
 
   return (
     <div
@@ -166,12 +159,6 @@ export default function CidadeAutocomplete({
             gap: '6px',
           }}
         >
-          {loading && (
-            <span style={{ color: '#ff5200', display: 'flex' }} title="Carregando IBGE...">
-              <SpinnerIcon />
-            </span>
-          )}
-
           {value && (
             <button
               type="button"
@@ -207,7 +194,7 @@ export default function CidadeAutocomplete({
             </button>
           )}
 
-          <span style={{ color: '#94a3b8', display: 'flex', pointerEvents: 'none' }}>
+          <span style={{ color: '#ff5200', display: 'flex', pointerEvents: 'none' }}>
             <MapPinIcon />
           </span>
         </div>
@@ -216,6 +203,7 @@ export default function CidadeAutocomplete({
       {/* Dropdown de sugestões do IBGE */}
       {isOpen && (
         <div
+          ref={listRef}
           className="cidade-dropdown-menu"
           style={{
             position: 'absolute',
@@ -226,7 +214,7 @@ export default function CidadeAutocomplete({
             border: '1.5px solid #e2e8f0',
             borderRadius: '12px',
             boxShadow: '0 12px 28px -4px rgba(12, 20, 44, 0.12), 0 6px 12px -4px rgba(12, 20, 44, 0.08)',
-            maxHeight: '230px',
+            maxHeight: '280px',
             overflowY: 'auto',
             zIndex: 1000,
             padding: '6px',
@@ -248,8 +236,19 @@ export default function CidadeAutocomplete({
               justifyContent: 'space-between',
             }}
           >
-            <span>CIDADES (IBGE)</span>
-            {loading && <span>Buscando...</span>}
+            <span>
+              CIDADES (IBGE)
+              {totalMatches > 0 && (
+                <span style={{ color: '#64748b', fontWeight: 700, marginLeft: '6px' }}>
+                  ({suggestions.length < totalMatches ? `${suggestions.length} de ${totalMatches.toLocaleString('pt-BR')}` : totalMatches})
+                </span>
+              )}
+            </span>
+            {value && totalMatches > suggestions.length && (
+              <span style={{ fontSize: '10px', color: '#ff5200', fontWeight: 700, textTransform: 'none' }}>
+                Refine digitando mais
+              </span>
+            )}
           </div>
 
           {suggestions.length === 0 ? (
@@ -262,9 +261,7 @@ export default function CidadeAutocomplete({
                 fontWeight: 600,
               }}
             >
-              {loading
-                ? 'Carregando lista de municípios do IBGE...'
-                : `Nenhuma cidade encontrada para "${value}"`}
+              Nenhuma cidade encontrada para &ldquo;{value}&rdquo;
             </div>
           ) : (
             suggestions.map((item, idx) => {
@@ -272,6 +269,7 @@ export default function CidadeAutocomplete({
               return (
                 <div
                   key={item.id}
+                  data-index={idx}
                   onClick={() => handleSelect(item)}
                   style={{
                     display: 'flex',

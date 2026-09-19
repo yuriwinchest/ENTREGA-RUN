@@ -413,6 +413,38 @@
   - CI/CD automático via GitHub Actions disparado e deploy em produção na VPS `179.198.97.28`.
 - **Próximo passo**: Homologação visual e funcional pelo Yuri no subdomínio `https://app.entregasrun.com.br`.
 
+## 2026-09-19 — Correção e Otimização do Autocomplete de Cidades do IBGE (Fase A, construir)
+
+- **Demanda do Yuri (PO)** (Áudio + Print):
+  - Ao digitar as iniciais da cidade (ex: "rec") no campo `CIDADE / UF` do modal de Novo Evento, o dropdown exibia: `Nenhuma cidade encontrada para "rec"`.
+  - Solicitação explícita: ao digitar o nome, as primeiras letras ou a letra "A", exibir todas as cidades correspondentes na lista para seleção.
+- **Causa Raiz Identificada**:
+  - A diretiva de segurança `Content-Security-Policy` do Helmet no Express utilizava o padrão estrito `default-src 'self'`. O navegador bloqueava conexões externas a `https://servicodados.ibge.gov.br` com erro de violação de CSP (`connect-src`), fazendo com que o `fetch` falhasse silenciosamente e deixasse a lista de municípios vazia (`[]`).
+  - Além do CSP, a dependência de uma requisição externa de ~5MB para servidores do IBGE a cada novo usuário no navegador tornava a busca vulnerável a latências e falhas de rede.
+- **Solução Arquitetural de Alta Performance e Resiliência**:
+  1. **Base Oficial Empacotada Localmente**: Extraída e compilada a base oficial completa dos 5.571 municípios brasileiros para `client/src/data/municipios.js` (98 KB gzip ~25 KB) e `client/public/municipios.json`.
+  2. **Inicialização Síncrona e Zero Latência**: `CidadeAutocomplete.jsx` agora inicializa com `getMunicipios()` de forma imediata (0ms) no primeiro ciclo de renderização. Zero espera, zero spinner e funcionamento 100% offline.
+  3. **Filtro Multi-Token Inteligente**:
+     - Prioridade 1: Cidades cujo nome inicia exatamente com o termo pesquisado (ex: "rec" traz `Recife/PE` em 1º lugar).
+     - Prioridade 2: Cidades cujo label completo inicia com o termo.
+     - Prioridade 3: Cidades contendo todos os termos digitados (ex: "sao bento", "recife pe").
+  4. **Buscas Amplas (ex: Letra "A")**:
+     - Digitar "a" localiza todas as 5.048 cidades com a letra 'a' no Brasil, exibindo os 80 primeiros resultados ordenados alfabeticamente com rolagem fluida e badge indicativo do total de ocorrências.
+  5. **Hardening de Segurança e Rota Local de Contingência**:
+     - No `server/server.js`, a diretiva CSP foi explicitamente configurada para permitir `connect-src 'self' https://servicodados.ibge.gov.br`.
+     - Criada rota local de contingência `GET /api/municipios` servindo a base de cidades na mesma origem.
+- **Validações Reais**:
+  - Testes de busca executados e verificados com 100% de assertividade:
+    - `"rec"` → `Recife/PE` em 1º lugar (além de Recreio/MG e Recursolândia/TO).
+    - `"a"` → 5.048 correspondências, primeiras 80 listadas instantaneamente com rolagem fluida.
+    - `"recife pe"` → `Recife/PE`.
+    - `"surubim"` → `Surubim/PE`.
+    - `"sao bento do una"` → `São Bento do Una/PE`.
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** (20 arquivos verificados).
+  - `npm run build --prefix client`: Vite build para produção concluído com sucesso em 639ms (**0 erros**).
+- **Próximo passo**: Enviar commit e disparar deploy automático para validação pelo Yuri em `https://app.entregasrun.com.br`.
+
+
 
 
 

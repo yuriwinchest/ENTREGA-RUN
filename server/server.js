@@ -10,7 +10,17 @@ const PORT = Number(process.env.PORT || 3001)
 
 const app = express()
 app.disable('x-powered-by')
-app.use(helmet())
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'connect-src': ["'self'", 'https://servicodados.ibge.gov.br'],
+        'img-src': ["'self'", 'data:', 'https:'],
+      },
+    },
+  })
+)
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || true }))
 app.use(express.json({ limit: '16kb' }))
 
@@ -27,6 +37,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'entregas-run-server' })
+})
+
+app.get('/api/municipios', (_req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'client', 'public', 'municipios.json'))
 })
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'pacetime@entregas.com').toLowerCase().trim()
