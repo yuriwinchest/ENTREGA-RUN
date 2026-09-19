@@ -504,11 +504,30 @@
 .table-responsive {
   width: 100%;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
 }
 
 .atletas-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
   text-align: left;
   font-size: 12.5px;
 }
@@ -520,12 +539,14 @@
 
 .atletas-table th {
   padding: 14px 18px;
+  min-width: 120px;
   font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.6px;
   color: #64748b;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .atletas-table td {
@@ -533,6 +554,58 @@
   border-bottom: 1px solid #f1f5f9;
   color: #1e293b;
   font-weight: 600;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atletas-table .athlete-name-cell {
+  color: #0c142c;
+  font-weight: 800;
+}
+
+.atletas-table .sticky-athlete-column {
+  position: sticky;
+  z-index: 2;
+  background: #ffffff;
+}
+
+.atletas-table th.sticky-athlete-column {
+  z-index: 4;
+}
+
+.atletas-table .sticky-athlete-column-0 {
+  left: 0;
+  width: 88px;
+  min-width: 88px;
+  max-width: 88px;
+}
+
+.atletas-table .sticky-athlete-column-1 {
+  left: 88px;
+  width: 220px;
+  min-width: 220px;
+  max-width: 220px;
+  box-shadow: 8px 0 12px -12px rgba(15, 23, 42, 0.65);
+}
+
+.atletas-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.atletas-table-scroll-hint {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
 }
 
 .empty-table-cell {
@@ -799,6 +872,32 @@
 
 .kit-result-item:hover {
   background: #fafafa;
+}
+
+.kit-result-identification {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.6fr) minmax(90px, 0.45fr) minmax(170px, 0.8fr);
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  flex: 1;
+  margin-right: 20px;
+}
+
+.kit-result-name {
+  color: #0c142c;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.kit-result-number,
+.kit-result-document {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .btn-entregar-inline {
@@ -1397,6 +1496,39 @@
   color: #0c142c;
 }
 
+.btn-detail-save:disabled,
+.btn-detail-entregar:disabled,
+.btn-detail-entregar-print:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  box-shadow: none;
+  transform: none;
+}
+
+.athlete-detail-action-hint {
+  margin: 0 auto 2px;
+  max-width: 760px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.athlete-detail-feedback {
+  margin: 0 auto 4px;
+  max-width: 760px;
+  padding: 10px 14px;
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+}
+
 /* 2. Três Cards de Destaque */
 .athlete-detail-cards-grid {
   display: grid;
@@ -1942,6 +2074,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   flex-shrink: 0;
 }
 
@@ -2136,7 +2270,7 @@
 
 .filtros-row-2 {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr minmax(190px, 260px);
   gap: 18px;
   align-items: center;
 }
@@ -2262,6 +2396,15 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.audit-filter-live-summary {
+  flex: 1;
+  min-width: 220px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .btn-filtro-action {
@@ -3080,6 +3223,58 @@
 }
 
 @media (max-width: 768px) {
+  .atletas-filter-bar {
+    align-items: stretch !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .atletas-search-wrap {
+    width: 100% !important;
+  }
+
+  .atletas-right-controls {
+    align-items: stretch !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .pill-filters-group {
+    width: 100% !important;
+  }
+
+  .pill-filter-btn {
+    flex: 1 !important;
+    padding-inline: 6px !important;
+  }
+
+  .btn-add-atleta {
+    justify-content: center !important;
+    width: 100% !important;
+  }
+
+  .atletas-table-scroll-hint {
+    display: flex !important;
+  }
+
+  .atletas-table th,
+  .atletas-table td {
+    padding: 12px 14px !important;
+  }
+
+  .atletas-table .sticky-athlete-column-0 {
+    width: 72px !important;
+    min-width: 72px !important;
+    max-width: 72px !important;
+  }
+
+  .atletas-table .sticky-athlete-column-1 {
+    left: 72px !important;
+    width: 180px !important;
+    min-width: 180px !important;
+    max-width: 180px !important;
+  }
+
   .operacao-main {
     padding: 14px 14px 88px 14px !important;
     width: 100% !important;
@@ -3218,6 +3413,30 @@
     height: 44px !important;
   }
 
+  .kit-result-item {
+    align-items: stretch !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    padding: 14px !important;
+  }
+
+  .kit-result-identification {
+    width: 100% !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px 12px !important;
+    margin-right: 0 !important;
+  }
+
+  .kit-result-name {
+    grid-column: 1 / -1 !important;
+  }
+
+  .kit-result-item > button {
+    width: 100% !important;
+    min-height: 38px !important;
+    justify-content: center !important;
+  }
+
   /* Cards de Últimas Entregas */
   .delivery-item-row {
     flex-direction: column !important;
@@ -3252,6 +3471,18 @@
     gap: 8px !important;
   }
 
+  .athlete-detail-actions-bar > button {
+    flex: 1 1 calc(50% - 8px) !important;
+    min-width: 150px !important;
+    height: auto !important;
+    min-height: 42px !important;
+    padding-block: 8px !important;
+    justify-content: center !important;
+    line-height: 1.2 !important;
+    white-space: normal !important;
+    text-align: center !important;
+  }
+
   .detail-form-row-4,
   .detail-form-row-kit-chips {
     grid-template-columns: 1fr !important;
@@ -3284,9 +3515,12 @@
     justify-content: center !important;
     padding: 0 8px !important;
     font-size: 11px !important;
-    height: 42px !important;
+    min-height: 42px !important;
+    height: auto !important;
     box-sizing: border-box !important;
-    white-space: nowrap !important;
+    white-space: normal !important;
+    line-height: 1.2 !important;
+    padding-block: 8px !important;
   }
 
   .audit-metrics-grid {

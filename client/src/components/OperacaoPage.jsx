@@ -1,10 +1,28 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import Sidebar from './Sidebar.jsx'
 import EspelhoModal from './EspelhoModal.jsx'
 import ImportarAtletasModal from './ImportarAtletasModal.jsx'
 import AssociarPlanilhasModal from './AssociarPlanilhasModal.jsx'
 import CustomSelect from './CustomSelect.jsx'
-import { exportCsvFile } from '../utils/auditData.js'
+import {
+  enrichAuditRecords,
+  exportCsvFile,
+  filterAuditRecords,
+  getAuditOperatorOptions,
+  getAuditTimestamp,
+  openAuditReportPrint,
+} from '../utils/auditData.js'
+import {
+  buildAthleteDetailDraft,
+  hasAthleteDetailChanges,
+  matchesAthleteReference,
+  normalizeAthleteDetail,
+} from '../utils/athleteDetail.js'
+import {
+  getAthleteTableColumns,
+  getAthleteTableValue,
+  mergeAthleteColumnSchemas,
+} from '../utils/athleteTable.js'
 import './OperacaoPage.css'
 
 function HelpCircleIcon() {
@@ -320,6 +338,16 @@ export default function OperacaoPage({
   // Selected athlete for detailed kit delivery view (Photo reference)
   const [selectedAthlete, setSelectedAthlete] = useState(null)
   const [detailForm, setDetailForm] = useState(null)
+  const [detailInitialForm, setDetailInitialForm] = useState(null)
+  const [detailFeedback, setDetailFeedback] = useState('')
+  const [detailActionInProgress, setDetailActionInProgress] = useState(false)
+  const detailActionLockRef = useRef(false)
+  const deliveryLocksRef = useRef(new Set())
+
+  const detailHasChanges = useMemo(
+    () => hasAthleteDetailChanges(detailInitialForm, detailForm),
+    [detailInitialForm, detailForm]
+  )
 
   const currentEvent = useMemo(() => event || {
     id: '',
@@ -345,6 +373,16 @@ export default function OperacaoPage({
     }
   })
 
+  const [athleteColumnSchema, setAthleteColumnSchema] = useState(() => {
+    try {
+      if (!currentEvent.id) return []
+      const saved = localStorage.getItem(`entregas_run_athlete_columns_${currentEvent.id}`)
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+
   // Save athletes to localStorage
   useEffect(() => {
     try {
@@ -358,6 +396,19 @@ export default function OperacaoPage({
       // ignore
     }
   }, [athletes, currentEvent.id])
+
+  useEffect(() => {
+    try {
+      if (currentEvent.id) {
+        localStorage.setItem(
+          `entregas_run_athlete_columns_${currentEvent.id}`,
+          JSON.stringify(athleteColumnSchema)
+        )
+      }
+    } catch {
+      // ignore
+    }
+  }, [athleteColumnSchema, currentEvent.id])
 
   // Deliveries list
   const [deliveries, setDeliveries] = useState(() => {
@@ -523,10 +574,11 @@ export default function OperacaoPage({
               id: `aud-${Date.now()}-${athlete.numero}`,
               comprovanteId: `CPR-${Math.floor(100000 + Math.random() * 900000)}`,
               dataHora: athlete.entregueEm || new Date().toLocaleString('pt-BR'),
-              timestamp: Date.now(),
+              timestamp: getAuditTimestamp({ dataHora: athlete.entregueEm }) ?? Date.now(),
               atletaNumero: athlete.numero,
               atletaNome: athlete.nome,
               atletaCpf: athlete.doc || '—',
+              atletaChip: athlete.chip || '',
               tipo: athlete.entreguePara && athlete.entreguePara.trim().toUpperCase() !== athlete.nome.trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
               retiradoPor: athlete.entreguePara || athlete.nome,
               operadorNome: athlete.entreguePor || user?.name || 'Felipe Admin',
@@ -585,10 +637,11 @@ export default function OperacaoPage({
             id: `aud-${Date.now()}-${athlete.numero}`,
             comprovanteId: `CPR-${Math.floor(100000 + Math.random() * 900000)}`,
             dataHora: nowStr,
-            timestamp: Date.now(),
+            timestamp: getAuditTimestamp({ dataHora: nowStr }) ?? Date.now(),
             atletaNumero: athlete.numero,
             atletaNome: athlete.nome,
             atletaCpf: athlete.doc || '—',
+            atletaChip: athlete.chip || '',
             tipo: athlete.entreguePara && athlete.entreguePara.trim().toUpperCase() !== athlete.nome.trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
             retiradoPor: athlete.entreguePara || athlete.nome,
             operadorNome: athlete.entreguePor || user?.name || 'Felipe Admin',
@@ -616,9 +669,7 @@ export default function OperacaoPage({
   const [auditTypeFilter, setAuditTypeFilter] = useState('TODOS')
   const [auditPeriod, setAuditPeriod] = useState('TODOS')
   const [auditMatchMode, setAuditMatchMode] = useState('contem')
-  const [auditOnlyMatches, setAuditOnlyMatches] = useState(false)
   const [auditIncludeComprovantes, setAuditIncludeComprovantes] = useState(true)
-  const [auditPreset, setAuditPreset] = useState('tudo')
   const [auditPerPage, setAuditPerPage] = useState(50)
   const [auditPage, setAuditPage] = useState(1)
 
@@ -626,6 +677,12 @@ export default function OperacaoPage({
   const [selectedComprovante, setSelectedComprovante] = useState(null)
 
   function handleImportSuccess(newAthletes, options = {}) {
+    if (Array.isArray(options.columns) && options.columns.length > 0) {
+      setAthleteColumnSchema((current) =>
+        mergeAthleteColumnSchemas(current, options.columns)
+      )
+    }
+
     setAthletes((prev) => {
       const existingMap = new Map(prev.map((a) => [String(a.numero || a.id), a]))
       for (const a of newAthletes) {
@@ -667,16 +724,20 @@ export default function OperacaoPage({
   }
 
   function handleExportPlanilha() {
-    const filename = `atletas_${(currentEvent?.name || 'evento').toLowerCase().replace(/\s+/g, '_')}.csv`
-    exportCsvFile(athletes, filename)
+    const filename = `planilha_geral_${(currentEvent?.name || 'evento').toLowerCase().replace(/\s+/g, '_')}.csv`
+    try {
+      exportCsvFile(athletes, filename)
+    } catch {
+      window.alert('Não foi possível baixar a planilha geral. Tente novamente e verifique se o navegador bloqueou o download.')
+    }
   }
 
   function handleExportAuditsCsv() {
     const filename = `auditoria_entregas_${(currentEvent?.name || 'evento').toLowerCase().replace(/\s+/g, '_')}.csv`
     const headers = [
-      'COMPROVANTE',
       'DATA_HORA',
       'NUMERO',
+      'CHIP',
       'ATLETA',
       'CPF',
       'TIPO',
@@ -687,65 +748,76 @@ export default function OperacaoPage({
       'CAMISETA',
       'MODALIDADE',
     ]
-    const rows = filteredAudits.map((a) => [
-      a.comprovanteId || '',
+    if (auditIncludeComprovantes) headers.unshift('COMPROVANTE')
+
+    const rows = filteredAudits.map((a) => {
+      const row = [
       a.dataHora || '',
       a.atletaNumero || '',
-      `"${(a.atletaNome || '').replace(/"/g, '""')}"`,
+      a.atletaChip || '',
+      a.atletaNome || '',
       a.atletaCpf || '',
       a.tipo || '',
-      `"${(a.retiradoPor || '').replace(/"/g, '""')}"`,
-      `"${(a.operadorNome || '').replace(/"/g, '""')}"`,
-      `"${(a.pontoEntrega || '').replace(/"/g, '""')}"`,
-      `"${(a.kit || '').replace(/"/g, '""')}"`,
+      a.retiradoPor || '',
+      a.operadorNome || '',
+      a.pontoEntrega || '',
+      a.kit || '',
       a.camiseta || '',
-      `"${(a.modalidade || '').replace(/"/g, '""')}"`,
-    ])
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\r\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.setAttribute('href', url)
-    link.setAttribute('download', filename)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+      a.modalidade || '',
+      ]
+      if (auditIncludeComprovantes) row.unshift(a.comprovanteId || '')
+      return row
+    })
+
+    try {
+      exportCsvFile(filename, headers, rows)
+    } catch {
+      window.alert('Não foi possível exportar as entregas filtradas. Tente novamente.')
+    }
   }
 
   function handlePrintAuditPdf() {
-    window.print()
+    if (filteredAudits.length === 0) {
+      window.alert('Não há entregas para gerar o relatório com os filtros atuais.')
+      return
+    }
+    const opened = openAuditReportPrint({
+      eventName: currentEvent?.name,
+      records: filteredAudits,
+      filterSummary: auditFilterSummary,
+      includeComprovantes: auditIncludeComprovantes,
+    })
+    if (!opened) {
+      window.alert('O navegador bloqueou a janela do relatório. Libere pop-ups para gerar o PDF.')
+    }
   }
 
-  // Filter audits based on user criteria
-  const filteredAudits = audits.filter((item) => {
-    if (auditSearch.trim()) {
-      const q = auditSearch.trim().toLowerCase()
-      const nome = (item.atletaNome || '').toLowerCase()
-      const peito = String(item.atletaNumero || '').toLowerCase()
-      const cpf = (item.atletaCpf || '').toLowerCase().replace(/\D/g, '')
-      const qClean = q.replace(/\D/g, '')
+  const enrichedAudits = useMemo(
+    () => enrichAuditRecords(audits, athletes),
+    [audits, athletes]
+  )
 
-      let match = false
-      if (auditMatchMode === 'exato') {
-        match = nome === q || peito === q || (qClean && cpf === qClean)
-      } else if (auditMatchMode === 'inicia') {
-        match = nome.startsWith(q) || peito.startsWith(q) || (qClean && cpf.startsWith(qClean))
-      } else {
-        match = nome.includes(q) || peito.includes(q) || (qClean && cpf.includes(qClean))
-      }
-      if (!match) return false
-    }
+  const auditOperatorOptions = useMemo(
+    () => getAuditOperatorOptions(enrichedAudits, operators),
+    [enrichedAudits, operators]
+  )
 
-    if (auditOperatorFilter !== 'TODOS') {
-      if (item.operadorNome !== auditOperatorFilter) return false
-    }
-
-    if (auditTypeFilter !== 'TODOS') {
-      if (item.tipo !== auditTypeFilter) return false
-    }
-
-    return true
+  // A tabela, os cards, o CSV e o PDF consomem exatamente o mesmo resultado.
+  const filteredAudits = filterAuditRecords({
+    audits: enrichedAudits,
+    search: auditSearch,
+    operator: auditOperatorFilter,
+    type: auditTypeFilter,
+    period: auditPeriod,
+    matchMode: auditMatchMode,
   })
+
+  const auditFilterSummary = [
+    auditSearch.trim() ? `Busca: ${auditSearch.trim()}` : null,
+    auditOperatorFilter !== 'TODOS' ? `Operador: ${auditOperatorFilter}` : 'Todos os operadores',
+    auditPeriod !== 'TODOS' ? `Período: ${auditPeriod}` : 'Todo o período',
+    auditTypeFilter !== 'TODOS' ? `Tipo: ${auditTypeFilter}` : null,
+  ].filter(Boolean).join(' · ')
 
   // Metrics calculations
   const totalAuditsCount = filteredAudits.length
@@ -786,26 +858,9 @@ export default function OperacaoPage({
 
     if (athlete) {
       setSelectedAthlete(athlete)
-      setDetailForm({
-        numero: athlete.numero || athlete.id,
-        nome: athlete.nome,
-        doc: athlete.doc || '',
-        nascimento: athlete.nascimento || '17/02/2001',
-        sexo: athlete.sexo || 'Masculino',
-        modalidade: athlete.modalidade || '5 KM',
-        categoria: athlete.categoria || 'GERAL',
-        equipe: athlete.equipe || '—',
-        nacionalidade: athlete.nacionalidade || 'BRASIL',
-        kit: athlete.kit || 'KIT ELITE',
-        camiseta: athlete.camiseta || 'M',
-        chip: athlete.chip || '6855',
-        morador: athlete.morador || 'Morador',
-        contato: athlete.contato || '',
-        entreguePara: athlete.entreguePara || athlete.nome,
-        entregueEm: athlete.entregueEm || '16/09/2026, 20:15:37',
-        entreguePor: athlete.entreguePor || 'f58694b1-bce0-4ff8-a71c-e2301bb0fb31',
-        status: athlete.status || 'ENTREGUE',
-      })
+      const draft = buildAthleteDetailDraft(athlete)
+      setDetailForm(draft)
+      setDetailInitialForm(buildAthleteDetailDraft(athlete))
     } else {
       // Fallback if opened from delivery item not yet in athletes
       const deliveryItem = deliveries.find((d) => String(d.id) === String(athleteId))
@@ -814,89 +869,158 @@ export default function OperacaoPage({
         numero: String(athleteId),
         nome: deliveryItem?.name || 'ATLETA',
         doc: deliveryItem?.doc || '',
-        nascimento: '17/02/2001',
-        sexo: 'Masculino',
-        modalidade: '5 KM',
+        nascimento: '',
+        sexo: '',
+        modalidade: deliveryItem?.modalidade || '',
         categoria: deliveryItem?.category || 'GERAL',
-        equipe: '—',
-        nacionalidade: 'BRASIL',
-        kit: deliveryItem?.kit || 'KIT ELITE',
-        camiseta: deliveryItem?.size || 'M',
-        chip: '6855',
-        morador: 'Morador',
+        equipe: '',
+        nacionalidade: '',
+        kit: deliveryItem?.kit || '',
+        camiseta: deliveryItem?.size || '',
+        chip: '',
+        morador: '',
         contato: '',
         entreguePara: deliveryItem?.name || 'ATLETA',
-        entregueEm: '16/09/2026, 20:15:37',
-        entreguePor: 'f58694b1-bce0-4ff8-a71c-e2301bb0fb31',
-        status: 'ENTREGUE',
+        entregueEm: deliveryItem?.dataHora || '',
+        entreguePor: '',
+        status: deliveryItem ? 'ENTREGUE' : 'PENDENTE',
       }
       setSelectedAthlete(fallbackAthlete)
-      setDetailForm({ ...fallbackAthlete })
+      setDetailForm(buildAthleteDetailDraft(fallbackAthlete))
+      setDetailInitialForm(buildAthleteDetailDraft(fallbackAthlete))
     }
+    setDetailFeedback('')
     setActiveTab('entrega')
   }
 
-  // Save changes from Detail View
-  function handleSaveDetail(e) {
-    if (e) e.preventDefault()
-    if (isOperator) return
-    if (!detailForm || !selectedAthlete) return
-
-    const updated = athletes.map((a) => {
-      if (String(a.numero) === String(selectedAthlete.numero) || String(a.id) === String(selectedAthlete.id)) {
-        return {
-          ...a,
-          ...detailForm,
-          nome: detailForm.nome.toUpperCase(),
-          numero: detailForm.numero,
-        }
-      }
-      return a
-    })
-    setAthletes(updated)
-
-    // Update deliveries if name or size changed
-    setDeliveries((prev) =>
-      prev.map((d) => {
-        if (String(d.id) === String(selectedAthlete.numero)) {
-          return {
-            ...d,
-            name: detailForm.nome.toUpperCase(),
-            doc: detailForm.doc,
-            category: detailForm.categoria,
-            size: detailForm.camiseta,
-            kit: detailForm.kit,
-          }
-        }
-        return d
-      })
-    )
-
-    // Sincroniza dados com o histórico de Auditoria
-    setAudits((prev) =>
-      prev.map((item) => {
-        if (String(item.atletaNumero) === String(selectedAthlete.numero)) {
-          return {
-            ...item,
-            atletaNome: detailForm.nome.toUpperCase(),
-            atletaCpf: detailForm.doc || item.atletaCpf,
-            retiradoPor: detailForm.entreguePara || detailForm.nome,
-            tipo:
-              detailForm.entreguePara &&
-              detailForm.entreguePara.trim().toUpperCase() !== detailForm.nome.trim().toUpperCase()
-                ? 'TERCEIRO'
-                : 'ATLETA',
-            kit: detailForm.kit || item.kit,
-            camiseta: detailForm.camiseta || item.camiseta,
-            modalidade: detailForm.modalidade || item.modalidade,
-          }
-        }
-        return item
-      })
-    )
+  function closeAthleteDetail({ force = false } = {}) {
+    if (!force && detailHasChanges) {
+      const shouldDiscard = window.confirm(
+        'Existem alterações não salvas. Deseja descartar e voltar para a lista?'
+      )
+      if (!shouldDiscard) return false
+    }
 
     setSelectedAthlete(null)
     setDetailForm(null)
+    setDetailInitialForm(null)
+    setDetailFeedback('')
+    return true
+  }
+
+  function handleGuardedNavigate(page, id) {
+    if (!closeAthleteDetail()) return
+    onNavigate(page, id)
+  }
+
+  function handleGuardedLogout() {
+    if (!closeAthleteDetail()) return
+    onLogout()
+  }
+
+  function handleOperationTabChange(tab) {
+    if (tab !== 'entrega' && !closeAthleteDetail()) return
+    setActiveTab(tab)
+  }
+
+  function persistDetailDraft({ showFeedback = true } = {}) {
+    if (isOperator || !detailForm || !selectedAthlete) return null
+
+    const normalized = normalizeAthleteDetail(selectedAthlete, detailForm)
+    if (!normalized.nome) {
+      window.alert('Informe o nome do atleta antes de salvar.')
+      return null
+    }
+    if (!normalized.numero) {
+      window.alert('Informe o número do atleta antes de salvar.')
+      return null
+    }
+
+    const duplicatedNumber = athletes.some(
+      (athlete) =>
+        !matchesAthleteReference(athlete, selectedAthlete) &&
+        String(athlete.numero) === String(normalized.numero)
+    )
+    if (duplicatedNumber) {
+      window.alert(`O número ${normalized.numero} já pertence a outro atleta.`)
+      return null
+    }
+
+    setAthletes((prev) => {
+      let found = false
+      const updated = prev.map((athlete) => {
+        if (!matchesAthleteReference(athlete, selectedAthlete)) return athlete
+        found = true
+        return normalized
+      })
+      return found ? updated : [normalized, ...updated]
+    })
+
+    setDeliveries((prev) =>
+      prev.map((delivery) => {
+        if (String(delivery.id) !== String(selectedAthlete.numero)) return delivery
+        return {
+          ...delivery,
+          id: normalized.numero,
+          name: normalized.nome,
+          doc: normalized.doc,
+          category: normalized.categoria,
+          size: normalized.camiseta,
+          kit: normalized.kit,
+        }
+      })
+    )
+
+    const recipient = normalized.entreguePara || normalized.nome
+    setAudits((prev) =>
+      prev.map((item) => {
+        if (String(item.atletaNumero) !== String(selectedAthlete.numero)) return item
+        return {
+          ...item,
+          atletaNumero: normalized.numero,
+          atletaNome: normalized.nome,
+          atletaCpf: normalized.doc || item.atletaCpf,
+          atletaChip: normalized.chip,
+          retiradoPor: recipient,
+          tipo: recipient.trim().toUpperCase() !== normalized.nome.trim().toUpperCase()
+            ? 'TERCEIRO'
+            : 'ATLETA',
+          kit: normalized.kit || item.kit,
+          camiseta: normalized.camiseta || item.camiseta,
+          modalidade: normalized.modalidade || item.modalidade,
+        }
+      })
+    )
+
+    const savedDraft = buildAthleteDetailDraft(normalized)
+    setSelectedAthlete(normalized)
+    setDetailForm(savedDraft)
+    setDetailInitialForm(buildAthleteDetailDraft(normalized))
+    if (showFeedback) {
+      setDetailFeedback(
+        normalized.status === 'ENTREGUE'
+          ? 'Alterações salvas e histórico atualizado.'
+          : 'Alterações salvas. O kit continua pendente.'
+      )
+    }
+    return normalized
+  }
+
+  // Save changes from Detail View without recording a kit delivery.
+  function handleSaveDetail(e) {
+    if (e) e.preventDefault()
+    if (detailActionLockRef.current || !detailHasChanges) return
+
+    detailActionLockRef.current = true
+    setDetailActionInProgress(true)
+    try {
+      persistDetailDraft()
+    } finally {
+      window.setTimeout(() => {
+        detailActionLockRef.current = false
+        setDetailActionInProgress(false)
+      }, 0)
+    }
   }
 
   // Revert / Undo Delivery
@@ -943,6 +1067,8 @@ export default function OperacaoPage({
 
     setSelectedAthlete(null)
     setDetailForm(null)
+    setDetailInitialForm(null)
+    setDetailFeedback('')
   }
 
   // Handle Add Athlete Submission
@@ -992,10 +1118,15 @@ export default function OperacaoPage({
   }
 
   // Deliver kit to an athlete directly
-  function handleDeliverKit(athlete) {
+  function handleDeliverKit(athlete, sourceAthlete = athlete) {
+    if (!athlete) return null
     if (athlete.status === 'ENTREGUE') {
       return audits.find((a) => String(a.atletaNumero) === String(athlete.numero))
     }
+
+    const deliveryKey = String(sourceAthlete?.id ?? sourceAthlete?.numero ?? athlete.numero)
+    if (deliveryLocksRef.current.has(deliveryKey)) return null
+    deliveryLocksRef.current.add(deliveryKey)
 
     const now = new Date()
     const dataHoraFormatada = now.toLocaleString('pt-BR', {
@@ -1009,17 +1140,19 @@ export default function OperacaoPage({
 
     const opName = user?.name || 'Felipe Admin'
     const opEmail = user?.email || 'pacetime@entregas.com'
+    const recipient = String(athlete.entreguePara || athlete.nome).trim()
 
     // Mark athlete as ENTREGUE
     setAthletes((prev) =>
       prev.map((a) =>
-        String(a.numero) === String(athlete.numero)
+        matchesAthleteReference(a, sourceAthlete) || String(a.numero) === String(athlete.numero)
           ? {
               ...a,
+              ...athlete,
               status: 'ENTREGUE',
               entregueEm: dataHoraFormatada,
               entreguePor: opName,
-              entreguePara: athlete.nome,
+              entreguePara: recipient,
             }
           : a
       )
@@ -1047,8 +1180,9 @@ export default function OperacaoPage({
       atletaNumero: athlete.numero,
       atletaNome: athlete.nome,
       atletaCpf: athlete.doc || '—',
-      tipo: 'ATLETA',
-      retiradoPor: athlete.nome,
+      atletaChip: athlete.chip || '',
+      tipo: recipient.toUpperCase() !== athlete.nome.trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
+      retiradoPor: recipient,
       operadorNome: opName,
       operadorEmail: opEmail,
       pontoEntrega: 'Guichê Principal',
@@ -1082,7 +1216,36 @@ export default function OperacaoPage({
       })
     }
 
+    window.setTimeout(() => {
+      deliveryLocksRef.current.delete(deliveryKey)
+    }, 0)
+
     return newAudit
+  }
+
+  function handleSaveAndDeliver({ print = false } = {}) {
+    if (detailActionLockRef.current || !selectedAthlete) return
+
+    detailActionLockRef.current = true
+    setDetailActionInProgress(true)
+    try {
+      const sourceAthlete = selectedAthlete
+      const athleteToDeliver = isOperator
+        ? selectedAthlete
+        : persistDetailDraft({ showFeedback: false })
+      if (!athleteToDeliver) return
+
+      const auditRecord = handleDeliverKit(athleteToDeliver, sourceAthlete)
+      if (!auditRecord) return
+
+      closeAthleteDetail({ force: true })
+      if (print) handleOpenComprovante(auditRecord)
+    } finally {
+      window.setTimeout(() => {
+        detailActionLockRef.current = false
+        setDetailActionInProgress(false)
+      }, 0)
+    }
   }
 
   // Abre modal do comprovante (2 vias) para um atleta ou registro de auditoria
@@ -1144,11 +1307,23 @@ export default function OperacaoPage({
     return matchesSearch && matchesFilter
   })
 
+  const athleteTableColumns = useMemo(
+    () => getAthleteTableColumns(athletes, athleteColumnSchema),
+    [athletes, athleteColumnSchema]
+  )
+  const visibleAthleteTableColumns = useMemo(() => {
+    if (!isOperator) return athleteTableColumns
+    const operatorColumns = new Set(['numero', 'nome', 'doc', 'chip', 'status'])
+    return athleteTableColumns.filter(
+      (column) => column.type === 'standard' && operatorColumns.has(column.key)
+    )
+  }, [athleteTableColumns, isOperator])
+
   // Filtered Athletes for Tab 1 (Kit Search)
   const searchResultsKit = kitSearch.trim()
     ? athletes.filter((a) => {
         const q = kitSearch.toLowerCase().trim()
-        return (
+        return a.status !== 'ENTREGUE' && (
           (a.nome && a.nome.toLowerCase().includes(q)) ||
           (a.numero && String(a.numero).includes(q)) ||
           (a.doc && a.doc.toLowerCase().includes(q))
@@ -1160,7 +1335,12 @@ export default function OperacaoPage({
 
   return (
     <div className="operacao-layout">
-      <Sidebar activePage="operacao" onNavigate={onNavigate} onLogout={onLogout} user={user} />
+      <Sidebar
+        activePage="operacao"
+        onNavigate={handleGuardedNavigate}
+        onLogout={handleGuardedLogout}
+        user={user}
+      />
 
       <main className="operacao-main">
         {/* Top bar with Event title on left and Tutorial / Voltar on right */}
@@ -1180,7 +1360,7 @@ export default function OperacaoPage({
             <button
               type="button"
               className="operacao-ghost-btn"
-              onClick={() => onNavigate('eventos')}
+              onClick={() => handleGuardedNavigate('eventos')}
             >
               <ArrowLeftIcon />
               <span>Voltar</span>
@@ -1226,9 +1406,7 @@ export default function OperacaoPage({
           <button
             type="button"
             className={`operacao-subtab ${effectiveTab === 'entrega' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('entrega')
-            }}
+            onClick={() => handleOperationTabChange('entrega')}
           >
             <ZapIcon />
             <span className="tab-label-full">ENTREGA DE KIT</span>
@@ -1238,10 +1416,7 @@ export default function OperacaoPage({
           <button
             type="button"
             className={`operacao-subtab ${effectiveTab === 'atletas' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('atletas')
-              setSelectedAthlete(null)
-            }}
+            onClick={() => handleOperationTabChange('atletas')}
           >
             <UsersTabIcon />
             <span>ATLETAS</span>
@@ -1250,10 +1425,7 @@ export default function OperacaoPage({
           <button
             type="button"
             className={`operacao-subtab ${effectiveTab === 'estatisticas' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('estatisticas')
-              setSelectedAthlete(null)
-            }}
+            onClick={() => handleOperationTabChange('estatisticas')}
           >
             <BarChartTabIcon />
             <span className="tab-label-full">ESTATÍSTICAS</span>
@@ -1264,10 +1436,7 @@ export default function OperacaoPage({
             <button
               type="button"
               className={`operacao-subtab ${effectiveTab === 'auditoria' ? 'active' : ''}`}
-              onClick={() => {
-                setActiveTab('auditoria')
-                setSelectedAthlete(null)
-              }}
+              onClick={() => handleOperationTabChange('auditoria')}
             >
               <ClipboardIcon />
               <span>AUDITORIA</span>
@@ -1311,27 +1480,24 @@ export default function OperacaoPage({
                       <button
                         type="button"
                         className="btn-detail-entregar"
-                        onClick={() => {
-                          handleDeliverKit(selectedAthlete)
-                          setSelectedAthlete(null)
-                        }}
-                        title="Confirmar entrega do kit"
+                        onClick={() => handleSaveAndDeliver()}
+                        disabled={detailActionInProgress}
+                        title={isOperator ? 'Confirmar entrega do kit' : 'Salvar os dados atuais e entregar o kit'}
                       >
                         <CheckCircleIcon />
-                        <span>ENTREGAR KIT</span>
+                        <span>{isOperator ? 'ENTREGAR KIT' : 'SALVAR E ENTREGAR KIT'}</span>
                       </button>
                       <button
                         type="button"
                         className="btn-detail-entregar-print"
-                        onClick={() => {
-                          const auditRec = handleDeliverKit(selectedAthlete)
-                          setSelectedAthlete(null)
-                          handleOpenComprovante(auditRec || selectedAthlete)
-                        }}
-                        title="Confirmar entrega e abrir comprovante (2 Vias)"
+                        onClick={() => handleSaveAndDeliver({ print: true })}
+                        disabled={detailActionInProgress}
+                        title={isOperator
+                          ? 'Confirmar entrega e abrir comprovante (2 vias)'
+                          : 'Salvar os dados atuais, entregar e abrir comprovante (2 vias)'}
                       >
                         <PrinterIcon />
-                        <span>ENTREGAR & IMPRIMIR</span>
+                        <span>{isOperator ? 'ENTREGAR & IMPRIMIR' : 'SALVAR, ENTREGAR E IMPRIMIR'}</span>
                       </button>
                     </>
                   )}
@@ -1341,26 +1507,38 @@ export default function OperacaoPage({
                       type="button"
                       className="btn-detail-save"
                       onClick={handleSaveDetail}
-                      title="Salvar alterações"
+                      disabled={!detailHasChanges || detailActionInProgress}
+                      title={detailHasChanges
+                        ? 'Salvar o cadastro sem entregar o kit'
+                        : 'Nenhuma alteração para salvar'}
                     >
                       <SaveIcon />
-                      <span>SALVAR</span>
+                      <span>SALVAR ALTERAÇÕES</span>
                     </button>
                   )}
 
                   <button
                     type="button"
                     className="btn-detail-cancel"
-                    onClick={() => {
-                      setSelectedAthlete(null)
-                      setDetailForm(null)
-                    }}
-                    title="Cancelar e voltar à lista"
+                    onClick={() => closeAthleteDetail()}
+                    title="Voltar à lista"
                   >
                     <CancelIcon />
-                    <span>CANCELAR</span>
+                    <span>VOLTAR À LISTA</span>
                   </button>
                 </div>
+
+                {!isOperator && detailForm.status !== 'ENTREGUE' && (
+                  <p className="athlete-detail-action-hint">
+                    Salvar alterações não registra a entrega. Para concluir a retirada agora, use “Salvar e entregar kit”.
+                  </p>
+                )}
+
+                {detailFeedback && !detailHasChanges && (
+                  <div className="athlete-detail-feedback" role="status">
+                    {detailFeedback}
+                  </div>
+                )}
 
                 {/* 2. Três Cards de Destaque */}
                 <div className="athlete-detail-cards-grid">
@@ -1435,9 +1613,17 @@ export default function OperacaoPage({
                         type="text"
                         className="athlete-form-input"
                         value={detailForm.nome}
-                        onChange={(e) =>
-                          setDetailForm({ ...detailForm, nome: e.target.value })
-                        }
+                        onChange={(e) => {
+                          const nextName = e.target.value
+                          const recipientFollowedAthlete =
+                            !detailForm.entreguePara || detailForm.entreguePara === detailForm.nome
+                          setDetailForm({
+                            ...detailForm,
+                            nome: nextName,
+                            ...(recipientFollowedAthlete ? { entreguePara: nextName } : {}),
+                          })
+                          setDetailFeedback('')
+                        }}
                       />
                     </div>
 
@@ -1711,7 +1897,6 @@ export default function OperacaoPage({
                                     ...detailForm.customFields,
                                     [k]: newVal,
                                   },
-                                  [k]: newVal,
                                   ...(k.toUpperCase().includes('PCD') ? { pcd: newVal } : {}),
                                 })
                               }}
@@ -1785,41 +1970,21 @@ export default function OperacaoPage({
                             className="kit-result-item"
                           >
                             <div
-                              className="athlete-main clickable-athlete"
+                              className="kit-result-identification clickable-athlete"
                               onClick={() => handleOpenAthleteDetail(athlete.numero)}
                               title="Ver detalhes do atleta"
                             >
-                              <span className="athlete-peito">#{athlete.numero}</span>
-                              <span className="athlete-name">{athlete.nome}</span>
-                              <span className="athlete-doc">— {athlete.doc}</span>
+                              <span className="kit-result-name">{athlete.nome || '—'}</span>
+                              <span className="kit-result-number">Nº {athlete.numero || '—'}</span>
+                              <span className="kit-result-document">CPF {athlete.doc || '—'}</span>
                             </div>
-                            <div className="delivery-tags">
-                              {Boolean(athlete.pcd || athlete.customFields?.['PCD'] || athlete.customFields?.['PCD MEMBROS INFERIORES']) && (
-                                <span className="tag-pcd-badge" title="Atleta PCD">
-                                  ♿ {athlete.pcd || athlete.customFields?.['PCD MEMBROS INFERIORES'] || athlete.customFields?.['PCD'] || 'PCD'}
-                                </span>
-                              )}
-                              <span className="tag-gray">{athlete.categoria}</span>
-                              <span className="tag-gray">CAMISETA {athlete.camiseta}</span>
-                              <span className="tag-gray">{athlete.kit}</span>
-                              {athlete.status === 'ENTREGUE' ? (
-                                <button
-                                  type="button"
-                                  className="tag-green btn-view-badge"
-                                  onClick={() => handleOpenAthleteDetail(athlete.numero)}
-                                >
-                                  ENTREGUE
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="btn-entregar-inline"
-                                  onClick={() => handleDeliverKit(athlete)}
-                                >
-                                  ENTREGAR KIT
-                                </button>
-                              )}
-                            </div>
+                            <button
+                              type="button"
+                              className="btn-entregar-inline"
+                              onClick={() => handleDeliverKit(athlete)}
+                            >
+                              ENTREGAR KIT
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -1850,7 +2015,7 @@ export default function OperacaoPage({
                             title="Clique para ver dados completos e entrega deste atleta"
                           >
                             <div className="athlete-main">
-                              <span className="athlete-peito">#{item.id}</span>
+                              <span className="athlete-peito">Nº {item.id}</span>
                               <span className="athlete-name highlight-link">{item.name}</span>
                               <span className="athlete-doc">— {item.doc}</span>
                             </div>
@@ -1923,24 +2088,31 @@ export default function OperacaoPage({
             </div>
 
             <div className="atletas-table-card">
+              <div className="atletas-table-scroll-hint">
+                <span aria-hidden="true">↔</span>
+                Deslize para ver todos os {visibleAthleteTableColumns.length} campos
+              </div>
               <div className="table-responsive">
-                <table className="atletas-table">
+                <table
+                  className="atletas-table"
+                  style={{ minWidth: `${Math.max(780, visibleAthleteTableColumns.length * 145)}px` }}
+                >
                   <thead>
                     <tr>
-                      <th style={{ width: '45px' }}>#</th>
-                      <th>NOME</th>
-                      <th>DOCUMENTO</th>
-                      <th>MODALIDADE</th>
-                      <th>CATEGORIA</th>
-                      <th>CAMISETA</th>
-                      <th>EQUIPE</th>
-                      <th>KIT</th>
+                      {visibleAthleteTableColumns.map((column, columnIndex) => (
+                        <th
+                          key={column.key}
+                          className={columnIndex < 2 ? `sticky-athlete-column sticky-athlete-column-${columnIndex}` : ''}
+                        >
+                          {column.label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {filteredAthletes.length === 0 ? (
                       <tr>
-                        <td colSpan="8" className="empty-table-cell">
+                        <td colSpan={visibleAthleteTableColumns.length} className="empty-table-cell">
                           Nenhum atleta encontrado.
                         </td>
                       </tr>
@@ -1952,14 +2124,18 @@ export default function OperacaoPage({
                           style={{ cursor: 'pointer' }}
                           title="Clique para abrir detalhes do atleta"
                         >
-                          <td>{a.numero}</td>
-                          <td style={{ fontWeight: 700, color: '#0c142c' }}>{a.nome}</td>
-                          <td>{a.doc || '—'}</td>
-                          <td>{a.modalidade || '5 KM'}</td>
-                          <td>{a.categoria || 'GERAL'}</td>
-                          <td>{a.camiseta || 'M'}</td>
-                          <td>{a.equipe || '—'}</td>
-                          <td>{a.kit || 'Kit Padrão'}</td>
+                          {visibleAthleteTableColumns.map((column, columnIndex) => {
+                            const cellValue = getAthleteTableValue(a, column)
+                            return (
+                              <td
+                                key={column.key}
+                                className={`${columnIndex < 2 ? `sticky-athlete-column sticky-athlete-column-${columnIndex}` : ''} ${column.key === 'nome' ? 'athlete-name-cell' : ''}`.trim()}
+                                title={cellValue === '—' ? undefined : cellValue}
+                              >
+                                {cellValue}
+                              </td>
+                            )
+                          })}
                         </tr>
                       ))
                     )}
@@ -1970,7 +2146,7 @@ export default function OperacaoPage({
 
             <div className="atletas-table-footer">
               <span>
-                Mostrando {filteredAthletes.length} de {athletes.length} atletas.
+                Mostrando {filteredAthletes.length} de {athletes.length} atletas · {visibleAthleteTableColumns.length} campos exibidos.
               </span>
             </div>
           </div>
@@ -2224,9 +2400,9 @@ export default function OperacaoPage({
                   <TableSpreadsheetIcon />
                 </div>
                 <div className="planilha-box-info">
-                  <h3 className="planilha-box-title">PLANILHA DE ATLETAS</h3>
+                  <h3 className="planilha-box-title">BASE GERAL DE ATLETAS</h3>
                   <p className="planilha-box-subtitle">
-                    Importe sua planilha base (XLSX, XLS ou CSV) com mapeamento de colunas ou exporte o consolidado com entregas.
+                    Lista completa e atualizada do evento, com atletas entregues e pendentes.
                   </p>
                 </div>
               </div>
@@ -2235,10 +2411,10 @@ export default function OperacaoPage({
                   type="button"
                   className="btn-export-planilha"
                   onClick={handleExportPlanilha}
-                  title="Exportar dados de atletas em formato CSV"
+                  title="Baixar todos os atletas em CSV, incluindo entregues e pendentes"
                 >
                   <DownloadIcon />
-                  <span>EXPORTAR PLANILHA</span>
+                  <span>BAIXAR PLANILHA GERAL</span>
                 </button>
                 <button
                   type="button"
@@ -2247,7 +2423,7 @@ export default function OperacaoPage({
                   title="Abrir assistente de importação de planilha"
                 >
                   <UploadIcon />
-                  <span>IMPORTAR PLANILHA</span>
+                  <span>IMPORTAR ATLETAS</span>
                 </button>
                 <button
                   type="button"
@@ -2256,7 +2432,7 @@ export default function OperacaoPage({
                   title="Unir planilha de atletas e planilha de chips"
                 >
                   <LinkSpreadsheetIcon />
-                  <span>ASSOCIAR PLANILHA</span>
+                  <span>ASSOCIAR ATLETAS E CHIPS</span>
                 </button>
                 <button
                   type="button"
@@ -2265,7 +2441,7 @@ export default function OperacaoPage({
                   title="Restaurar a planilha base original importada para este evento"
                 >
                   <RefreshIcon />
-                  <span>RESTAURAR BASE</span>
+                  <span>RESTAURAR PLANILHA ORIGINAL</span>
                 </button>
               </div>
             </div>
@@ -2278,9 +2454,9 @@ export default function OperacaoPage({
                     <FilterFunnelIcon />
                   </span>
                   <div>
-                    <h3 className="filtros-card-title">FILTROS</h3>
+                    <h3 className="filtros-card-title">FILTRAR ENTREGAS</h3>
                     <p className="filtros-card-subtitle">
-                      Filtre as entregas por atleta, operador, período ou tipo de retirada.
+                      A tabela, o CSV e o PDF abaixo respeitam os mesmos filtros.
                     </p>
                   </div>
                 </div>
@@ -2306,7 +2482,7 @@ export default function OperacaoPage({
                   </div>
 
                   <div className="filtro-field">
-                    <label className="filtro-label">OPERADOR</label>
+                    <label className="filtro-label">ENTREGAS FEITAS POR</label>
                     <CustomSelect
                       className="filtro-select-custom"
                       value={auditOperatorFilter}
@@ -2316,7 +2492,7 @@ export default function OperacaoPage({
                       }}
                       options={[
                         { value: 'TODOS', label: 'TODOS OS OPERADORES' },
-                        ...operators.map((op) => ({ value: op.name, label: op.name })),
+                        ...auditOperatorOptions.map((name) => ({ value: name, label: name })),
                       ]}
                     />
                   </div>
@@ -2360,17 +2536,6 @@ export default function OperacaoPage({
                     </div>
                   </div>
 
-                  <div className="filtro-checkbox-wrap">
-                    <label className="custom-checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={auditOnlyMatches}
-                        onChange={(e) => setAuditOnlyMatches(e.target.checked)}
-                      />
-                      <span>Considerar apenas atleta correspondente</span>
-                    </label>
-                  </div>
-
                   <div className="filtro-field modo-busca-field">
                     <label className="filtro-label">MODO DE BUSCA</label>
                     <CustomSelect
@@ -2395,22 +2560,12 @@ export default function OperacaoPage({
                         checked={auditIncludeComprovantes}
                         onChange={(e) => setAuditIncludeComprovantes(e.target.checked)}
                       />
-                      <span>Incluir comprovante</span>
+                      <span>Incluir número do comprovante no relatório</span>
                     </label>
                   </div>
 
-                  <div className="filtro-field preset-field">
-                    <label className="filtro-label">PRESET</label>
-                    <CustomSelect
-                      className="filtro-select-custom"
-                      value={auditPreset}
-                      onChange={(val) => setAuditPreset(val)}
-                      options={[
-                        { value: 'tudo', label: 'Tudo' },
-                        { value: 'apenas_entregues', label: 'Apenas entregues' },
-                        { value: 'apenas_nao_entregues', label: 'Apenas não entregues' },
-                      ]}
-                    />
+                  <div className="audit-filter-live-summary">
+                    {filteredAudits.length} entrega(s) encontrada(s) · {auditFilterSummary}
                   </div>
 
                   <div className="filtros-export-actions">
@@ -2418,19 +2573,19 @@ export default function OperacaoPage({
                       type="button"
                       className="btn-filtro-action"
                       onClick={handleExportAuditsCsv}
-                      title="Exportar registros filtrados em CSV"
+                      title="Exportar exatamente as entregas exibidas pelos filtros"
                     >
                       <DownloadIcon />
-                      <span>CSV</span>
+                      <span>EXPORTAR ENTREGAS</span>
                     </button>
                     <button
                       type="button"
                       className="btn-filtro-action"
                       onClick={handlePrintAuditPdf}
-                      title="Imprimir ou salvar em PDF"
+                      title="Gerar relatório com todas as entregas filtradas"
                     >
                       <FilePdfIcon />
-                      <span>PDF</span>
+                      <span>GERAR PDF DO FILTRO</span>
                     </button>
                   </div>
                 </div>
@@ -2442,11 +2597,11 @@ export default function OperacaoPage({
               <div className="audit-table-header">
                 <div className="audit-table-header-left">
                   <div className="table-title-row">
-                    <h3 className="audit-table-title">ENTREGAS NO PERÍODO</h3>
+                    <h3 className="audit-table-title">RESULTADO DO FILTRO</h3>
                     <span className="audit-counter-badge">{filteredAudits.length} registro(s)</span>
                   </div>
                   <p className="audit-table-subtitle">
-                    Histórico detalhado de retiradas com operador, data/hora e comprovante.
+                    Estas são as entregas que serão incluídas no CSV e no PDF.
                   </p>
                 </div>
                 <div className="audit-table-header-right">
@@ -2512,7 +2667,7 @@ export default function OperacaoPage({
                     {paginatedAudits.length === 0 ? (
                       <tr>
                         <td colSpan="8" className="audit-empty-td">
-                          Nenhum registro encontrado para os filtros selecionados.
+                          Nenhuma entrega corresponde aos filtros atuais. Altere um dos filtros para tentar novamente.
                         </td>
                       </tr>
                     ) : (
@@ -2524,7 +2679,7 @@ export default function OperacaoPage({
                               type="button"
                               className="btn-comprovante-print"
                               onClick={() => setSelectedComprovante(item)}
-                              title={`Imprimir Comprovante #${item.comprovanteId}`}
+                              title={`Abrir comprovante individual desta entrega #${item.comprovanteId}`}
                             >
                               <PrinterIcon />
                             </button>
@@ -2539,7 +2694,7 @@ export default function OperacaoPage({
                           <td className="audit-td-atleta">
                             <div className="atleta-name-main">{item.atletaNome}</div>
                             <div className="atleta-subline">
-                              <span className="peito-badge-green">#{item.atletaNumero}</span>
+                              <span className="peito-badge-green">Nº {item.atletaNumero}</span>
                               <span className="cpf-subtext">· CPF: {item.atletaCpf || '***.***.***-**'}</span>
                             </div>
                           </td>
@@ -2905,9 +3060,9 @@ export default function OperacaoPage({
                     <PrinterIcon />
                   </div>
                   <div>
-                    <h3 className="comprovante-title">COMPROVANTE DE RETIRADA (2 VIAS)</h3>
+                    <h3 className="comprovante-title">COMPROVANTE INDIVIDUAL DE RETIRADA</h3>
                     <p className="comprovante-subtitle">
-                      Registro #{selectedComprovante.comprovanteId} · {currentEvent?.name}
+                      Registro {selectedComprovante.comprovanteId} · {currentEvent?.name}
                     </p>
                   </div>
                 </div>
@@ -2934,7 +3089,7 @@ export default function OperacaoPage({
                     </div>
 
                     <div className="ticket-atleta-card">
-                      <div className="ticket-peito-badge">#{selectedComprovante.atletaNumero}</div>
+                      <div className="ticket-peito-badge">Nº {selectedComprovante.atletaNumero}</div>
                       <div className="ticket-atleta-info">
                         <div className="ticket-nome">{selectedComprovante.atletaNome}</div>
                         <div className="ticket-cpf-sub">CPF: {selectedComprovante.atletaCpf || '***.***.***-**'}</div>
@@ -2971,7 +3126,7 @@ export default function OperacaoPage({
                     <div className="ticket-signature-section">
                       <div className="ticket-sig-line"></div>
                       <div className="ticket-sig-label">Assinatura do Recebedor ({selectedComprovante.retiradoPor})</div>
-                      <div className="ticket-security-hash">CÓDIGO DE AUTENTICIDADE: ERUN-{selectedComprovante.comprovanteId}-{selectedComprovante.id?.slice(0, 8).toUpperCase()}</div>
+                      <div className="ticket-security-hash">CÓDIGO DO REGISTRO: ERUN-{selectedComprovante.comprovanteId}-{selectedComprovante.id?.slice(0, 8).toUpperCase()}</div>
                       <div className="ticket-via-notice">VIA RETIDA PELA ORGANIZAÇÃO DO EVENTO PARA AUDITORIA E SEGURANÇA</div>
                     </div>
                   </div>
@@ -2996,7 +3151,7 @@ export default function OperacaoPage({
                     </div>
 
                     <div className="ticket-atleta-card">
-                      <div className="ticket-peito-badge">#{selectedComprovante.atletaNumero}</div>
+                      <div className="ticket-peito-badge">Nº {selectedComprovante.atletaNumero}</div>
                       <div className="ticket-atleta-info">
                         <div className="ticket-nome">{selectedComprovante.atletaNome}</div>
                         <div className="ticket-cpf-sub">CPF: {selectedComprovante.atletaCpf || '***.***.***-**'}</div>
@@ -3034,7 +3189,7 @@ export default function OperacaoPage({
                       <div className="ticket-termo-text">
                         Comprovante oficial do participante. Verifique todos os itens entregues. Guarde este recibo até o término da prova.
                       </div>
-                      <div className="ticket-security-hash">CÓDIGO DE AUTENTICIDADE: ERUN-{selectedComprovante.comprovanteId}-{selectedComprovante.id?.slice(0, 8).toUpperCase()}</div>
+                      <div className="ticket-security-hash">CÓDIGO DO REGISTRO: ERUN-{selectedComprovante.comprovanteId}-{selectedComprovante.id?.slice(0, 8).toUpperCase()}</div>
                       <div className="ticket-via-notice atleta-notice">VIA DO ATLETA — BOA PROVA!</div>
                     </div>
                   </div>
@@ -3055,7 +3210,7 @@ export default function OperacaoPage({
                   onClick={() => window.print()}
                 >
                   <PrinterIcon />
-                  <span>IMPRIMIR 2 VIAS</span>
+                  <span>IMPRIMIR COMPROVANTE — 2 VIAS</span>
                 </button>
               </div>
             </div>

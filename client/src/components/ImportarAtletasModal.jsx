@@ -2,6 +2,10 @@ import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import readXlsxFile from 'read-excel-file/browser'
 import CustomSelect from './CustomSelect.jsx'
+import {
+  buildImportColumnSchema,
+  isReservedAthleteCustomField,
+} from '../utils/athleteTable.js'
 import './ImportarAtletasModal.css'
 
 function CloseIcon() {
@@ -208,6 +212,10 @@ export default function ImportarAtletasModal({
   function handleCreateCustomField(nameToUse) {
     const name = String(nameToUse || '').trim().toUpperCase()
     if (!name) return ''
+    if (isReservedAthleteCustomField(name)) {
+      alert(`“${name}” é um campo interno do sistema. Use outro nome para o campo personalizado.`)
+      return ''
+    }
     setCustomFields((prev) => Array.from(new Set([...prev, name])))
     return name
   }
@@ -216,6 +224,7 @@ export default function ImportarAtletasModal({
     const name = createFieldModal.inputValue.trim().toUpperCase()
     if (!name) return
     const cleanName = handleCreateCustomField(name)
+    if (!cleanName) return
     if (createFieldModal.columnIndex !== null) {
       setColumnMapping((prev) => ({
         ...prev,
@@ -352,6 +361,7 @@ export default function ImportarAtletasModal({
         kit: 'Kit Padrão',
         status: 'PENDENTE',
         createdAt: new Date().toISOString(),
+        customFields: {},
       }
 
       // Preenche os campos de acordo com o mapeamento
@@ -359,23 +369,24 @@ export default function ImportarAtletasModal({
         const colIdx = Number(colIdxStr)
         const val = row[colIdx] !== undefined ? String(row[colIdx]).trim() : ''
 
-        if (fieldKey !== 'ignore' && val) {
-          if (fieldKey.startsWith('custom:')) {
-            const customKey = fieldKey.replace('custom:', '').trim()
-            if (!athlete.customFields) athlete.customFields = {}
-            athlete.customFields[customKey] = val
-            athlete[customKey] = val
-            if (customKey.toUpperCase().includes('PCD')) {
-              athlete.pcd = val
-            }
-          } else if (fieldKey === 'nome' || fieldKey === 'nome_peito') {
-            athlete.nome = val.toUpperCase()
-          } else if (fieldKey === 'numero') {
-            athlete.numero = val
-            athlete.id = val
-          } else {
-            athlete[fieldKey] = val
+        if (fieldKey === 'ignore') return
+
+        if (fieldKey.startsWith('custom:')) {
+          const customKey = fieldKey.replace('custom:', '').trim()
+          if (isReservedAthleteCustomField(customKey)) return
+          athlete.customFields[customKey] = val
+          if (customKey.toUpperCase().includes('PCD')) {
+            athlete.pcd = val
           }
+        } else if (val && fieldKey === 'nome') {
+          athlete.nome = val.toUpperCase()
+        } else if (val && fieldKey === 'nome_peito') {
+          athlete.nome_peito = val.toUpperCase()
+        } else if (val && fieldKey === 'numero') {
+          athlete.numero = val
+          athlete.id = val
+        } else if (val) {
+          athlete[fieldKey] = val
         }
       })
 
@@ -404,6 +415,7 @@ export default function ImportarAtletasModal({
       imported: importedAthletes.length,
       warnings,
       athletes: importedAthletes,
+      columns: buildImportColumnSchema(parsedHeaders, columnMapping),
     })
 
     setStep(3)
@@ -413,7 +425,10 @@ export default function ImportarAtletasModal({
   function handleFinish() {
     if (importStats.athletes && importStats.athletes.length > 0) {
       if (onImportSuccess) {
-        onImportSuccess(importStats.athletes, { isInitialImport: true })
+        onImportSuccess(importStats.athletes, {
+          isInitialImport: true,
+          columns: importStats.columns || [],
+        })
       }
     }
     onClose()

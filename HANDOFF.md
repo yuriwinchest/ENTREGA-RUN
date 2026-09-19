@@ -868,3 +868,51 @@
 - **Validações Reais**:
   - `scratch/test_hook_execution.cjs`: Executado teste de integração end-to-end do hook com a API TypeSafe, validando tempo de resposta em 921ms e contrato JSON `injectSteps` com 100% de conformidade.
 - **Próximo passo**: Cada turno do Yuri agora passa automaticamente pelo Jev antes da resposta do agente.
+
+## 2026-09-19 — Auditoria: filtros reais, PDF filtrado e planilha geral atualizada (Fase A, construir)
+
+- **Roteamento Jev (TypeSafe System One)**: Kastiel liderou como `bugfix_urgente` (93%/97%), severidade 1,37/2; Ana revisou a jornada, Ulisses separou os três artefatos e Teclide executou o veto/aceite de QA. Crowley atuou somente em segurança de desenho; a Fase C não foi iniciada.
+- **Causas confirmadas**:
+  1. O filtro de operador era alimentado somente pelo usuário logado, e não pelos operadores presentes no histórico.
+  2. O botão PDF chamava `window.print()`, mas o CSS de impressão liberava exclusivamente o comprovante individual, produzindo saída errada/vazia.
+  3. Período e outros controles eram apenas visuais; a busca prometia chip sem consultá-lo.
+  4. Planilha geral, CSV filtrado e comprovante tinham rótulos ambíguos.
+  5. Auditorias reconstruídas recebiam `timestamp` atual mesmo quando `entregueEm` era histórico, distorcendo Hoje/Ontem.
+- **Alterações**:
+  - `client/src/utils/auditData.js`: filtro único e puro por busca/operador/tipo/período; união dos operadores históricos; enriquecimento por chip; relatório HTML A4 paisagem exclusivo para os registros filtrados; download CSV centralizado, com URL revogada em atraso, nomes seguros, valores `0/false` preservados e neutralização de fórmulas; planilha geral com todos os atletas, `STATUS_DA_ENTREGA` e metadados da entrega.
+  - `client/src/components/OperacaoPage.jsx`: tabela, cards, CSV e PDF compartilham `filteredAudits`; operador histórico aparece no seletor; período e chip funcionam; PDF recebe todos os filtrados, sem paginação; comprovante permanece individual; reconciliação preserva o timestamp de `entregueEm`.
+  - Microcopy separada em `BASE GERAL DE ATLETAS`, `EXPORTAR ENTREGAS`, `GERAR PDF DO FILTRO` e `COMPROVANTE INDIVIDUAL DE RETIRADA`; o identificador deixou de ser chamado de garantia de autenticidade.
+  - `client/src/components/OperacaoPage.css`: ações longas quebram linha sem corte no mobile e há resumo vivo dos filtros.
+- **Validações reais**:
+  - Cinco scripts existentes/novos aprovados; teste específico cobre operador normalizado, Hoje/Ontem, auditoria histórica reconstruída, chip, HTML escapado, CSV injection, nome editado, entregue/pendente e valores `0/false`.
+  - `npm run lint --prefix client`: 0 erros e 0 avisos.
+  - `npm run build --prefix client`: Vite concluído com 97 módulos.
+  - Navegador local com fixture descartável: operador `Operadora Agnes` apareceu e reduziu 2→1; combinado com `ONTEM` retornou 0; busca `CHIP-AGNES` retornou 1; a fixture foi removida depois do teste.
+  - O navegador interno confirmou `Page.downloadWillBegin` para a planilha geral (718 bytes) e CSV filtrado (304 bytes), e `Page.windowOpen` para o relatório. O próprio IAB cancelou o salvamento físico, portanto isso não substitui a homologação em navegador comum.
+- **Risco/Veto**: Crowley mantém veto de produção enquanto autorização de ADMIN/evento existir apenas no frontend. Nenhum deploy/publicação foi executado.
+- **Próximo passo**: Yuri homologar em Chrome/celular o salvamento e abertura dos dois CSVs e o fluxo imprimir/salvar PDF; antes de produção, repetir autorização no backend.
+
+## 2026-09-19 — Zoom View, tabela completa de atletas e busca de entrega (Fase B, homologar)
+
+- **Roteamento Jev**: Kastiel liderou a correção/feature (98% de confiança; severidade 1,03/2). Ana revisou a jornada e a responsividade, Ulisses definiu a ordem salvar→entregar, Teclide executou QA com veto corrigido e Crowley revisou integridade/exposição de dados.
+- **Zoom View / edição**:
+  - O botão `SALVAR ALTERAÇÕES` agora só habilita quando existe mudança real e salva o cadastro sem registrar entrega.
+  - `SALVAR E ENTREGAR KIT` e a variação com comprovante persistem o formulário atual antes da entrega; nome, número, CPF, chip, kit, camiseta, modalidade, recebedor e campos extras deixam de usar o objeto antigo.
+  - Nome e número são validados, número duplicado é bloqueado, troca de número sincroniza entrega/auditoria e clique duplicado é travado.
+  - Sair com rascunho sujo pelo botão, abas, Voltar, Sidebar ou logout exige confirmação; o veto inicial do Teclide sobre perda silenciosa foi corrigido.
+  - Fallbacks fictícios de data, chip, operador e status foram removidos da ficha.
+- **Aba Atletas / importação**:
+  - A grade agora deriva colunas padrão e personalizadas da base completa, preserva `NOME DE PEITO`, campos extras vazios e um schema por evento em `entregas_run_athlete_columns_<eventId>`.
+  - Importação e associação preservam a ordem dos campos extras; novos campos entram ao final. Chaves estruturais e perigosas (`id`, `status`, `numero`, `customFields`, `__proto__`, `constructor`, `prototype` etc.) são rejeitadas e custom fields ficam somente em `customFields`.
+  - ADMIN/Supervisor vê a grade completa; Operador fica limitado a número, nome, documento, chip e status.
+  - Mobile usa rolagem horizontal visível, número/nome fixos e indicador com a quantidade de campos; filtros e ações reorganizam sem comprimir as colunas.
+- **Busca de Entrega de Kit**:
+  - Cada resultado mostra somente nome, número e CPF, além da ação de entrega.
+  - Atletas entregues deixam de aparecer imediatamente na pesquisa e permanecem em `Últimas entregas`.
+  - Prefixos `#` foram removidos das numerações exibidas em operação, auditoria, comprovantes, associação e relatório PDF/HTML; usa-se `Nº` quando o contexto precisa de rótulo.
+- **Arquivos principais**: `client/src/components/OperacaoPage.jsx`, `OperacaoPage.css`, `ImportarAtletasModal.jsx`, `AssociarPlanilhasModal.jsx`, `client/src/utils/athleteDetail.js`, `athleteTable.js` e `auditData.js`.
+- **Validações reais**:
+  - Sete scripts funcionais/regressivos aprovados; lint com 0 erros/avisos; build Vite aprovado com 99 módulos.
+  - Playwright com Chrome real em viewport 390×844 validou: busca enxuta; desaparecimento do entregue; salvamento mantendo `PENDENTE`; salvar+entregar com uma única auditoria; confirmação de descarte nas abas e no Voltar; colunas padrão/custom/varias vazias; indicador e rolagem mobile. Evidência local ignorada pelo Git: `scratch/operacao-mobile-qa.png`.
+  - Busca estática confirmou ausência de prefixo `#` nos identificadores renderizados.
+- **Produção**: nenhuma publicação feita nesta entrada. O push para `main` aciona produção; o veto operacional anterior permanece até condição de exceção válida ou correção do pipeline/auth.

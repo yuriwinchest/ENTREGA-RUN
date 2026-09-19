@@ -1,6 +1,10 @@
 import { useRef, useState } from 'react'
 import readXlsxFile from 'read-excel-file/browser'
 import CustomSelect from './CustomSelect.jsx'
+import {
+  buildImportColumnSchema,
+  isReservedAthleteCustomField,
+} from '../utils/athleteTable.js'
 import './AssociarPlanilhasModal.css'
 
 function CloseIcon() {
@@ -381,11 +385,11 @@ export default function AssociarPlanilhasModal({
           colI !== numCol
         ) {
           const val = row[colI] !== undefined ? String(row[colI]).trim() : ''
-          if (val && h) {
+          if (h) {
             const hClean = h.trim()
+            if (isReservedAthleteCustomField(hClean)) return
             athleteObj.customFields[hClean] = val
-            athleteObj[hClean] = val
-            if (hClean.toUpperCase().includes('PCD')) {
+            if (val && hClean.toUpperCase().includes('PCD')) {
               athleteObj.pcd = val
             }
           }
@@ -413,7 +417,29 @@ export default function AssociarPlanilhasModal({
     const cleanList = associatedList.map(({ _hasCollision, ...rest }) => rest)
 
     if (onImportSuccess) {
-      onImportSuccess(cleanList)
+      const mappingByColumn = {}
+      const standardMappings = {
+        nome: 'nome',
+        doc: 'doc',
+        modalidade: 'modalidade',
+        categoria: 'categoria',
+        sexo: 'sexo',
+        camiseta: 'camiseta',
+        equipe: 'equipe',
+        numero: 'numero',
+      }
+      Object.entries(standardMappings).forEach(([mappingKey, fieldKey]) => {
+        const columnIndex = atletasMapping[mappingKey]
+        if (columnIndex !== '') mappingByColumn[Number(columnIndex)] = fieldKey
+      })
+      atletasHeaders.forEach((header, columnIndex) => {
+        if (mappingByColumn[columnIndex] || !header || isReservedAthleteCustomField(header)) return
+        mappingByColumn[columnIndex] = `custom:${String(header).trim()}`
+      })
+
+      onImportSuccess(cleanList, {
+        columns: buildImportColumnSchema(atletasHeaders, mappingByColumn),
+      })
     }
 
     setStep(3)
@@ -699,7 +725,7 @@ export default function AssociarPlanilhasModal({
                             <div className="sample-chips-row">
                               {chipsRows.slice(0, 4).map((r, i) => (
                                 <span key={i} className="sample-chip-badge">
-                                  #{r[chipColIdx] || '—'}
+                                  {r[chipColIdx] || '—'}
                                 </span>
                               ))}
                               {chipsRows.length > 4 && <span className="sample-more">+{chipsRows.length - 4} mais</span>}
@@ -874,7 +900,7 @@ export default function AssociarPlanilhasModal({
                 <table className="associar-preview-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '45px' }}>#</th>
+                      <th style={{ width: '65px' }}>Nº</th>
                       <th>ATLETA</th>
                       <th>DOCUMENTO / CPF</th>
                       <th>MODALIDADE</th>
