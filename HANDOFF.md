@@ -498,6 +498,38 @@
   - Deploy em andamento para a VPS com healthcheck 200 ativo em `https://app.entregasrun.com.br/api/health`.
 - **Próximo passo**: Yuri homologar a aba de Auditoria na aplicação.
 
+## 2026-09-19 — Comprovante em 2 Vias (Organização e Atleta) e Impressão Direta (Fase A, construir)
+
+- **Demanda do Yuri (PO)**:
+  - Fila na entrega de kits exige máxima agilidade dos operadores de balcão ("pessoal tá na porta pra pegar kit e a agilidade tem que ser rápida").
+  - A tela de confirmação de entrega não possuía botão de impressão direta e não podia ter sua aparência descaracterizada ou alterada ("porém, não pode mudar a aparência da confirmação da entrega do kit").
+  - Necessidade de emitir **2 vias de comprovante**:
+    1. **1ª Via — Organização / Entregador**: com assinatura do recebedor e código de autenticidade, garantindo a segurança jurídica e operacional do evento (comprovando que o kit foi efetivamente retirado).
+    2. **2ª Via — Atleta**: com os dados da prova, número de peito, chip conferido, tamanho da camiseta e instruções.
+- **Orquestração pelo Jev Router (`scripts/jev-prompt-router.js`)**:
+  - Prompt avaliado pelo Jev System One (`jev-1.13.0`) em **1248ms**:
+    - Especialista: `kastiel_dev` (90.0% de confiança).
+    - Tipo de Tarefa: `nova_feature` / funcionalidade operacional.
+    - Severidade: `1.90 / 2.00`.
+- **Ações Realizadas**:
+  1. `athlete-detail-actions-bar`:
+     - Mantido 100% o design original dos 3 cards (Peito, Camiseta, Kit) e do formulário.
+     - Quando pendente: adicionado botão `ENTREGAR & IMPRIMIR` (laranja vibrante com ícone de impressora) ao lado do tradicional `ENTREGAR KIT` (para atender operadores que precisam dar baixa e imprimir imediatamente em 1 clique).
+     - Quando entregue: adicionado botão `IMPRIMIR COMPROVANTE` (navy com ícone de impressora) para reimprimir a qualquer momento.
+  2. Modal de Comprovante em 2 Vias:
+     - Estruturado com a **1ª VIA (ORGANIZAÇÃO)** contendo termo de retenção, dados completos, linha de assinatura e hash de autenticidade.
+     - Linha divisória de picote/corte (`✂ CORTE AQUI — DESTAQUE ENTRE AS DUAS VIAS ✂`).
+     - **2ª VIA (ATLETA)** contendo termo de recebimento, identificação do kit e camiseta, número de peito e chip.
+  3. Folha de Estilos de Impressão (`@media print`):
+     - Isola cirurgicamente a área das 2 vias, ocultando todo o restante da tela, modais, headers e fundos escuros.
+     - Otimizado em alto contraste tanto para impressoras térmicas de cupom contínuo (80mm) quanto para folhas de escritório A4 destacáveis.
+- **Validações Reais**:
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos**.
+  - `npm run build --prefix client`: Vite build concluído em 1.04s (**0 erros**).
+  - Git commit e push realizados (`05d9d69`).
+  - Deploy em andamento para a VPS com healthcheck 200 ativo em `https://app.entregasrun.com.br/api/health`.
+- **Próximo passo**: Yuri homologar o fluxo de entrega e impressão das 2 vias na aplicação.
+
 
 
 
