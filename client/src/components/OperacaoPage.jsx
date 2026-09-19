@@ -1131,7 +1131,8 @@ export default function OperacaoPage({
             }}
           >
             <ZapIcon />
-            <span>ENTREGA DE KIT</span>
+            <span className="tab-label-full">ENTREGA DE KIT</span>
+            <span className="tab-label-short">ENTREGA</span>
           </button>
 
           <button
@@ -1155,7 +1156,8 @@ export default function OperacaoPage({
             }}
           >
             <BarChartTabIcon />
-            <span>ESTATÍSTICAS</span>
+            <span className="tab-label-full">ESTATÍSTICAS</span>
+            <span className="tab-label-short">ESTATÍSTICA</span>
           </button>
 
           {isAdmin && (

@@ -736,19 +736,22 @@
   - `npm run build --prefix client`: Vite build concluído em 496ms (**0 erros**).
 - **Próximo passo**: Yuri testar o mapeamento da coluna PCD na importação e verificar a exibição no formulário do atleta e na restauração de base.
 
+## 2026-09-19 — Ajuste Responsivo das Abas do Evento no Mobile (Fase A, construir)
 
-
-
-
-
-
-
-
-
-
-
-
-
+- **Demanda do Yuri (PO)**: No modo mobile (Android / iOS), as abas superiores do evento (`OperacaoPage`) exibiam apenas `ENTREGA DE KIT`, `ATLETAS` e `ESTATÍSTICA`, ocultando a aba `AUDITORIA` (administrador) fora da tela.
+- **Diagnóstico**:
+  - `OperacaoPage.css` aplicava `gap: 16px !important;` e `flex-shrink: 0 !important;` com títulos longos (`ENTREGA DE KIT` e `ESTATÍSTICAS`), somando mais de 440px de largura e empurrando a quarta aba para fora do viewport de smartphones (360px–390px). O `scrollbar-width: none` impedia qualquer pista visual de rolagem horizontal.
+- **Solução Implementada**:
+  1. `client/src/components/OperacaoPage.jsx`:
+     - Rótulos com classes responsivas: `.tab-label-full` (`ENTREGA DE KIT` / `ESTATÍSTICAS`) no desktop e `.tab-label-short` (`ENTREGA` / `ESTATÍSTICA`) no mobile.
+  2. `client/src/components/OperacaoPage.css`:
+     - Desktop: exibe rótulos completos (`.tab-label-short { display: none; }`).
+     - Mobile (`@media (max-width: 768px)`): exibe rótulos concisos; abas com `flex: 1 1 0 !important; justify-content: center !important; gap: 4px !important;`, distribuindo uniformemente as abas (33,3% para operador ou 25% para admin) de modo que todas caibam simultaneamente na tela sem rolagem obrigatória.
+     - Ultra-mobile (`@media (max-width: 360px)`): tipografia compacta (9.5px, gap 3px) para telas estreitas.
+- **Validações Reais**:
+  - `npm run lint --prefix client`: 0 erros e 0 avisos (oxlint).
+  - `npm run build --prefix client`: Vite build concluído em 1.38s com sucesso.
+- **Próximo passo**: Yuri homologar no dispositivo móvel a visualização das 4 abas completas.
 
 
 
