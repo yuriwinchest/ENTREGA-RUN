@@ -396,6 +396,24 @@
   - GitHub Actions Workflow #35423857597: Concluído com **100% SUCESSO** e deploy em produção na VPS.
 - **Próximo passo**: Homologação visual e funcional pelo Yuri no subdomínio de produção `https://app.entregasrun.com.br`.
 
+## 2026-09-19 — Seletor de Data Duplo (Manual/Calendário) e Autocomplete de Cidades via IBGE (Fase A, construir)
+
+- **Demanda do Yuri (PO)**:
+  1. No modal de evento (criar/editar), o campo DATA deve permitir tanto digitar a data manualmente quanto clicar no ícone do calendário para expandir e selecionar visualmente a data.
+  2. No campo CIDADE / UF, integrar a API do IBGE para sugerir e autocompletar dinamicamente a lista de municípios brasileiros conforme o usuário digita.
+- **Componentes e Utilitários Criados**:
+  1. `client/src/utils/ibge.js`: Consumo e cache eficiente (memória + `sessionStorage`) dos 5.571 municípios da API oficial do IBGE (`servicodados.ibge.gov.br`), com normalização e busca sem acento.
+  2. `client/src/components/DataPickerInput.jsx`: Campo duplo com máscara automática `DD/MM/AAAA` para digitação e disparador nativo (`showPicker()`) do calendário visual do navegador.
+  3. `client/src/components/CidadeAutocomplete.jsx`: Input com dropdown flutuante moderno de cidades com badge da UF, busca instantânea, navegação por teclado (Setas, Enter, Esc) e botão de limpar.
+  4. `client/src/components/EventosPage.jsx`: Integração dos componentes nos modais "Novo Evento" e "Editar Evento".
+- **Validações reais**:
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** (19 arquivos verificados).
+  - `npm run build --prefix client`: Vite build para produção concluído com sucesso em 408ms (**0 erros**).
+  - Testes com municípios reais do IBGE (Recife/PE, São Bento do Una/PE, Surubim/PE, etc.): busca instantânea e preenchimento perfeito.
+  - CI/CD automático via GitHub Actions disparado e deploy em produção na VPS `179.198.97.28`.
+- **Próximo passo**: Homologação visual e funcional pelo Yuri no subdomínio `https://app.entregasrun.com.br`.
+
+
 
 
 
