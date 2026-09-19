@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Sidebar from './Sidebar.jsx'
 import EspelhoModal from './EspelhoModal.jsx'
 import ImportarAtletasModal from './ImportarAtletasModal.jsx'
+import AssociarPlanilhasModal from './AssociarPlanilhasModal.jsx'
 import { exportCsvFile } from '../utils/auditData.js'
 import './OperacaoPage.css'
 
@@ -234,6 +235,15 @@ function UploadIcon() {
   )
 }
 
+function LinkSpreadsheetIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  )
+}
+
 function FilterFunnelIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -387,6 +397,9 @@ export default function OperacaoPage({
 
   // Modal Importar Planilha
   const [showImportModal, setShowImportModal] = useState(false)
+
+  // Modal Associar Planilhas (Atletas + Chips)
+  const [showAssociarModal, setShowAssociarModal] = useState(false)
 
   // Auditoria state
   const [audits, setAudits] = useState(() => {
@@ -2021,6 +2034,15 @@ export default function OperacaoPage({
                   <UploadIcon />
                   <span>IMPORTAR PLANILHA</span>
                 </button>
+                <button
+                  type="button"
+                  className="btn-associar-planilha"
+                  onClick={() => setShowAssociarModal(true)}
+                  title="Unir planilha de atletas e planilha de chips"
+                >
+                  <LinkSpreadsheetIcon />
+                  <span>ASSOCIAR PLANILHA</span>
+                </button>
               </div>
             </div>
 
@@ -2627,6 +2649,16 @@ export default function OperacaoPage({
           <ImportarAtletasModal
             isOpen={showImportModal}
             onClose={() => setShowImportModal(false)}
+            existingAthletes={athletes}
+            onImportSuccess={handleImportSuccess}
+          />
+        )}
+
+        {/* MODAL: ASSOCIAR PLANILHAS (ATLETAS + CHIPS) */}
+        {showAssociarModal && (
+          <AssociarPlanilhasModal
+            isOpen={showAssociarModal}
+            onClose={() => setShowAssociarModal(false)}
             existingAthletes={athletes}
             onImportSuccess={handleImportSuccess}
           />

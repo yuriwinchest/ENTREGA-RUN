@@ -665,6 +665,44 @@
   - `npm run build --prefix client`: Vite build concluído em 918ms (**0 erros**).
 - **Próximo passo**: Yuri testar o botão com a setinha no desktop para recolher e expandir o menu lateral.
 
+## 2026-09-19 — Associar Planilhas (Atletas + Chips) na Aba Auditoria (Fase A, construir)
+
+- **Classificação Jev (TypeSafe System One)**:
+  - Roteado em 884ms: Especialista `kastiel_dev` (100% de confiança), `nova_feature` (100% de confiança).
+- **Demanda do Yuri (PO)**:
+  - Na aba `AUDITORIA`, dentro do card `PLANILHA DE ATLETAS`, adicionar o botão `ASSOCIAR PLANILHA`.
+  - O operador/organizador frequentemente recebe duas planilhas separadas:
+    1. Uma planilha contendo apenas os dados dos atletas (nomes, CPFs, modalidades, categorias).
+    2. Outra planilha contendo apenas a relação de chips de cronometragem (números/sequências de chips).
+  - O sistema deve permitir carregar ambos os arquivos (XLSX, XLS ou CSV), efetuar a correspondência/junção de cada corredor com um chip (de forma sequencial ou sorteio/aleatória, conforme especificado no áudio), validar a consistência com pré-visualização completa e importar os dados consolidados diretamente para o evento ativo.
+- **Solução Implementada (Ana, Kastiel, Crowley, Teclide & Vitor)**:
+  1. `client/src/components/AssociarPlanilhasModal.jsx` (Novo componente):
+     - Assistente em 3 etapas fluidas:
+       - **Etapa 1 (Arquivos & Mapeamento)**: Dropzones independentes para a Planilha de Atletas e Planilha de Chips, suporte completo a `.xlsx`, `.xls` e `.csv`, auto-detecção de colunas (Nome, CPF, Modalidade, Categoria, Sexo, Camiseta, Número de Peito) e seleção da coluna do chip com amostra imediata dos primeiros registros.
+       - **Configurações de Associação**:
+         - Ordem de associação: **Sequencial 1-para-1** (Atleta 1 recebe Chip 1, etc.) ou **Sorteio / Aleatório** (embaralha os chips antes da atribuição, atendendo ao pedido do Yuri).
+         - Definição do Número de Peito: opção para adotar o próprio número do chip ou gerar sequência numérica crescente (1, 2, 3...).
+       - **Etapa 2 (Pré-visualização & Validação)**:
+         - Cards métricos no topo: total de atletas, total de chips e total de pares formados.
+         - Alertas amigáveis caso as quantidades sejam desiguais (ex: se há mais atletas do que chips, ou chips excedentes).
+         - Tabela paginada de preview com busca instantânea, badges visuais com ícone de chip e identificação de atletas que atualizarão registros existentes.
+       - **Etapa 3 (Conclusão)**:
+         - Resumo consolidado e botão para retornar diretamente à tela de operação com a lista já sincronizada.
+  2. `client/src/components/AssociarPlanilhasModal.css` (Novo estilo):
+     - Layout dual-card moderno com tipografia Montserrat/Inter, badges em tons índigo/violeta e esmeralda, scrollbar suave e animações de transição.
+  3. `client/src/components/OperacaoPage.jsx`:
+     - Adicionado botão `.btn-associar-planilha` no card `PLANILHA DE ATLETAS` ao lado de `IMPORTAR PLANILHA`.
+     - Ícone `LinkSpreadsheetIcon` integrado.
+     - Estado `showAssociarModal` e renderização do modal conectado a `handleImportSuccess` (que atualiza o estado React e persiste no `localStorage`).
+  4. `client/src/components/OperacaoPage.css`:
+     - Estilização do botão `.btn-associar-planilha` em índigo suave `#eef2ff` com borda e texto `#4f46e5` e efeito hover com elevação.
+- **Validações Reais**:
+  - Script de teste de unidade automatizado em `scratch/test_associar_planilhas.cjs`: 4 testes passaram com 100% de sucesso (sequencial, mais atletas que chips, mais chips que atletas e modo aleatório com verificação de unicidade).
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** em 325ms em 21 arquivos.
+  - `npm run build --prefix client`: Vite build concluído em 562ms (**0 erros**, bundle gerado com sucesso).
+- **Próximo passo**: Yuri testar o botão "ASSOCIAR PLANILHA" na aba Auditoria carregando os arquivos de teste de corredores e chips.
+
+
 
 
 

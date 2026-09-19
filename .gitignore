@@ -13,6 +13,7 @@ dist/
 dist-ssr/
 *.log
 logs/
+scratch/
 
 # Editor / OS
 .vscode/*
