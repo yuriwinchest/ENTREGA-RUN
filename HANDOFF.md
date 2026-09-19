@@ -471,7 +471,33 @@
     - `LISTA OFICIAL CORRIDA ICIA.xlsx`: 1011 linhas lidas e mapeadas.
   - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos**.
   - `npm run build --prefix client`: Vite build concluído em 1.11s (**0 erros**).
-- **Próximo passo**: Commit e deploy automático via GitHub Actions para homologação no navegador.
+## 2026-09-19 — Sincronização de Auditoria de Kits e Reconciliação (Fase A, construir)
+
+- **Demanda do Yuri (PO)**:
+  - Na aba "AUDITORIA" de `OperacaoPage`, não aparecia nenhum registro de entrega de kit (`0 registro(s)`), mesmo após registrar entrega de atleta (#1 Adriana Silva marcada como "ENTREGUE" na aba "ENTREGA DE KIT").
+  - O PO questionou a demora e se o Jev estava sendo utilizado na orquestração.
+- **Orquestração pelo Jev Router (`scripts/jev-prompt-router.js`)**:
+  - Prompt avaliado pelo Jev System One (`jev-1.13.0`) em **867ms**:
+    - Especialista: `kastiel_dev` (99.0% de confiança).
+    - Tipo de Tarefa: `bugfix_urgente` (100.0% de confiança).
+    - Toca Produção: `35.0%` (escopo restrito ao componente de frontend).
+    - Severidade: `1.51 / 2.00`.
+- **Causa Raiz Identificada**:
+  1. No `handleDeliverKit(athlete)` em `OperacaoPage.jsx`, o estado de auditoria (`audits` / `setAudits`) não era atualizado no momento da entrega; apenas `athletes` e `deliveries` eram modificados.
+  2. O botão "ATUALIZAR" da aba Auditoria executava `setAudits(generateDefaultAudits())`, que retornava `[]` (limpando todos os dados em vez de recarregar do `localStorage`).
+  3. Sessões anteriores em que atletas já haviam sido entregues ficavam sem registro histórico em `audits`.
+- **Ações Realizadas**:
+  1. `handleDeliverKit`: agora cria e adiciona instantaneamente um registro completo de auditoria (`comprovanteId`, `dataHora`, `operadorNome`, `retiradoPor`, `kit`, `camiseta`, etc.).
+  2. Reconciliação Automática: adicionado no `useState` inicial e em `useEffect` a detecção e inserção retroativa na lista de auditoria para quaisquer atletas com status `ENTREGUE` que ainda não possuíssem comprovante/registro.
+  3. `handleUndoDelivery` e `handleSaveDetail`: sincronizados para remover e atualizar respectivamente os itens na Auditoria.
+  4. Botão "ATUALIZAR": corrigido para recarregar com segurança do `localStorage` sem zerar registros.
+- **Validações Reais**:
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos**.
+  - `npm run build --prefix client`: Vite build concluído em 529ms (**0 erros**).
+  - Git commit e push realizados (`96ecf76`).
+  - Deploy em andamento para a VPS com healthcheck 200 ativo em `https://app.entregasrun.com.br/api/health`.
+- **Próximo passo**: Yuri homologar a aba de Auditoria na aplicação.
+
 
 
 
