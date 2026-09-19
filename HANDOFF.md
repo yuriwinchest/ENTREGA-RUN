@@ -702,6 +702,41 @@
   - `npm run build --prefix client`: Vite build concluído em 562ms (**0 erros**, bundle gerado com sucesso).
 - **Próximo passo**: Yuri testar o botão "ASSOCIAR PLANILHA" na aba Auditoria carregando os arquivos de teste de corredores e chips.
 
+## 2026-09-19 — Campos Personalizados, PCD Dinâmico e Restauração de Base Original (Fase A, construir)
+
+- **Classificação Jev (TypeSafe System One)**:
+  - Roteado em 1004ms: Especialista `kastiel_dev` (100% de confiança), `nova_feature` (100% de confiança).
+- **Demanda do Yuri (PO)**:
+  - Na importação de atletas, colunas não-padrão (como `PCD`, `PCD MEMBROS INFERIORES`, `OBSERVAÇÕES`) não tinham opção para mapear no select (só havia os campos fixos ou "Não importar").
+  - O sistema precisa passar o filtro em todos os campos da tabela anexada para não descartar nenhuma coluna.
+  - Permitir adicionar novos elementos/categorias (botão para adicionar novo campo personalizado como "PCD MEMBROS INFERIORES" para que fique disponível nas opções de mapeamento).
+  - Salvar esses campos na tabela de atletas.
+  - Preservar a tabela base original no sistema, gerando a nova tabela associada sem perder a original.
+- **Solução Implementada (Ana, Kastiel, Crowley, Teclide & Vitor)**:
+  1. `client/src/components/ImportarAtletasModal.jsx` & `ImportarAtletasModal.css`:
+     - **Auto-detecção de colunas extras**: Extrai dinamicamente todas as colunas da planilha anexada que não são campos padrão do sistema.
+     - **Mapeamento automático de PCD**: Colunas contendo termos como `pcd`, `defic`, `membro` ou `especial` agora são automaticamente mapeadas para `custom:${colName}` (ex: `PCD MEMBROS INFERIORES`), evitando que caiam como "Não importar".
+     - **Toolbar e Botão `+ ADICIONAR NOVO CAMPO / CATEGORIA`**: Permite ao usuário criar campos personalizados sob demanda com input inline e confirmação imediata.
+     - **Select aprimorado com `<optgroup>`**:
+       - *Campos Principais do Sistema*: os campos clássicos (Número, Chip, Nome, CPF, etc.).
+       - *Campos Personalizados / PCD*: opção direta para salvar como o próprio nome da coluna ("✓ Salvar como campo {headerName}") e todos os campos criados pelo usuário.
+       - *Ações*: "+ Criar outro campo personalizado...".
+     - **Persistência de Dados**: Salva em `athlete.customFields` e propriedades diretas, com detecção automática de `athlete.pcd`.
+  2. `client/src/components/AssociarPlanilhasModal.jsx`:
+     - Preserva 100% das colunas adicionais da planilha de atletas (incluindo PCD e campos customizados) durante a fusão com a lista de chips.
+  3. `client/src/components/OperacaoPage.jsx` & `OperacaoPage.css`:
+     - **Preservação e Restauração de Base Original**: `handleImportSuccess` cria snapshot arquivado em `entregas_run_original_athletes_${currentEvent.id}`. Adicionado botão `RESTAURAR BASE` no card `PLANILHA DE ATLETAS` com confirmação segura.
+     - **Exibição de Campos Extras no Atleta**: Seção dinâmica `CAMPOS EXTRAS & PCD DA PLANILHA` no formulário de detalhes do atleta, permitindo visualização e edição.
+     - **Badges de PCD na Operação**: Identificador visual `♿ {pcd}` nas tags de entrega e no resultado da busca em tempo real.
+  4. `client/src/utils/auditData.js`:
+     - `exportCsvFile` atualizado para detectar dinamicamente e incluir todas as colunas personalizadas e PCD no CSV exportado.
+- **Validações Reais**:
+  - Script automatizado `scratch/test_custom_fields_pcd.cjs`: 3 testes passaram com 100% de sucesso (detecção de colunas extras, auto-mapping de PCD e construção do atleta com customFields).
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** em 341ms em 21 arquivos.
+  - `npm run build --prefix client`: Vite build concluído em 496ms (**0 erros**).
+- **Próximo passo**: Yuri testar o mapeamento da coluna PCD na importação e verificar a exibição no formulário do atleta e na restauração de base.
+
+
 
 
 

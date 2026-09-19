@@ -524,7 +524,7 @@ export default function OperacaoPage({
   // Selected comprovante modal / preview
   const [selectedComprovante, setSelectedComprovante] = useState(null)
 
-  function handleImportSuccess(newAthletes) {
+  function handleImportSuccess(newAthletes, options = {}) {
     setAthletes((prev) => {
       const existingMap = new Map(prev.map((a) => [String(a.numero || a.id), a]))
       for (const a of newAthletes) {
@@ -533,11 +533,36 @@ export default function OperacaoPage({
       const updated = Array.from(existingMap.values())
       try {
         localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(updated))
+        if (options?.isInitialImport) {
+          localStorage.setItem(`entregas_run_original_athletes_${currentEvent.id}`, JSON.stringify(updated))
+        }
       } catch {
         // ignore
       }
       return updated
     })
+  }
+
+  function handleRestoreOriginalAthletes() {
+    try {
+      const saved = localStorage.getItem(`entregas_run_original_athletes_${currentEvent.id}`)
+      if (!saved) {
+        alert('Nenhuma planilha base original arquivada para este evento.')
+        return
+      }
+      const originalList = JSON.parse(saved)
+      if (
+        window.confirm(
+          `Deseja restaurar a planilha base original com ${originalList.length} atletas? As alterações e associações atuais de chips serão revertidas para a planilha original.`
+        )
+      ) {
+        setAthletes(originalList)
+        localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(originalList))
+        alert('Planilha base original restaurada com sucesso!')
+      }
+    } catch (err) {
+      console.error('Erro ao restaurar planilha original:', err)
+    }
   }
 
   function handleExportPlanilha() {
@@ -1560,6 +1585,40 @@ export default function OperacaoPage({
                       />
                     </div>
                   </div>
+
+                  {/* Linha de Campos Personalizados / PCD */}
+                  {detailForm.customFields && Object.keys(detailForm.customFields).length > 0 && (
+                    <div className="athlete-custom-fields-box">
+                      <div className="custom-fields-header-title">
+                        <span className="badge-pcd-pill">CAMPOS EXTRAS & PCD DA PLANILHA</span>
+                      </div>
+                      <div className="detail-form-row-4">
+                        {Object.entries(detailForm.customFields).map(([k, v]) => (
+                          <div key={k} className="athlete-form-group">
+                            <label className="athlete-form-label">{k}</label>
+                            <input
+                              type="text"
+                              className="athlete-form-input"
+                              disabled={isOperator}
+                              value={v || ''}
+                              onChange={(e) => {
+                                const newVal = e.target.value
+                                setDetailForm({
+                                  ...detailForm,
+                                  customFields: {
+                                    ...detailForm.customFields,
+                                    [k]: newVal,
+                                  },
+                                  [k]: newVal,
+                                  ...(k.toUpperCase().includes('PCD') ? { pcd: newVal } : {}),
+                                })
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   </fieldset>
                 </form>
 
@@ -1633,6 +1692,11 @@ export default function OperacaoPage({
                               <span className="athlete-doc">— {athlete.doc}</span>
                             </div>
                             <div className="delivery-tags">
+                              {Boolean(athlete.pcd || athlete.customFields?.['PCD'] || athlete.customFields?.['PCD MEMBROS INFERIORES']) && (
+                                <span className="tag-pcd-badge" title="Atleta PCD">
+                                  ♿ {athlete.pcd || athlete.customFields?.['PCD MEMBROS INFERIORES'] || athlete.customFields?.['PCD'] || 'PCD'}
+                                </span>
+                              )}
                               <span className="tag-gray">{athlete.categoria}</span>
                               <span className="tag-gray">CAMISETA {athlete.camiseta}</span>
                               <span className="tag-gray">{athlete.kit}</span>
@@ -2042,6 +2106,15 @@ export default function OperacaoPage({
                 >
                   <LinkSpreadsheetIcon />
                   <span>ASSOCIAR PLANILHA</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-restore-planilha"
+                  onClick={handleRestoreOriginalAthletes}
+                  title="Restaurar a planilha base original importada para este evento"
+                >
+                  <RefreshIcon />
+                  <span>RESTAURAR BASE</span>
                 </button>
               </div>
             </div>

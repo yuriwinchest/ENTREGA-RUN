@@ -98,6 +98,11 @@ export default function ImportarAtletasModal({
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef(null)
 
+  // Campos personalizados dinâmicos (ex: PCD MEMBROS INFERIORES)
+  const [customFields, setCustomFields] = useState([])
+  const [newFieldName, setNewFieldName] = useState('')
+  const [showAddFieldInline, setShowAddFieldInline] = useState(false)
+
   if (!isOpen) return null
 
   // Auto detect delimitador (ponto e vírgula ou vírgula)
@@ -128,26 +133,45 @@ export default function ImportarAtletasModal({
     return String(cell).trim()
   }
 
-  // Pre-mapping inteligente baseado em nomes comuns de colunas
-  function autoGuessMapping(headers) {
+  // Extrair automaticamente colunas da planilha que não são campos padrão
+  function extractDetectedCustomFields(headers) {
+    const custom = []
+    headers.forEach((h) => {
+      const clean = String(h || '').trim()
+      if (!clean) return
+      const isStandard = AVAILABLE_FIELDS.some(
+        (f) =>
+          f.value !== 'ignore' &&
+          (f.label.toLowerCase() === clean.toLowerCase() || f.value.toLowerCase() === clean.toLowerCase())
+      )
+      if (!isStandard && !custom.includes(clean)) {
+        custom.push(clean)
+      }
+    })
+    return custom
+  }
+
+  // Pre-mapping inteligente baseado em nomes comuns de colunas e PCD
+  function autoGuessMapping(headers, currentCustom = []) {
     const mapping = {}
     headers.forEach((h, idx) => {
-      const lower = String(h || '').toLowerCase()
+      const lower = String(h || '').toLowerCase().trim()
+      const colClean = String(h || '').trim()
       if (lower.includes('peito') && lower.includes('nome')) {
         mapping[idx] = 'nome_peito'
       } else if (lower.includes('peito') || lower.includes('numero') || lower === 'num' || lower.includes('número')) {
         mapping[idx] = 'numero'
       } else if (lower.includes('chip')) {
         mapping[idx] = 'chip'
-      } else if (lower.includes('completo') || lower.includes('inscrito') || lower.includes('atleta') || lower.includes('nome')) {
+      } else if (lower.includes('completo') || lower.includes('inscrito') || lower.includes('atleta') || lower === 'nome') {
         mapping[idx] = 'nome'
       } else if (lower.includes('cpf') || lower.includes('doc') || lower.includes('documento')) {
         mapping[idx] = 'doc'
-      } else if (lower.includes('sexo') || lower === 'sex') {
+      } else if (lower.includes('sexo') || lower === 'sex' || lower.includes('gênero') || lower.includes('genero')) {
         mapping[idx] = 'sexo'
       } else if (lower.includes('camis') || lower.includes('tamanho')) {
         mapping[idx] = 'camiseta'
-      } else if (lower.includes('equipe') || lower.includes('time')) {
+      } else if (lower.includes('equipe') || lower.includes('time') || lower.includes('assessoria')) {
         mapping[idx] = 'equipe'
       } else if (lower.includes('cidade') || lower.includes('municipio')) {
         mapping[idx] = 'cidade'
@@ -155,21 +179,34 @@ export default function ImportarAtletasModal({
         mapping[idx] = 'nascimento'
       } else if (lower.includes('kit')) {
         mapping[idx] = 'kit'
-      } else if (lower.includes('mod') || lower.includes('dist')) {
+      } else if (lower.includes('mod') || lower.includes('dist') || lower.includes('percurso')) {
         mapping[idx] = 'modalidade'
-      } else if (lower.includes('cat')) {
+      } else if (lower.includes('cat') || lower.includes('faixa')) {
         mapping[idx] = 'categoria'
       } else if (lower.includes('morador') || lower.includes('visitante')) {
         mapping[idx] = 'morador'
-      } else if (lower.includes('contato') || lower.includes('tel') || lower.includes('cel')) {
+      } else if (lower.includes('contato') || lower.includes('tel') || lower.includes('cel') || lower.includes('fone')) {
         mapping[idx] = 'contato'
       } else if (lower.includes('pais') || lower.includes('nacionalidade')) {
         mapping[idx] = 'nacionalidade'
+      } else if (lower.includes('pcd') || lower.includes('defic') || lower.includes('membro') || lower.includes('especial')) {
+        mapping[idx] = `custom:${colClean}`
+      } else if (colClean && currentCustom.includes(colClean)) {
+        mapping[idx] = `custom:${colClean}`
       } else {
         mapping[idx] = 'ignore'
       }
     })
     return mapping
+  }
+
+  function handleCreateCustomField(nameToUse) {
+    const name = (nameToUse || newFieldName).trim().toUpperCase()
+    if (!name) return ''
+    setCustomFields((prev) => Array.from(new Set([...prev, name])))
+    setNewFieldName('')
+    setShowAddFieldInline(false)
+    return name
   }
 
   // Download do Modelo CSV
@@ -213,7 +250,9 @@ export default function ImportarAtletasModal({
             setRawText(textPreview)
             setParsedHeaders(headers)
             setParsedRows(dataRows)
-            setColumnMapping(autoGuessMapping(headers))
+            const detected = extractDetectedCustomFields(headers)
+            setCustomFields((prev) => Array.from(new Set([...prev, ...detected])))
+            setColumnMapping(autoGuessMapping(headers, detected))
           } else {
             alert('A planilha selecionada está vazia.')
           }
@@ -233,7 +272,9 @@ export default function ImportarAtletasModal({
         const { headers, rows } = parseCsvContent(content)
         setParsedHeaders(headers)
         setParsedRows(rows)
-        setColumnMapping(autoGuessMapping(headers))
+        const detected = extractDetectedCustomFields(headers)
+        setCustomFields((prev) => Array.from(new Set([...prev, ...detected])))
+        setColumnMapping(autoGuessMapping(headers, detected))
       }
       reader.readAsText(file)
     }
@@ -250,7 +291,9 @@ export default function ImportarAtletasModal({
       rows = parsed.rows
       setParsedHeaders(headers)
       setParsedRows(rows)
-      setColumnMapping(autoGuessMapping(headers))
+      const detected = extractDetectedCustomFields(headers)
+      setCustomFields((prev) => Array.from(new Set([...prev, ...detected])))
+      setColumnMapping(autoGuessMapping(headers, detected))
     }
 
     if (headers.length === 0) {
@@ -297,7 +340,15 @@ export default function ImportarAtletasModal({
         const val = row[colIdx] !== undefined ? String(row[colIdx]).trim() : ''
 
         if (fieldKey !== 'ignore' && val) {
-          if (fieldKey === 'nome' || fieldKey === 'nome_peito') {
+          if (fieldKey.startsWith('custom:')) {
+            const customKey = fieldKey.replace('custom:', '').trim()
+            if (!athlete.customFields) athlete.customFields = {}
+            athlete.customFields[customKey] = val
+            athlete[customKey] = val
+            if (customKey.toUpperCase().includes('PCD')) {
+              athlete.pcd = val
+            }
+          } else if (fieldKey === 'nome' || fieldKey === 'nome_peito') {
             athlete.nome = val.toUpperCase()
           } else if (fieldKey === 'numero') {
             athlete.numero = val
@@ -342,7 +393,7 @@ export default function ImportarAtletasModal({
   function handleFinish() {
     if (importStats.athletes && importStats.athletes.length > 0) {
       if (onImportSuccess) {
-        onImportSuccess(importStats.athletes)
+        onImportSuccess(importStats.athletes, { isInitialImport: true })
       }
     }
     onClose()
@@ -476,6 +527,60 @@ export default function ImportarAtletasModal({
               Associe cada coluna detectada na planilha ao campo correspondente no sistema:
             </p>
 
+            {/* BARRA DE ADICIONAR NOVO CAMPO / PCD */}
+            <div className="custom-fields-toolbar">
+              <div className="custom-fields-toolbar-info">
+                <span className="toolbar-icon">⚡</span>
+                <div>
+                  <strong>Campos Personalizados & PCD:</strong>
+                  <p>Colunas como PCD ou categorias extras podem ser mapeadas diretamente para não perder nenhum dado da planilha.</p>
+                </div>
+              </div>
+              {!showAddFieldInline ? (
+                <button
+                  type="button"
+                  className="btn-add-custom-field-btn"
+                  onClick={() => setShowAddFieldInline(true)}
+                >
+                  + ADICIONAR NOVO CAMPO / CATEGORIA
+                </button>
+              ) : (
+                <div className="add-field-inline-row">
+                  <input
+                    type="text"
+                    className="add-field-input"
+                    placeholder="Ex: PCD MEMBROS INFERIORES"
+                    value={newFieldName}
+                    onChange={(e) => setNewFieldName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleCreateCustomField()
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="btn-add-field-save"
+                    onClick={() => handleCreateCustomField()}
+                  >
+                    ADICIONAR
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-add-field-cancel"
+                    onClick={() => {
+                      setShowAddFieldInline(false)
+                      setNewFieldName('')
+                    }}
+                  >
+                    CANCELAR
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="columns-mapping-grid">
               {parsedHeaders.map((headerName, idx) => {
                 const sampleVal = parsedRows[0]?.[idx] || parsedRows[1]?.[idx] || '—'
@@ -488,18 +593,52 @@ export default function ImportarAtletasModal({
                     <select
                       className="column-select-field"
                       value={columnMapping[idx] || 'ignore'}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        if (e.target.value === '__ADD_NEW__') {
+                          const name = window.prompt(
+                            'Digite o nome do novo campo/categoria personalizada (ex: PCD MEMBROS INFERIORES):'
+                          )
+                          if (name && name.trim()) {
+                            const cleanName = handleCreateCustomField(name)
+                            setColumnMapping((prev) => ({
+                              ...prev,
+                              [idx]: `custom:${cleanName}`,
+                            }))
+                          }
+                          return
+                        }
                         setColumnMapping({
                           ...columnMapping,
                           [idx]: e.target.value,
                         })
-                      }
+                      }}
                     >
-                      {AVAILABLE_FIELDS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
+                      <optgroup label="Campos Principais do Sistema">
+                        {AVAILABLE_FIELDS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </optgroup>
+
+                      <optgroup label="Campos Personalizados / Categorias Extras">
+                        {headerName && headerName.trim() && (
+                          <option value={`custom:${headerName.trim()}`}>
+                            ✓ Salvar como campo "{headerName.trim()}"
+                          </option>
+                        )}
+                        {customFields
+                          .filter((cf) => cf !== headerName?.trim())
+                          .map((cf) => (
+                            <option key={cf} value={`custom:${cf}`}>
+                              {cf} (Personalizado)
+                            </option>
+                          ))}
+                      </optgroup>
+
+                      <optgroup label="Ações">
+                        <option value="__ADD_NEW__">+ Criar outro campo personalizado...</option>
+                      </optgroup>
                     </select>
 
                     <span className="column-sample-val">

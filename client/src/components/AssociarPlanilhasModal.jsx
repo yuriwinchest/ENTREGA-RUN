@@ -363,8 +363,33 @@ export default function AssociarPlanilhasModal({
         kit: 'Kit Padrão',
         status: 'PENDENTE',
         createdAt: new Date().toISOString(),
+        customFields: {},
         _hasCollision: existingNums.has(String(numeroPeito)),
       }
+
+      // Preserva automaticamente qualquer coluna adicional da planilha de atletas (como PCD)
+      atletasHeaders.forEach((h, colI) => {
+        if (
+          colI !== nameCol &&
+          colI !== docCol &&
+          colI !== modCol &&
+          colI !== catCol &&
+          colI !== sexCol &&
+          colI !== camCol &&
+          colI !== eqCol &&
+          colI !== numCol
+        ) {
+          const val = row[colI] !== undefined ? String(row[colI]).trim() : ''
+          if (val && h) {
+            const hClean = h.trim()
+            athleteObj.customFields[hClean] = val
+            athleteObj[hClean] = val
+            if (hClean.toUpperCase().includes('PCD')) {
+              athleteObj.pcd = val
+            }
+          }
+        }
+      })
 
       pairedAthletes.push(athleteObj)
     })
