@@ -286,15 +286,15 @@ export default function UsuariosPage({
                   </select>
                 </div>
 
-                <div className="modal-actions">
+                <div className="modal-actions-row">
                   <button
                     type="button"
-                    className="btn-cancel"
+                    className="modal-btn-cancel"
                     onClick={() => setShowAddUserModal(false)}
                   >
                     Cancelar
                   </button>
-                  <button type="submit" className="btn-confirm">
+                  <button type="submit" className="modal-btn-save">
                     Adicionar Usuário
                   </button>
                 </div>
