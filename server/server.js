@@ -29,7 +29,10 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'entregas-run-server' })
 })
 
-// MOCK de homologação: valida formato e devolve 200. Auth real entra em próxima demanda.
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'pacetime@entregas.com').toLowerCase().trim()
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'WgP2ZhkCXQ!7'
+
+// Autenticação do Administrador Geral e Operadores
 app.post('/api/login', loginLimiter, (req, res) => {
   const { email, password } = req.body || {}
 
@@ -40,8 +43,48 @@ app.post('/api/login', loginLimiter, (req, res) => {
     return res.status(400).json({ ok: false, message: 'Senha deve ter ao menos 6 caracteres.' })
   }
 
-  return res.json({ ok: true, mock: true, user: { email: email.trim() } })
+  const normalizedEmail = email.trim().toLowerCase()
+
+  // Administrador Geral
+  if (normalizedEmail === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+    return res.json({
+      ok: true,
+      user: {
+        id: 'admin_pacetime',
+        name: 'Felipe Admin',
+        email: normalizedEmail,
+        role: 'ADMIN',
+      },
+    })
+  }
+
+  // Operadores de homologação com a mesma chave ou senha específica
+  const operators = {
+    'agner.israel@entregas.com': 'Agner Israel',
+    'agner.araujo@entregas.com': 'Agner Araujo',
+    'entregas1@entregas.com': 'Entregas 01',
+    'entregas2@entregas.com': 'Entregas 02',
+    'entregas3@entregas.com': 'Entregas 03',
+  }
+
+  if (operators[normalizedEmail] && password === ADMIN_PASSWORD) {
+    return res.json({
+      ok: true,
+      user: {
+        id: normalizedEmail.split('@')[0],
+        name: operators[normalizedEmail],
+        email: normalizedEmail,
+        role: 'OPERADOR',
+      },
+    })
+  }
+
+  return res.status(401).json({
+    ok: false,
+    message: 'E-mail ou senha incorretos. Verifique suas credenciais.',
+  })
 })
+
 
 // Em produção (dist gerado), serve o frontend na mesma origem.
 const distDir = path.join(__dirname, '..', 'client', 'dist')
