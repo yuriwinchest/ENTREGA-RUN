@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import Sidebar from './Sidebar.jsx'
+import CidadeAutocomplete from './CidadeAutocomplete.jsx'
+import DataPickerInput from './DataPickerInput.jsx'
 import './EventosPage.css'
 
 function SearchIcon() {
@@ -228,13 +230,14 @@ export default function EventosPage({
     e.preventDefault()
     if (!newEventForm.name.trim()) return
 
-    const dateVal = newEventForm.date.trim() || '15/09/2026'
+    const todayStr = new Date().toLocaleDateString('pt-BR')
+    const dateVal = newEventForm.date.trim() || todayStr
     const newEv = {
       id: `event-${Date.now()}`,
       name: newEventForm.name.trim().toUpperCase(),
       date: dateVal,
       dateInput: dateVal,
-      location: (newEventForm.location.trim() || 'Recife/PE').toUpperCase(),
+      location: newEventForm.location.trim() || 'Recife/PE',
       status: 'PLANEJADO',
       active: false,
       total: 0,
@@ -544,21 +547,14 @@ export default function EventosPage({
                       <CalendarIcon />
                       <span>DATA</span>
                     </label>
-                    <div className="input-with-icon-wrap">
-                      <input
-                        type="text"
-                        className="form-input"
-                        placeholder="dd/mm/aaaa"
-                        value={newEventForm.date}
-                        onChange={(e) =>
-                          setNewEventForm({ ...newEventForm, date: e.target.value })
-                        }
-                        required
-                      />
-                      <span className="input-end-icon">
-                        <CalendarIcon />
-                      </span>
-                    </div>
+                    <DataPickerInput
+                      value={newEventForm.date}
+                      onChange={(dateVal) =>
+                        setNewEventForm({ ...newEventForm, date: dateVal })
+                      }
+                      placeholder="dd/mm/aaaa"
+                      required
+                    />
                   </div>
 
                   <div className="form-group">
@@ -566,14 +562,12 @@ export default function EventosPage({
                       <MapPinIcon />
                       <span>CIDADE / UF</span>
                     </label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Recife/PE"
+                    <CidadeAutocomplete
                       value={newEventForm.location}
-                      onChange={(e) =>
-                        setNewEventForm({ ...newEventForm, location: e.target.value })
+                      onChange={(locVal) =>
+                        setNewEventForm({ ...newEventForm, location: locVal })
                       }
+                      placeholder="Ex: Recife/PE"
                       required
                     />
                   </div>
@@ -640,23 +634,18 @@ export default function EventosPage({
                       <CalendarIcon />
                       <span>DATA</span>
                     </label>
-                    <div className="input-with-icon-wrap">
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={editingEvent.dateInput || ''}
-                        onChange={(e) =>
-                          setEditingEvent({
-                            ...editingEvent,
-                            dateInput: e.target.value,
-                          })
-                        }
-                        required
-                      />
-                      <span className="input-end-icon">
-                        <CalendarIcon />
-                      </span>
-                    </div>
+                    <DataPickerInput
+                      value={editingEvent.dateInput || editingEvent.date || ''}
+                      onChange={(dateVal) =>
+                        setEditingEvent({
+                          ...editingEvent,
+                          dateInput: dateVal,
+                          date: dateVal,
+                        })
+                      }
+                      placeholder="dd/mm/aaaa"
+                      required
+                    />
                   </div>
 
                   <div className="form-group">
@@ -664,16 +653,15 @@ export default function EventosPage({
                       <MapPinIcon />
                       <span>CIDADE / UF</span>
                     </label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={editingEvent.location}
-                      onChange={(e) =>
+                    <CidadeAutocomplete
+                      value={editingEvent.location || ''}
+                      onChange={(locVal) =>
                         setEditingEvent({
                           ...editingEvent,
-                          location: e.target.value,
+                          location: locVal,
                         })
                       }
+                      placeholder="Ex: Recife/PE"
                       required
                     />
                   </div>
