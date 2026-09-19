@@ -63,14 +63,42 @@ function CloseIcon() {
   )
 }
 
+function ChevronLeftIcon({ className }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  )
+}
+
 export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, user }) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('entregas_run_sidebar_collapsed') === 'true'
+    } catch {
+      return false
+    }
+  })
+
   const userName = user?.name || (user?.email ? user.email.split('@')[0].toUpperCase() : 'ADMIN')
   const userRole = user?.role || 'ADMIN'
 
   function handleNav(page) {
     onNavigate(page)
     setMobileOpen(false)
+  }
+
+  function toggleCollapsed() {
+    setIsCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('entregas_run_sidebar_collapsed', String(next))
+      } catch {
+        // ignore
+      }
+      return next
+    })
   }
 
   return (
@@ -105,14 +133,16 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
         />
       )}
 
-      {/* 3. Sidebar Principal (Desktop estática / Mobile Drawer Deslizante) */}
-      <aside className={`app-sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
+      {/* 3. Sidebar Principal (Desktop estática / Mobile Drawer Deslizante / Recolhível) */}
+      <aside className={`app-sidebar ${mobileOpen ? 'mobile-open' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-top">
           <div className="sidebar-brand">
-            <div className="sidebar-brand-badge">
+            <div className="sidebar-brand-badge" onClick={() => handleNav('dashboard')} style={{ cursor: 'pointer' }} title="Ir para o Dashboard">
               <img src="/logo.png" alt="Entregas RUN" />
             </div>
             <span className="sidebar-brand-title-mobile">ENTREGAS RUN</span>
+            
+            {/* Botão fechar (visível apenas no mobile drawer) */}
             <button
               type="button"
               className="sidebar-mobile-close-btn"
@@ -121,6 +151,17 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
             >
               <CloseIcon />
             </button>
+
+            {/* Botão com a setinha para recolher/expandir o menu lateral no desktop */}
+            <button
+              type="button"
+              className="sidebar-collapse-btn"
+              onClick={toggleCollapsed}
+              aria-label={isCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+              title={isCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+            >
+              <ChevronLeftIcon className={`collapse-chevron-icon ${isCollapsed ? 'rotated' : ''}`} />
+            </button>
           </div>
 
           <nav className="sidebar-nav">
@@ -128,6 +169,7 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
               type="button"
               className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`}
               onClick={() => handleNav('dashboard')}
+              title="DASHBOARD"
             >
               <LayoutGridIcon />
               <span>DASHBOARD</span>
@@ -137,6 +179,7 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
               type="button"
               className={`nav-item ${activePage === 'eventos' || activePage === 'operacao' || activePage === 'event-dashboard' ? 'active' : ''}`}
               onClick={() => handleNav('eventos')}
+              title="EVENTOS"
             >
               <CalendarIcon />
               <span>EVENTOS</span>
@@ -147,6 +190,7 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
                 type="button"
                 className={`nav-item ${activePage === 'usuarios' ? 'active' : ''}`}
                 onClick={() => handleNav('usuarios')}
+                title="USUÁRIOS"
               >
                 <UsersIcon />
                 <span>USUÁRIOS</span>
@@ -156,10 +200,13 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
         </div>
 
         <div className="sidebar-bottom">
-          <div className="sidebar-user">
-            <span className="sidebar-user-label">USUÁRIO</span>
-            <span className="sidebar-user-name">{userName}</span>
-            <span className="sidebar-user-role">{userRole}</span>
+          <div className="sidebar-user" title={`${userName} (${userRole})`}>
+            <span className="sidebar-user-avatar-mini">{userName.charAt(0)}</span>
+            <div className="sidebar-user-text-col">
+              <span className="sidebar-user-label">USUÁRIO</span>
+              <span className="sidebar-user-name">{userName}</span>
+              <span className="sidebar-user-role">{userRole}</span>
+            </div>
           </div>
 
           <button
@@ -169,6 +216,7 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
               setMobileOpen(false)
               onLogout()
             }}
+            title="Sair da conta"
           >
             <LogOutIcon />
             <span>SAIR</span>

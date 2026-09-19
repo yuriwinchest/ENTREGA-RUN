@@ -644,6 +644,28 @@
   - `npm run build --prefix client`: Vite build concluído em 1.18s (**0 erros**).
 - **Próximo passo**: Yuri testar a vinculação de corrida e a troca de permissões entre Operador, Supervisor e Admin.
 
+## 2026-09-19 — Menu Lateral Retrátil no Desktop com Botão de Recolher (Fase A, construir)
+
+- **Classificação Jev (TypeSafe System One)**:
+  - Roteado em 1128ms: Especialista `ana_ui_ux` (55% de confiança), `nova_feature` (96% de confiança).
+- **Demanda do Yuri (PO)**:
+  - No menu lateral (desktop), adicionar um botão com setinha para recolher a barra lateral para dar mais espaço útil às telas do sistema.
+- **Solução Implementada (Ana & Kastiel)**:
+  1. `client/src/components/Sidebar.jsx`:
+     - Adicionado estado reativo `isCollapsed` persistido no `localStorage` sob a chave `'entregas_run_sidebar_collapsed'`, mantendo a preferência do usuário entre telas e recarregamentos.
+     - Botão de recolher (`.sidebar-collapse-btn`) posicionado no topo da barra lateral com ícone de seta (`ChevronLeftIcon`), que rotaciona 180° quando recolhido.
+     - No modo compacto, os botões de navegação centralizam os ícones (`DASHBOARD`, `EVENTOS`, `USUÁRIOS`) com tooltips nativos via atributo `title`.
+     - Rodapé adaptado: monograma circular para o avatar do usuário e botão de logout em ícone centralizado.
+  2. `client/src/components/Sidebar.css`:
+     - Transição fluida de largura de `230px` para `78px` (`transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1)`).
+     - Todas as telas filhas (`DashboardPage`, `EventosPage`, `OperacaoPage`, `UsuariosPage`) que utilizam `flex: 1` expandem automaticamente, aproveitando os 152px adicionais de largura sem quebras ou rolagem indesejada.
+     - Proteção para telas mobile (`@media (max-width: 768px)`): o botão de recolher do desktop fica oculto e o drawer lateral mobile preserva sua largura nativa de 280px.
+- **Validações Reais**:
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** em 674ms.
+  - `npm run build --prefix client`: Vite build concluído em 918ms (**0 erros**).
+- **Próximo passo**: Yuri testar o botão com a setinha no desktop para recolher e expandir o menu lateral.
+
+
 
 
 

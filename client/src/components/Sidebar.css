@@ -11,6 +11,14 @@
   user-select: none;
   position: relative;
   z-index: 20;
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.22s cubic-bezier(0.16, 1, 0.3, 1), padding 0.22s ease;
+}
+
+/* Estado Recolhido (Desktop) */
+.app-sidebar.collapsed {
+  width: 78px;
+  min-width: 78px;
+  padding: 24px 10px 20px;
 }
 
 .sidebar-top {
@@ -22,6 +30,7 @@
 .sidebar-brand {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   padding-left: 6px;
 }
@@ -36,12 +45,104 @@
   justify-content: center;
   padding: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
 }
 
 .sidebar-brand-badge img {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+/* Botão com a setinha para recolher o menu lateral */
+.sidebar-collapse-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-collapse-btn:hover {
+  background: rgba(255, 82, 0, 0.15);
+  border-color: rgba(255, 82, 0, 0.35);
+  color: #ff5200;
+}
+
+.collapse-chevron-icon {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.collapse-chevron-icon.rotated {
+  transform: rotate(180deg);
+}
+
+/* Comportamentos quando recolhido */
+.app-sidebar.collapsed .sidebar-brand {
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-left: 0;
+}
+
+.app-sidebar.collapsed .sidebar-brand-badge {
+  width: 42px;
+  height: 42px;
+  padding: 5px;
+}
+
+.app-sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 12px 0;
+  border-radius: 12px;
+}
+
+.app-sidebar.collapsed .nav-item span {
+  display: none;
+}
+
+.app-sidebar.collapsed .sidebar-user {
+  align-items: center;
+  padding-left: 0;
+}
+
+.app-sidebar.collapsed .sidebar-user-text-col {
+  display: none;
+}
+
+.sidebar-user-avatar-mini {
+  display: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #ff5200;
+  color: #ffffff;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(255, 82, 0, 0.3);
+}
+
+.app-sidebar.collapsed .sidebar-user-avatar-mini {
+  display: flex;
+}
+
+.app-sidebar.collapsed .logout-btn {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.app-sidebar.collapsed .logout-btn span {
+  display: none;
 }
 
 .sidebar-nav {
@@ -308,6 +409,48 @@
   .sidebar-mobile-close-btn:hover {
     background: rgba(255, 255, 255, 0.12);
     color: #ffffff;
+  }
+
+  .sidebar-collapse-btn {
+    display: none !important;
+  }
+
+  .app-sidebar.collapsed {
+    width: 280px !important;
+    min-width: 280px !important;
+    padding: 24px 16px 20px !important;
+  }
+
+  .app-sidebar.collapsed .sidebar-brand {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 12px !important;
+  }
+
+  .app-sidebar.collapsed .nav-item {
+    justify-content: flex-start !important;
+    padding: 12px 14px !important;
+  }
+
+  .app-sidebar.collapsed .nav-item span {
+    display: inline !important;
+  }
+
+  .app-sidebar.collapsed .sidebar-user-text-col {
+    display: flex !important;
+  }
+
+  .app-sidebar.collapsed .sidebar-user-avatar-mini {
+    display: none !important;
+  }
+
+  .app-sidebar.collapsed .logout-btn {
+    justify-content: flex-start !important;
+    padding: 12px 14px !important;
+  }
+
+  .app-sidebar.collapsed .logout-btn span {
+    display: inline !important;
   }
 
   /* Bottom Navigation Bar */
