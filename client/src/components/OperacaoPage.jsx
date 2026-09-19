@@ -846,7 +846,9 @@ export default function OperacaoPage({
 
   // Deliver kit to an athlete directly
   function handleDeliverKit(athlete) {
-    if (athlete.status === 'ENTREGUE') return
+    if (athlete.status === 'ENTREGUE') {
+      return audits.find((a) => String(a.atletaNumero) === String(athlete.numero))
+    }
 
     const now = new Date()
     const dataHoraFormatada = now.toLocaleString('pt-BR', {
@@ -932,6 +934,50 @@ export default function OperacaoPage({
         concl: conclRate,
       })
     }
+
+    return newAudit
+  }
+
+  // Abre modal do comprovante (2 vias) para um atleta ou registro de auditoria
+  function handleOpenComprovante(target) {
+    if (!target) return
+    if (target.comprovanteId) {
+      setSelectedComprovante(target)
+      return
+    }
+    const found = audits.find(
+      (a) => String(a.atletaNumero) === String(target.numero || target.id)
+    )
+    if (found) {
+      setSelectedComprovante(found)
+      return
+    }
+    const opName = user?.name || 'Felipe Admin'
+    const opEmail = user?.email || 'pacetime@entregas.com'
+    const fallbackAudit = {
+      id: `aud-${Date.now()}-${target.numero || target.id}`,
+      comprovanteId: `CPR-${Math.floor(100000 + Math.random() * 900000)}`,
+      dataHora: target.entregueEm || new Date().toLocaleString('pt-BR'),
+      timestamp: Date.now(),
+      atletaNumero: target.numero || target.id,
+      atletaNome: target.nome,
+      atletaCpf: target.doc || '—',
+      tipo:
+        target.entreguePara &&
+        target.entreguePara.trim().toUpperCase() !== target.nome.trim().toUpperCase()
+          ? 'TERCEIRO'
+          : 'ATLETA',
+      retiradoPor: target.entreguePara || target.nome,
+      operadorNome: target.entreguePor || opName,
+      operadorEmail: opEmail,
+      pontoEntrega: 'Guichê Principal',
+      kit: target.kit || 'Kit Padrão',
+      camiseta: target.camiseta || 'M',
+      modalidade: target.modalidade || '5 KM',
+      status: 'ENTREGUE',
+      eventId: currentEvent.id,
+    }
+    setSelectedComprovante(fallbackAudit)
   }
 
   // Filtered Athletes for Tab 2
@@ -1088,28 +1134,54 @@ export default function OperacaoPage({
                 {/* 1. Barra de Ações Superior */}
                 <div className="athlete-detail-actions-bar">
                   {detailForm.status === 'ENTREGUE' ? (
-                    <button
-                      type="button"
-                      className="btn-detail-undo"
-                      onClick={handleUndoDelivery}
-                      title="Desfazer entrega do kit"
-                    >
-                      <UndoIcon />
-                      <span>DESFAZER</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className="btn-detail-print"
+                        onClick={() => handleOpenComprovante(selectedAthlete || detailForm)}
+                        title="Imprimir comprovante de entrega (2 Vias)"
+                      >
+                        <PrinterIcon />
+                        <span>IMPRIMIR COMPROVANTE</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-detail-undo"
+                        onClick={handleUndoDelivery}
+                        title="Desfazer entrega do kit"
+                      >
+                        <UndoIcon />
+                        <span>DESFAZER</span>
+                      </button>
+                    </>
                   ) : (
-                    <button
-                      type="button"
-                      className="btn-detail-entregar"
-                      onClick={() => {
-                        handleDeliverKit(selectedAthlete)
-                        setSelectedAthlete(null)
-                      }}
-                      title="Confirmar entrega do kit"
-                    >
-                      <CheckCircleIcon />
-                      <span>ENTREGAR KIT</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className="btn-detail-entregar"
+                        onClick={() => {
+                          handleDeliverKit(selectedAthlete)
+                          setSelectedAthlete(null)
+                        }}
+                        title="Confirmar entrega do kit"
+                      >
+                        <CheckCircleIcon />
+                        <span>ENTREGAR KIT</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-detail-entregar-print"
+                        onClick={() => {
+                          const auditRec = handleDeliverKit(selectedAthlete)
+                          setSelectedAthlete(null)
+                          handleOpenComprovante(auditRec || selectedAthlete)
+                        }}
+                        title="Confirmar entrega e abrir comprovante (2 Vias)"
+                      >
+                        <PrinterIcon />
+                        <span>ENTREGAR & IMPRIMIR</span>
+                      </button>
+                    </>
                   )}
 
                   <button
@@ -2535,7 +2607,7 @@ export default function OperacaoPage({
           />
         )}
 
-        {/* MODAL: COMPROVANTE DE RETIRADA */}
+        {/* MODAL: COMPROVANTE DE RETIRADA (2 VIAS) */}
         {selectedComprovante && (
           <div className="modal-backdrop" onClick={() => setSelectedComprovante(null)}>
             <div className="modal-card-comprovante" onClick={(e) => e.stopPropagation()}>
@@ -2545,7 +2617,7 @@ export default function OperacaoPage({
                     <PrinterIcon />
                   </div>
                   <div>
-                    <h3 className="comprovante-title">COMPROVANTE DE RETIRADA</h3>
+                    <h3 className="comprovante-title">COMPROVANTE DE RETIRADA (2 VIAS)</h3>
                     <p className="comprovante-subtitle">
                       Registro #{selectedComprovante.comprovanteId} · {currentEvent?.name}
                     </p>
@@ -2562,51 +2634,121 @@ export default function OperacaoPage({
               </div>
 
               <div className="comprovante-body">
-                <div className="comprovante-ticket-box">
-                  <div className="ticket-top-row">
-                    <span className="ticket-event-name">{currentEvent?.name}</span>
-                    <span className="ticket-badge-ok">ENTREGUE</span>
+                <div className="printable-receipt-area">
+                  {/* 1ª VIA: ORGANIZAÇÃO / ENTREGADOR */}
+                  <div className="comprovante-ticket-box via-organizacao">
+                    <div className="ticket-top-row">
+                      <div className="ticket-brand-col">
+                        <span className="ticket-logo-text">ENTREGAS RUN</span>
+                        <span className="ticket-event-name">{currentEvent?.name}</span>
+                      </div>
+                      <span className="ticket-via-badge badge-org">1ª VIA — ORGANIZAÇÃO</span>
+                    </div>
+
+                    <div className="ticket-atleta-card">
+                      <div className="ticket-peito-badge">#{selectedComprovante.atletaNumero}</div>
+                      <div className="ticket-atleta-info">
+                        <div className="ticket-nome">{selectedComprovante.atletaNome}</div>
+                        <div className="ticket-cpf-sub">CPF: {selectedComprovante.atletaCpf || '***.***.***-**'}</div>
+                      </div>
+                    </div>
+
+                    <div className="ticket-details-grid">
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">DATA / HORA</span>
+                        <span className="grid-val">{selectedComprovante.dataHora}</span>
+                      </div>
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">TIPO</span>
+                        <span className="grid-val">{selectedComprovante.tipo}</span>
+                      </div>
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">RETIRADO POR</span>
+                        <span className="grid-val">{selectedComprovante.retiradoPor}</span>
+                      </div>
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">OPERADOR</span>
+                        <span className="grid-val">{selectedComprovante.operadorNome}</span>
+                      </div>
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">PONTO DE RETIRADA</span>
+                        <span className="grid-val">{selectedComprovante.pontoEntrega || 'PONTO PRINCIPAL'}</span>
+                      </div>
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">KIT & CAMISETA</span>
+                        <span className="grid-val">{selectedComprovante.kit} {selectedComprovante.camiseta ? `· ${selectedComprovante.camiseta}` : ''}</span>
+                      </div>
+                    </div>
+
+                    <div className="ticket-signature-section">
+                      <div className="ticket-sig-line"></div>
+                      <div className="ticket-sig-label">Assinatura do Recebedor ({selectedComprovante.retiradoPor})</div>
+                      <div className="ticket-security-hash">CÓDIGO DE AUTENTICIDADE: ERUN-{selectedComprovante.comprovanteId}-{selectedComprovante.id?.slice(0, 8).toUpperCase()}</div>
+                      <div className="ticket-via-notice">VIA RETIDA PELA ORGANIZAÇÃO DO EVENTO PARA AUDITORIA E SEGURANÇA</div>
+                    </div>
                   </div>
 
-                  <div className="ticket-atleta-card">
-                    <div className="ticket-peito-badge">#{selectedComprovante.atletaNumero}</div>
-                    <div className="ticket-atleta-info">
-                      <div className="ticket-nome">{selectedComprovante.atletaNome}</div>
-                      <div className="ticket-cpf-sub">CPF: {selectedComprovante.atletaCpf || '***.***.***-**'}</div>
-                    </div>
+                  {/* LINHA DE PICOTE DESTACÁVEL */}
+                  <div className="receipt-cut-line">
+                    <span className="cut-icon">✂</span>
+                    <span className="cut-divider"></span>
+                    <span className="cut-text">PICOTE / DESTAQUE AQUI</span>
+                    <span className="cut-divider"></span>
+                    <span className="cut-icon">✂</span>
                   </div>
 
-                  <div className="ticket-details-grid">
-                    <div className="ticket-grid-col">
-                      <span className="grid-label">DATA / HORA</span>
-                      <span className="grid-val">{selectedComprovante.dataHora}</span>
+                  {/* 2ª VIA: ATLETA */}
+                  <div className="comprovante-ticket-box via-atleta">
+                    <div className="ticket-top-row">
+                      <div className="ticket-brand-col">
+                        <span className="ticket-logo-text">ENTREGAS RUN</span>
+                        <span className="ticket-event-name">{currentEvent?.name}</span>
+                      </div>
+                      <span className="ticket-via-badge badge-atleta">2ª VIA — ATLETA</span>
                     </div>
-                    <div className="ticket-grid-col">
-                      <span className="grid-label">TIPO</span>
-                      <span className="grid-val">{selectedComprovante.tipo}</span>
-                    </div>
-                    <div className="ticket-grid-col">
-                      <span className="grid-label">RETIRADO POR</span>
-                      <span className="grid-val">{selectedComprovante.retiradoPor}</span>
-                    </div>
-                    <div className="ticket-grid-col">
-                      <span className="grid-label">OPERADOR</span>
-                      <span className="grid-val">{selectedComprovante.operadorNome}</span>
-                    </div>
-                    <div className="ticket-grid-col">
-                      <span className="grid-label">PONTO DE RETIRADA</span>
-                      <span className="grid-val">{selectedComprovante.pontoEntrega || 'PONTO PRINCIPAL'}</span>
-                    </div>
-                    <div className="ticket-grid-col">
-                      <span className="grid-label">KIT & TAMANHO</span>
-                      <span className="grid-val">{selectedComprovante.kit} {selectedComprovante.camiseta ? `· ${selectedComprovante.camiseta}` : ''}</span>
-                    </div>
-                  </div>
 
-                  <div className="ticket-signature-section">
-                    <div className="ticket-sig-line"></div>
-                    <div className="ticket-sig-label">Assinatura do Recebedor ({selectedComprovante.retiradoPor})</div>
-                    <div className="ticket-security-hash">CÓDIGO DE AUTENTICIDADE: ERUN-{selectedComprovante.comprovanteId}-{selectedComprovante.id?.slice(0, 8).toUpperCase()}</div>
+                    <div className="ticket-atleta-card">
+                      <div className="ticket-peito-badge">#{selectedComprovante.atletaNumero}</div>
+                      <div className="ticket-atleta-info">
+                        <div className="ticket-nome">{selectedComprovante.atletaNome}</div>
+                        <div className="ticket-cpf-sub">CPF: {selectedComprovante.atletaCpf || '***.***.***-**'}</div>
+                      </div>
+                    </div>
+
+                    <div className="ticket-details-grid">
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">DATA / HORA</span>
+                        <span className="grid-val">{selectedComprovante.dataHora}</span>
+                      </div>
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">MODALIDADE</span>
+                        <span className="grid-val">{selectedComprovante.modalidade || '5 KM'}</span>
+                      </div>
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">RETIRADO POR</span>
+                        <span className="grid-val">{selectedComprovante.retiradoPor}</span>
+                      </div>
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">OPERADOR RESPONSÁVEL</span>
+                        <span className="grid-val">{selectedComprovante.operadorNome}</span>
+                      </div>
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">KIT CONFERIDO</span>
+                        <span className="grid-val">{selectedComprovante.kit}</span>
+                      </div>
+                      <div className="ticket-grid-col">
+                        <span className="grid-label">TAMANHO CAMISETA</span>
+                        <span className="grid-val">{selectedComprovante.camiseta || 'M'}</span>
+                      </div>
+                    </div>
+
+                    <div className="ticket-signature-section">
+                      <div className="ticket-termo-text">
+                        Comprovante oficial do participante. Verifique todos os itens entregues. Guarde este recibo até o término da prova.
+                      </div>
+                      <div className="ticket-security-hash">CÓDIGO DE AUTENTICIDADE: ERUN-{selectedComprovante.comprovanteId}-{selectedComprovante.id?.slice(0, 8).toUpperCase()}</div>
+                      <div className="ticket-via-notice atleta-notice">VIA DO ATLETA — BOA PROVA!</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2625,7 +2767,7 @@ export default function OperacaoPage({
                   onClick={() => window.print()}
                 >
                   <PrinterIcon />
-                  <span>IMPRIMIR VIA</span>
+                  <span>IMPRIMIR 2 VIAS</span>
                 </button>
               </div>
             </div>

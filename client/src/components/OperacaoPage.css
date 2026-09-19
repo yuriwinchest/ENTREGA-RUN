@@ -1148,7 +1148,7 @@
   align-items: center;
   gap: 8px;
   height: 40px;
-  padding: 0 20px;
+  padding: 0 18px;
   background: #10b981;
   border: none;
   border-radius: 10px;
@@ -1165,6 +1165,56 @@
 
 .btn-detail-entregar:hover {
   background: #059669;
+  transform: translateY(-1px);
+}
+
+.btn-detail-entregar-print {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  background: #ff5200;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #ffffff;
+  cursor: pointer;
+  text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(255, 82, 0, 0.28);
+  transition: all 0.15s ease;
+}
+
+.btn-detail-entregar-print:hover {
+  background: #e04800;
+  transform: translateY(-1px);
+}
+
+.btn-detail-print {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  background: #0f274e;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #ffffff;
+  cursor: pointer;
+  text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(15, 39, 78, 0.25);
+  transition: all 0.15s ease;
+}
+
+.btn-detail-print:hover {
+  background: #1e3a8a;
   transform: translateY(-1px);
 }
 
@@ -2315,7 +2365,8 @@
   background: #ffffff;
   border-radius: 16px;
   width: 100%;
-  max-width: 520px;
+  max-width: 600px;
+  max-height: 90vh;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
   overflow: hidden;
   display: flex;
@@ -2330,6 +2381,7 @@
   align-items: center;
   justify-content: space-between;
   background: #f8fafc;
+  flex-shrink: 0;
 }
 
 .comprovante-header-left {
@@ -2366,6 +2418,13 @@
 .comprovante-body {
   padding: 24px;
   background: #f1f5f9;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.printable-receipt-area {
+  display: flex;
+  flex-direction: column;
 }
 
 .comprovante-ticket-box {
@@ -2375,7 +2434,7 @@
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   position: relative;
 }
 
@@ -2387,21 +2446,47 @@
   padding-bottom: 10px;
 }
 
+.ticket-brand-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ticket-logo-text {
+  font-size: 13px;
+  font-weight: 900;
+  color: #ff5200;
+  letter-spacing: 0.8px;
+  font-family: 'Montserrat', sans-serif;
+}
+
 .ticket-event-name {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   color: #0f274e;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
 
-.ticket-badge-ok {
+.ticket-via-badge {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.ticket-via-badge.badge-org {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.ticket-via-badge.badge-atleta {
   background: #ecfdf5;
   color: #059669;
-  font-size: 10.5px;
-  font-weight: 800;
-  padding: 2px 8px;
-  border-radius: 10px;
   border: 1px solid #a7f3d0;
 }
 
@@ -2489,6 +2574,62 @@
   margin-top: 4px;
 }
 
+.ticket-via-notice {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+  text-align: center;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.ticket-via-notice.atleta-notice {
+  color: #059669;
+}
+
+.ticket-termo-text {
+  font-size: 11px;
+  color: #475569;
+  text-align: center;
+  line-height: 1.4;
+  background: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Linha de picote destacável */
+.receipt-cut-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 16px 0;
+  color: #94a3b8;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.receipt-cut-line .cut-divider {
+  flex: 1;
+  border-bottom: 1.5px dashed #cbd5e1;
+  height: 1px;
+}
+
+.receipt-cut-line .cut-icon {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.receipt-cut-line .cut-text {
+  font-family: 'Montserrat', sans-serif;
+}
+
 .comprovante-footer-actions {
   padding: 16px 24px;
   border-top: 1px solid #e2e8f0;
@@ -2497,6 +2638,7 @@
   justify-content: flex-end;
   gap: 12px;
   background: #ffffff;
+  flex-shrink: 0;
 }
 
 .btn-print-action {
@@ -2519,6 +2661,143 @@
 
 .btn-print-action:hover {
   background: #1d4ed8;
+}
+
+/* ==========================================================================
+   IMPRESSÃO PROFISSIONAL (@media print) — 2 VIAS DE COMPROVANTE
+   ========================================================================== */
+@media print {
+  /* Oculta toda a interface da aplicação */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Exibe somente o container das 2 vias e seus filhos */
+  .printable-receipt-area,
+  .printable-receipt-area * {
+    visibility: visible !important;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .modal-backdrop {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  .modal-card-comprovante {
+    position: static !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow: visible !important;
+    animation: none !important;
+  }
+
+  .comprovante-header,
+  .comprovante-footer-actions,
+  .modal-athlete-close-btn {
+    display: none !important;
+  }
+
+  .comprovante-body {
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  .printable-receipt-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 185mm !important;
+    margin: 0 auto !important;
+    padding: 6mm 10mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-sizing: border-box !important;
+  }
+
+  .comprovante-ticket-box {
+    border: 1.5px dashed #000000 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    padding: 14px 18px !important;
+  }
+
+  .ticket-logo-text {
+    color: #000000 !important;
+    font-weight: 900 !important;
+  }
+
+  .ticket-event-name {
+    color: #000000 !important;
+  }
+
+  .ticket-atleta-card {
+    background: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .ticket-peito-badge {
+    color: #000000 !important;
+  }
+
+  .ticket-atleta-info .ticket-nome {
+    color: #000000 !important;
+  }
+
+  .ticket-grid-col .grid-val {
+    color: #000000 !important;
+  }
+
+  .ticket-via-badge {
+    border: 1px solid #000000 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  .receipt-cut-line {
+    margin: 12px 0 !important;
+    color: #000000 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .receipt-cut-line .cut-divider {
+    border-bottom: 1.5px dashed #000000 !important;
+  }
+
+  .ticket-sig-line {
+    background: #000000 !important;
+  }
+
+  .ticket-sig-label,
+  .ticket-security-hash,
+  .ticket-via-notice {
+    color: #000000 !important;
+  }
+
+  .ticket-termo-text {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #000000 !important;
+  }
 }
 
 /* Responsive adjustments for auditoria */
