@@ -1,0 +1,26 @@
+# Environment variables (Crowley: nunca commitar segredos)
+.env
+.env.*
+!.env.example
+*.env
+
+# Dependencies
+node_modules/
+package-lock.json.bak
+
+# Builds & logs
+dist/
+dist-ssr/
+*.log
+logs/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

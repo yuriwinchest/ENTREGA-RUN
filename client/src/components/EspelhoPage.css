@@ -1,0 +1,176 @@
+/* EspelhoPage.css */
+
+.espelho-screen-container {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100svh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 44px 56px 40px;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  user-select: none;
+  font-family: Montserrat, Inter, system-ui, -apple-system, sans-serif;
+  transition: background-color 0.2s ease;
+}
+
+.espelho-screen-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 21, 38, 0.72);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Header */
+.espelho-screen-header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.espelho-header-brand {
+  display: flex;
+  align-items: center;
+}
+
+.espelho-brand-title {
+  margin: 0;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: clamp(18px, 2.2vw, 28px);
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  color: #ffffff;
+  text-transform: uppercase;
+}
+
+.espelho-brand-logo {
+  height: clamp(36px, 5vw, 64px);
+  max-width: 260px;
+  object-fit: contain;
+}
+
+.espelho-header-status {
+  display: flex;
+  align-items: center;
+}
+
+.espelho-tag-livre {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: clamp(14px, 1.4vw, 20px);
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+/* Centro Monumental */
+.espelho-screen-main {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  text-align: center;
+  padding: 20px;
+}
+
+.espelho-hero-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  max-width: 90vw;
+}
+
+.espelho-hero-headline {
+  margin: 0;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  word-break: break-word;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  transition: font-size 0.15s ease, color 0.15s ease;
+}
+
+.espelho-hero-subheadline {
+  margin: 0;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: clamp(11px, 1.3vw, 17px);
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: rgba(255, 255, 255, 0.72);
+  text-transform: uppercase;
+}
+
+/* Rodapé */
+.espelho-screen-footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.espelho-connection-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 6px 14px;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.connection-pulse-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 10px #10b981;
+  animation: connectionPulse 2s infinite ease-in-out;
+}
+
+@keyframes connectionPulse {
+  0% {
+    transform: scale(0.92);
+    box-shadow: 0 0 4px #10b981;
+  }
+  50% {
+    transform: scale(1.18);
+    box-shadow: 0 0 14px #10b981;
+  }
+  100% {
+    transform: scale(0.92);
+    box-shadow: 0 0 4px #10b981;
+  }
+}
+
+.connection-text {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: clamp(10.5px, 1vw, 13px);
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #ffffff;
+  text-transform: uppercase;
+}
+
+@media (max-width: 768px) {
+  .espelho-screen-container {
+    padding: 24px 20px;
+  }
+  .espelho-hero-headline {
+    font-size: clamp(28px, 9vw, 44px) !important;
+  }
+}

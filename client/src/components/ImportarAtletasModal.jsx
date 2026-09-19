@@ -1,0 +1,559 @@
+import { useRef, useState } from 'react'
+import readXlsxFile from 'read-excel-file/browser'
+import './ImportarAtletasModal.css'
+
+function CloseIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  )
+}
+
+function FileTextIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff5200" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+      <polyline points="10 9 9 9 8 9" />
+    </svg>
+  )
+}
+
+function UploadTrayIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ff5200" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  )
+}
+
+function DownloadSmallIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  )
+}
+
+function CheckCircleLargeIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  )
+}
+
+function AlertTriangleIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  )
+}
+
+const AVAILABLE_FIELDS = [
+  { value: 'ignore', label: 'Não importar' },
+  { value: 'numero', label: 'NUMERO DE PEITO' },
+  { value: 'chip', label: 'CHIP CRONO' },
+  { value: 'nome', label: 'INSCRITO' },
+  { value: 'nome_peito', label: 'NOME DE PEITO' },
+  { value: 'doc', label: 'CPF' },
+  { value: 'sexo', label: 'SEXO' },
+  { value: 'camiseta', label: 'CAMISETA' },
+  { value: 'equipe', label: 'EQUIPE' },
+  { value: 'cidade', label: 'CIDADE' },
+  { value: 'nascimento', label: 'DATA NASCIMENTO' },
+  { value: 'modalidade', label: 'MODALIDADE' },
+  { value: 'categoria', label: 'CATEGORIA' },
+  { value: 'morador', label: 'MORADOR/VISITANTE' },
+  { value: 'contato', label: 'CONTATO' },
+  { value: 'nacionalidade', label: 'NACIONALIDADE' },
+  { value: 'kit', label: 'KIT' },
+]
+
+export default function ImportarAtletasModal({
+  isOpen,
+  onClose,
+  existingAthletes = [],
+  onImportSuccess,
+}) {
+  // Step 1: Upload / Colar, Step 2: Mapear Colunas, Step 3: Resumo
+  const [step, setStep] = useState(1)
+  const [rawText, setRawText] = useState('')
+  const [parsedHeaders, setParsedHeaders] = useState([])
+  const [parsedRows, setParsedRows] = useState([])
+  const [columnMapping, setColumnMapping] = useState({})
+  const [importStats, setImportStats] = useState({ imported: 0, warnings: [] })
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef(null)
+
+  if (!isOpen) return null
+
+  // Auto detect delimitador (ponto e vírgula ou vírgula)
+  function parseCsvContent(content) {
+    const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+    if (lines.length === 0) return { headers: [], rows: [] }
+
+    const firstLine = lines[0]
+    const delimiter = firstLine.includes(';') ? ';' : ','
+
+    const headers = firstLine.split(delimiter).map((h) => h.replace(/^["']|["']$/g, '').trim())
+    const rows = lines.slice(1).map((line) => {
+      return line.split(delimiter).map((cell) => cell.replace(/^["']|["']$/g, '').trim())
+    })
+
+    return { headers, rows }
+  }
+
+  // Pre-mapping inteligente baseado em nomes comuns
+  function autoGuessMapping(headers) {
+    const mapping = {}
+    headers.forEach((h, idx) => {
+      const lower = h.toLowerCase()
+      if (lower.includes('peito') || lower.includes('numero') || lower === 'num') {
+        mapping[idx] = 'numero'
+      } else if (lower.includes('chip')) {
+        mapping[idx] = 'chip'
+      } else if (lower.includes('inscrito') || lower.includes('atleta') || lower.includes('nome')) {
+        mapping[idx] = 'nome'
+      } else if (lower.includes('cpf') || lower.includes('doc')) {
+        mapping[idx] = 'doc'
+      } else if (lower.includes('sexo')) {
+        mapping[idx] = 'sexo'
+      } else if (lower.includes('camis') || lower.includes('tamanho')) {
+        mapping[idx] = 'camiseta'
+      } else if (lower.includes('equipe') || lower.includes('time')) {
+        mapping[idx] = 'equipe'
+      } else if (lower.includes('cidade')) {
+        mapping[idx] = 'cidade'
+      } else if (lower.includes('nasc') || lower.includes('data')) {
+        mapping[idx] = 'nascimento'
+      } else if (lower.includes('mod') || lower.includes('dist')) {
+        mapping[idx] = 'modalidade'
+      } else if (lower.includes('cat')) {
+        mapping[idx] = 'categoria'
+      } else if (lower.includes('morador') || lower.includes('visitante')) {
+        mapping[idx] = 'morador'
+      } else if (lower.includes('kit')) {
+        mapping[idx] = 'kit'
+      } else {
+        mapping[idx] = 'ignore'
+      }
+    })
+    return mapping
+  }
+
+  // Download do Modelo CSV
+  function handleDownloadModelo() {
+    const csvHeader = 'NUMERO;CHIP;NOME;CPF;NASCIMENTO;SEXO;MODALIDADE;CATEGORIA;EQUIPE;CAMISETA;CIDADE;MORADOR;KIT\n'
+    const csvRow1 = '101;6001;CARLOS SILVA;123.456.789-00;15/05/1990;Masculino;5 KM;GERAL;RUNNERS;M;SURUBIM;Morador;Kit Padrão\n'
+    const csvRow2 = '102;6002;MARIANA COSTA;987.654.321-11;22/08/1995;Feminino;5 KM;GERAL;AVULSO;P;SURUBIM;Morador;Kit Padrão\n'
+    const blob = new Blob([csvHeader + csvRow1 + csvRow2], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'modelo_importacao_atletas.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Leitura de Arquivo (.csv ou .xlsx)
+  async function handleFileSelected(file) {
+    if (!file) return
+
+    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+      try {
+        const rows = await readXlsxFile(file)
+        if (rows && rows.length > 0) {
+          const headers = rows[0].map((cell) => String(cell || '').trim())
+          const dataRows = rows.slice(1).map((r) => r.map((c) => String(c || '').trim()))
+
+          // Converte para texto amigável para exibição
+          const textPreview = rows.map((r) => r.join(';')).join('\n')
+          setRawText(textPreview)
+          setParsedHeaders(headers)
+          setParsedRows(dataRows)
+          setColumnMapping(autoGuessMapping(headers))
+        }
+      } catch (err) {
+        alert('Erro ao ler arquivo Excel: ' + (err.message || 'formato inválido'))
+      }
+    } else {
+      // CSV ou texto
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const content = String(e.target?.result || '')
+        setRawText(content)
+        const { headers, rows } = parseCsvContent(content)
+        setParsedHeaders(headers)
+        setParsedRows(rows)
+        setColumnMapping(autoGuessMapping(headers))
+      }
+      reader.readAsText(file)
+    }
+  }
+
+  // Avançar para Etapa 2 (Escolher Colunas)
+  function handleGoToStep2() {
+    let headers = parsedHeaders
+    let rows = parsedRows
+
+    if (headers.length === 0 && rawText.trim()) {
+      const parsed = parseCsvContent(rawText)
+      headers = parsed.headers
+      rows = parsed.rows
+      setParsedHeaders(headers)
+      setParsedRows(rows)
+      setColumnMapping(autoGuessMapping(headers))
+    }
+
+    if (headers.length === 0) {
+      alert('Por favor, selecione um arquivo ou cole o conteúdo da planilha.')
+      return
+    }
+
+    setStep(2)
+  }
+
+  // Executar Importação na Etapa 2
+  function handleExecuteImport() {
+    const warnings = []
+    const importedAthletes = []
+    const existingMap = new Set(existingAthletes.map((a) => String(a.numero || a.id)))
+
+    parsedRows.forEach((row, rowIdx) => {
+      const lineNum = rowIdx + 2 // Linha 1 é cabeçalho
+
+      const athlete = {
+        id: '',
+        numero: '',
+        chip: '',
+        nome: '',
+        doc: '',
+        sexo: 'Masculino',
+        camiseta: 'M',
+        equipe: '—',
+        cidade: '',
+        nascimento: '',
+        modalidade: '5 KM',
+        categoria: 'GERAL',
+        morador: 'Visitante',
+        contato: '',
+        nacionalidade: 'BRASIL',
+        kit: 'Kit Padrão',
+        status: 'PENDENTE',
+        createdAt: new Date().toISOString(),
+      }
+
+      // Preenche os campos de acordo com o mapeamento
+      Object.entries(columnMapping).forEach(([colIdxStr, fieldKey]) => {
+        const colIdx = Number(colIdxStr)
+        const val = row[colIdx] !== undefined ? String(row[colIdx]).trim() : ''
+
+        if (fieldKey !== 'ignore' && val) {
+          if (fieldKey === 'nome' || fieldKey === 'nome_peito') {
+            athlete.nome = val.toUpperCase()
+          } else if (fieldKey === 'numero') {
+            athlete.numero = val
+            athlete.id = val
+          } else {
+            athlete[fieldKey] = val
+          }
+        }
+      })
+
+      // Validações
+      if (!athlete.nome) {
+        warnings.push(`Linha ${lineNum}: Nome ausente.`)
+        return
+      }
+
+      // Se não veio número, gera ou usa linha
+      if (!athlete.numero) {
+        athlete.numero = String(lineNum)
+        athlete.id = String(lineNum)
+      }
+
+      if (existingMap.has(String(athlete.numero))) {
+        warnings.push(`Linha ${lineNum}: número de peito ${athlete.numero} já existe neste evento — ignorada.`)
+        return
+      }
+
+      existingMap.add(String(athlete.numero))
+      importedAthletes.push(athlete)
+    })
+
+    setImportStats({
+      imported: importedAthletes.length,
+      warnings,
+      athletes: importedAthletes,
+    })
+
+    setStep(3)
+  }
+
+  // Concluir e persistir
+  function handleFinish() {
+    if (importStats.athletes && importStats.athletes.length > 0) {
+      if (onImportSuccess) {
+        onImportSuccess(importStats.athletes)
+      }
+    }
+    onClose()
+  }
+
+  // Reiniciar fluxo para importar outro
+  function handleReset() {
+    setStep(1)
+    setRawText('')
+    setParsedHeaders([])
+    setParsedRows([])
+    setColumnMapping({})
+    setImportStats({ imported: 0, warnings: [] })
+  }
+
+  return (
+    <div className="importar-modal-backdrop" onClick={onClose}>
+      <div className="importar-modal-card" onClick={(e) => e.stopPropagation()}>
+        {/* CABEÇALHO */}
+        <div className="importar-modal-header">
+          <h2 className="importar-modal-title">IMPORTAR ATLETAS</h2>
+          <button
+            type="button"
+            className="importar-close-btn"
+            onClick={onClose}
+            title="Fechar"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+
+        {/* ETAPA 1: SELEÇÃO / COLAGEM (FOTOS 2 E 3) */}
+        {step === 1 && (
+          <div className="importar-modal-body">
+            {/* Box Informativo de Formato */}
+            <div className="importar-info-alert">
+              <div className="alert-icon-box">
+                <FileTextIcon />
+              </div>
+              <div className="alert-content">
+                <strong className="alert-title">
+                  Formato aceito: CSV ou XLSX com cabeçalho.
+                </strong>
+                <p className="alert-desc">
+                  No próximo passo você escolhe, coluna por coluna, o que é NÚMERO, CHIP, NOME ATLETA, DATA DE NASCIMENTO, SEXO, DOCUMENTO, CIDADE, MODALIDADE, CATEGORIA, EQUIPE, CAMISA, MORADOR/VISITANTE, CONTATO, NACIONALIDADE e KIT.
+                </p>
+                <button
+                  type="button"
+                  className="btn-baixar-modelo"
+                  onClick={handleDownloadModelo}
+                >
+                  <DownloadSmallIcon />
+                  <span>BAIXAR MODELO</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Dropzone de Arquivo */}
+            <div
+              className={`importar-dropzone ${isDragging ? 'dragging' : ''}`}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setIsDragging(true)
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setIsDragging(false)
+                const file = e.dataTransfer.files?.[0]
+                if (file) handleFileSelected(file)
+              }}
+            >
+              <UploadTrayIcon />
+              <span className="dropzone-title">SELECIONAR ARQUIVO CSV OU XLSX</span>
+              <span className="dropzone-subtitle">ou cole o conteúdo abaixo</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv, .xlsx, .xls, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleFileSelected(file)
+                }}
+              />
+            </div>
+
+            {/* Textarea para Colar ou Prévia do Conteúdo */}
+            <div className="importar-textarea-wrap">
+              <textarea
+                className="importar-raw-textarea"
+                placeholder="Exemplo: NÚMERO;NOME;CPF;MODALIDADE&#10;101;JOÃO SILVA;123.456.789-00;5 KM"
+                value={rawText}
+                onChange={(e) => {
+                  setRawText(e.target.value)
+                  const parsed = parseCsvContent(e.target.value)
+                  setParsedHeaders(parsed.headers)
+                  setParsedRows(parsed.rows)
+                  setColumnMapping(autoGuessMapping(parsed.headers))
+                }}
+              />
+            </div>
+
+            {/* Rodapé da Etapa 1 */}
+            <div className="importar-modal-actions">
+              <button
+                type="button"
+                className="btn-importar-cancel"
+                onClick={onClose}
+              >
+                CANCELAR
+              </button>
+              <button
+                type="button"
+                className="btn-importar-primary"
+                onClick={handleGoToStep2}
+                disabled={!rawText.trim()}
+              >
+                <span>ESCOLHER COLUNAS</span>
+                <span className="btn-arrow">→</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ETAPA 2: MAPEAMENTO DE COLUNAS (FOTO 4) */}
+        {step === 2 && (
+          <div className="importar-modal-body">
+            <p className="mapping-intro-text">
+              Associe cada coluna detectada na planilha ao campo correspondente no sistema:
+            </p>
+
+            <div className="columns-mapping-grid">
+              {parsedHeaders.map((headerName, idx) => {
+                const sampleVal = parsedRows[0]?.[idx] || parsedRows[1]?.[idx] || '—'
+                return (
+                  <div key={idx} className="column-map-card">
+                    <span className="column-source-name">
+                      Coluna {idx + 1}: <strong>{headerName || `(sem nome)`}</strong>
+                    </span>
+
+                    <select
+                      className="column-select-field"
+                      value={columnMapping[idx] || 'ignore'}
+                      onChange={(e) =>
+                        setColumnMapping({
+                          ...columnMapping,
+                          [idx]: e.target.value,
+                        })
+                      }
+                    >
+                      {AVAILABLE_FIELDS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <span className="column-sample-val">
+                      Ex.: {sampleVal}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Rodapé da Etapa 2 */}
+            <div className="importar-modal-actions">
+              <button
+                type="button"
+                className="btn-importar-cancel"
+                onClick={() => setStep(1)}
+              >
+                VOLTAR
+              </button>
+              <button
+                type="button"
+                className="btn-importar-primary"
+                onClick={handleExecuteImport}
+              >
+                <span>IMPORTAR ATLETAS</span>
+                <span className="btn-arrow">→</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ETAPA 3: RESUMO DA IMPORTAÇÃO (FOTO 5) */}
+        {step === 3 && (
+          <div className="importar-modal-body">
+            {/* Card Verde de Sucesso */}
+            <div className="import-success-card">
+              <div className="success-icon-wrap">
+                <CheckCircleLargeIcon />
+              </div>
+              <div className="success-content">
+                <h3 className="success-heading">
+                  {importStats.imported} ATLETA(S) IMPORTADO(S)
+                </h3>
+                <p className="success-subtext">
+                  A gravação foi confirmada e os atletas já aparecem na consulta.
+                </p>
+              </div>
+            </div>
+
+            {/* Card Âmbar de Avisos */}
+            {importStats.warnings.length > 0 && (
+              <div className="import-warnings-card">
+                <div className="warnings-header">
+                  <AlertTriangleIcon />
+                  <span className="warnings-title">
+                    {importStats.warnings.length} AVISO(S)
+                  </span>
+                </div>
+
+                <ul className="warnings-list-scroll">
+                  {importStats.warnings.map((warn, i) => (
+                    <li key={i} className="warning-list-item">
+                      • {warn}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Rodapé da Etapa 3 */}
+            <div className="importar-modal-actions">
+              <button
+                type="button"
+                className="btn-importar-cancel"
+                onClick={handleReset}
+              >
+                IMPORTAR OUTRO
+              </button>
+              <button
+                type="button"
+                className="btn-importar-primary"
+                onClick={handleFinish}
+              >
+                CONCLUIR
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,2560 @@
+.operacao-layout {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f8fafc;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.operacao-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 24px 36px 60px;
+  gap: 20px;
+}
+
+/* top page header */
+.operacao-top-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 2px;
+}
+
+.operacao-page-title {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #0c142c;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.operacao-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.operacao-ghost-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 20px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.operacao-ghost-btn:hover {
+  background: #f1f5f9;
+  color: #0c142c;
+  border-color: #cbd5e1;
+}
+
+/* deep navy banner */
+.operacao-event-banner {
+  background: #0f274e;
+  border-radius: 16px;
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  color: #ffffff;
+  box-shadow: 0 6px 20px rgba(15, 39, 78, 0.16);
+}
+
+.banner-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.banner-label {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #7ea4cc;
+  text-transform: uppercase;
+}
+
+.banner-title {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.banner-meta {
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.banner-stats {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+
+.banner-stat-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.banner-stat-label {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #7ea4cc;
+  text-transform: uppercase;
+}
+
+.banner-stat-val {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.banner-stat-val.white { color: #ffffff; }
+.banner-stat-val.green { color: #10b981; }
+.banner-stat-val.amber { color: #f59e0b; }
+.banner-stat-val.orange { color: #ff5200; }
+
+/* tabs row */
+.operacao-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  border-bottom: 1.5px solid #e2e8f0;
+  padding: 0 6px;
+  margin-top: 4px;
+}
+
+.operacao-subtab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 4px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1.5px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #0c142c;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.operacao-subtab:hover:not(.active) {
+  color: #475569;
+}
+
+.operacao-subtab.active {
+  color: #ff5200;
+  border-bottom-color: #ff5200;
+}
+
+.operacao-subtab.active svg {
+  color: #ff5200;
+}
+
+.operacao-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 8px;
+}
+
+/* TAB 1: Entrega de Kit */
+.kit-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.btn-espelho {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 20px;
+  background: #ffffff;
+  border: 1.5px solid #10b981;
+  border-radius: 12px;
+  color: #10b981;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-espelho:hover {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.kit-search-input-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.kit-search-input-wrap svg {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  pointer-events: none;
+}
+
+.kit-search-input-wrap input {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px 0 46px;
+  background: #ffffff;
+  border: 2px solid #ff5200;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.kit-search-input-wrap input::placeholder {
+  color: #94a3b8;
+}
+
+.btn-qr-scan {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: #0f274e;
+  border: none;
+  border-radius: 12px;
+  color: #ffffff;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease;
+}
+
+.btn-qr-scan:hover {
+  background: #0b1d3d;
+}
+
+.ultimas-entregas-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.ultimas-entregas-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.section-heading {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #0c142c;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.refresh-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deliveries-card-box {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 40px 24px;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(12, 20, 44, 0.03);
+}
+
+.empty-message-box {
+  color: #64748b;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.deliveries-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.delivery-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: #f8fafc;
+  border: 1px solid #eef2f6;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.athlete-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-weight: 800;
+  color: #0c142c;
+}
+
+.athlete-peito {
+  color: #ff5200;
+  font-weight: 900;
+}
+
+.athlete-doc {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.delivery-tags {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tag-gray {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.tag-green {
+  font-size: 11px;
+  font-weight: 800;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.12);
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+/* TAB 2: Atletas */
+.atletas-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.atletas-search-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+}
+
+.atletas-search-wrap svg {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.atletas-search-wrap input {
+  width: 100%;
+  height: 44px;
+  padding: 0 16px 0 44px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 13.5px;
+  color: #1e293b;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.atletas-search-wrap input:focus {
+  border-color: #ff5200;
+}
+
+.atletas-right-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pill-filters-group {
+  display: flex;
+  align-items: center;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.pill-filter-btn {
+  padding: 7px 16px;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.pill-filter-btn.active {
+  background: #ffffff;
+  color: #0c142c;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.btn-add-atleta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #0c142c;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.btn-add-atleta:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.atletas-table-card {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(12, 20, 44, 0.03);
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.atletas-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12.5px;
+}
+
+.atletas-table thead tr {
+  background: #ffffff;
+  border-bottom: 1.5px solid #e2e8f0;
+}
+
+.atletas-table th {
+  padding: 14px 18px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.atletas-table td {
+  padding: 14px 18px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.empty-table-cell {
+  text-align: center;
+  padding: 60px 20px;
+  color: #64748b;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.atletas-table-footer {
+  display: flex;
+  justify-content: flex-end;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* TAB 3: Estatísticas */
+.estatisticas-top-action {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -6px;
+}
+
+.fechamento-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: #0c142c;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.dash-four-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.stat-overview-card {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 2px 10px rgba(12, 20, 44, 0.03);
+}
+
+.stat-overview-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #64748b;
+}
+
+.stat-overview-label {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.stat-overview-number {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+  color: #0c142c;
+}
+
+.stat-overview-number.green { color: #10b981; }
+.stat-overview-number.amber { color: #f59e0b; }
+.stat-overview-number.orange { color: #ff5200; }
+
+.estatisticas-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.simple-white-box {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 36px 24px;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(12, 20, 44, 0.03);
+}
+
+.section-divider {
+  height: 1px;
+  background: #e2e8f0;
+  width: 100%;
+  margin: 8px 0;
+}
+
+.operators-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.operator-productivity-card {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 2px 10px rgba(12, 20, 44, 0.03);
+}
+
+.operator-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.operator-avatar-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #0c1e3d;
+  color: #ffffff;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.operator-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.operator-card-name {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 13.5px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  color: #0c142c;
+  text-transform: uppercase;
+}
+
+.operator-card-role {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.operator-card-body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.operator-count-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.operator-count {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+  color: #ff5200;
+}
+
+.operator-count-label {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.operator-trend-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 1024px) {
+  .operacao-event-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .banner-stats {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .dash-four-stat-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .operators-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Kit Search Results Panel */
+.kit-search-results-panel {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1.5px solid #ffeedb;
+  box-shadow: 0 10px 25px rgba(255, 82, 0, 0.08);
+  overflow: hidden;
+  margin-top: -6px;
+  margin-bottom: 8px;
+}
+
+.kit-results-header {
+  padding: 12px 20px;
+  background: #fff7ed;
+  border-bottom: 1px solid #ffedd5;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #ea580c;
+}
+
+.kit-results-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.kit-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.12s ease;
+}
+
+.kit-result-item:last-child {
+  border-bottom: none;
+}
+
+.kit-result-item:hover {
+  background: #fafafa;
+}
+
+.btn-entregar-inline {
+  height: 32px;
+  padding: 0 16px;
+  background: #10b981;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-entregar-inline:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+/* Stat Tags Summary in Estatísticas */
+.stat-tags-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.summary-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.summary-pill-label {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: #334155;
+}
+
+.summary-pill-count {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  color: #ff5200;
+}
+
+/* Modal: Novo Atleta (Photos 1 & 2) */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 20, 44, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: modalFadeIn 0.15s ease;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-card-athlete {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 530px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 48px rgba(12, 20, 44, 0.16);
+  border: 1px solid #e2e8f0;
+  animation: cardSlideUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes cardSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-athlete-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px 18px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.modal-athlete-title {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #0c142c;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.modal-athlete-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.modal-athlete-close-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.modal-athlete-body {
+  padding: 24px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.modal-athlete-body::-webkit-scrollbar {
+  width: 6px;
+}
+.modal-athlete-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.modal-athlete-body::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
+}
+.modal-athlete-body::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+.athlete-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.athlete-form-label {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #475569;
+  text-transform: uppercase;
+}
+
+.athlete-form-label .required-star {
+  color: #ef4444;
+  margin-left: 2px;
+}
+
+.athlete-form-input,
+.athlete-form-select {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0c142c;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.athlete-form-input::placeholder {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.athlete-form-input:focus,
+.athlete-form-select:focus {
+  border-color: #ff5200;
+  box-shadow: 0 0 0 3px rgba(255, 82, 0, 0.12);
+}
+
+.athlete-form-input.highlight-first:focus {
+  border-color: #ff5200;
+  box-shadow: 0 0 0 3px rgba(255, 82, 0, 0.18);
+}
+
+.athlete-form-select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+.athlete-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.athlete-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+
+.athlete-input-icon-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.athlete-input-icon-wrap .athlete-form-input {
+  padding-right: 40px;
+}
+
+.athlete-input-icon-wrap .input-end-icon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-athlete-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.btn-athlete-cancel {
+  flex: 1;
+  height: 48px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #0c142c;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.btn-athlete-cancel:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.btn-athlete-submit {
+  flex: 1.3;
+  height: 48px;
+  background: #ff9b71;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-transform: uppercase;
+  box-shadow: 0 4px 14px rgba(255, 155, 113, 0.35);
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+
+.btn-athlete-submit:hover {
+  background: #ff8554;
+  transform: translateY(-1px);
+}
+
+/* =========================================================
+   ATHLETE DETAIL VIEW (TELA DE ENTREGA / DETALHES DO ATLETA)
+   ========================================================= */
+
+.athlete-detail-view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: modalFadeIn 0.18s ease;
+}
+
+/* 1. Barra Superior de Ações */
+.athlete-detail-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.btn-detail-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  background: #e02424;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #ffffff;
+  cursor: pointer;
+  text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(224, 36, 36, 0.25);
+  transition: all 0.15s ease;
+}
+
+.btn-detail-undo:hover {
+  background: #c81e1e;
+  transform: translateY(-1px);
+}
+
+.btn-detail-entregar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  background: #10b981;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #ffffff;
+  cursor: pointer;
+  text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  transition: all 0.15s ease;
+}
+
+.btn-detail-entregar:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.btn-detail-save,
+.btn-detail-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #475569;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.btn-detail-save:hover,
+.btn-detail-cancel:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0c142c;
+}
+
+/* 2. Três Cards de Destaque */
+.athlete-detail-cards-grid {
+  display: grid;
+  grid-template-columns: 2.2fr 1fr 1.3fr;
+  gap: 20px;
+  align-items: stretch;
+}
+
+/* Card 1: Número e Modalidade */
+.card-bib-highlight {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(12, 20, 44, 0.04);
+}
+
+.bib-header {
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.bib-modalidade {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  color: #0c142c;
+}
+
+.bib-categoria {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.bib-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 20px;
+}
+
+.bib-number {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 64px;
+  font-weight: 900;
+  color: #0c142c;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.bib-footer {
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid #f1f5f9;
+  background: #ffffff;
+}
+
+.bib-chip {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #475569;
+}
+
+/* Card 2: Camiseta */
+.card-shirt-highlight {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(12, 20, 44, 0.04);
+}
+
+.shirt-size {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 44px;
+  font-weight: 900;
+  color: #0c142c;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.shirt-label {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+/* Card 3: Kit */
+.card-kit-highlight {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(12, 20, 44, 0.04);
+}
+
+.kit-name {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 900;
+  color: #0c142c;
+  line-height: 1.15;
+  text-align: center;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+.kit-label {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+/* 3. Metadados de Entrega */
+.athlete-detail-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 24px;
+  padding-right: 6px;
+}
+
+.meta-pill-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.meta-pill-label {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.meta-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  background: #fff7ed;
+  border: 1px solid #ffedd5;
+  border-radius: 16px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #ea580c;
+}
+
+/* 4. Formulário do Atleta */
+.athlete-detail-form-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 26px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 2px 8px rgba(12, 20, 44, 0.04);
+}
+
+.detail-form-row-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.detail-form-row-kit-chips {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 16px;
+}
+
+.chips-tag-field {
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  box-sizing: border-box;
+}
+
+.chip-pill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: #334155;
+}
+
+.btn-chip-remove {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-chip-remove:hover {
+  color: #ef4444;
+}
+
+.chip-tag-input {
+  border: none;
+  outline: none;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0c142c;
+  background: transparent;
+  flex: 1;
+  min-width: 120px;
+}
+
+.input-with-action-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.input-with-action-wrap .athlete-form-select {
+  flex: 1;
+}
+
+.btn-inline-plus {
+  width: 44px;
+  height: 44px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  font-family: 'Montserrat', system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-inline-plus:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0c142c;
+}
+
+/* 5. Card: Entregue Para */
+.athlete-entregue-para-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 22px 28px;
+  box-shadow: 0 2px 8px rgba(12, 20, 44, 0.04);
+}
+
+.entregue-para-input {
+  max-width: 420px;
+}
+
+/* Clickable athlete links in list */
+.delivery-item-row {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.delivery-item-row:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.clickable-athlete {
+  cursor: pointer;
+}
+
+.highlight-link {
+  transition: color 0.12s ease;
+}
+
+.delivery-item-row:hover .highlight-link {
+  color: #ff5200;
+}
+
+.btn-view-badge {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.btn-view-badge:hover {
+  background: #d1fae5;
+}
+
+@media (max-width: 1024px) {
+  .athlete-detail-cards-grid {
+    grid-template-columns: 1fr;
+  }
+  .detail-form-row-4,
+  .detail-form-row-kit-chips {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ==========================================================================
+   TAB 4: AUDITORIA — STYLES
+   ========================================================================== */
+
+.auditoria-content-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 1. CARDS DE MÉTRICAS */
+.audit-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.audit-metric-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  min-height: 110px;
+}
+
+.audit-metric-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.audit-metric-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.audit-metric-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.audit-metric-icon-wrap.blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.audit-metric-icon-wrap.emerald {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.audit-metric-icon-wrap.amber {
+  background: #fffbeb;
+  color: #f59e0b;
+}
+
+.audit-metric-icon-wrap.gold {
+  background: #fefce8;
+  color: #d97706;
+}
+
+.audit-metric-value {
+  font-size: 26px;
+  font-weight: 900;
+  color: #0c142c;
+  font-family: 'Montserrat', sans-serif;
+  margin-bottom: 10px;
+  line-height: 1.1;
+}
+
+.audit-metric-value .top-op-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0c142c;
+}
+
+.audit-metric-value .top-op-count {
+  font-size: 18px;
+  font-weight: 700;
+  color: #64748b;
+  margin-left: 4px;
+}
+
+.audit-metric-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.audit-dot-green {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+}
+
+.audit-footer-text {
+  font-size: 10.5px;
+  color: #64748b;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.audit-badge-pill {
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.audit-badge-pill.green {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.audit-badge-pill.amber {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+/* 2. CARD: PLANILHA DE ATLETAS */
+.planilha-box-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.planilha-box-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.planilha-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.planilha-box-info .planilha-box-title {
+  font-size: 16px;
+  font-weight: 900;
+  color: #0c142c;
+  margin: 0 0 4px 0;
+  font-family: 'Montserrat', sans-serif;
+  letter-spacing: 0.3px;
+}
+
+.planilha-box-info .planilha-box-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.planilha-box-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.btn-export-planilha {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: 'Montserrat', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-export-planilha:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.btn-import-planilha {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 8px;
+  border: none;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: 'Montserrat', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  transition: all 0.15s ease;
+}
+
+.btn-import-planilha:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+/* 3. CARD: FILTROS */
+.filtros-audit-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.filtros-audit-header .filtros-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filtros-icon-wrap {
+  color: #64748b;
+  display: flex;
+  align-items: center;
+}
+
+.filtros-card-title {
+  font-size: 15px;
+  font-weight: 900;
+  color: #0c142c;
+  margin: 0;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.filtros-card-subtitle {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 2px 0 0 0;
+}
+
+.filtros-form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.filtros-row-1 {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 14px;
+  align-items: end;
+}
+
+.filtros-row-2 {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.filtros-row-3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.filtro-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filtro-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.filtro-search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.filtro-search-input-wrap svg {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.filtro-search-input-wrap input {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px 0 38px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0c142c;
+  background: #f8fafc;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.filtro-search-input-wrap input:focus {
+  border-color: #ff5200;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255, 82, 0, 0.1);
+}
+
+.filtro-select {
+  height: 40px;
+  padding: 0 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: #0c142c;
+  background: #f8fafc;
+  outline: none;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.filtro-select:focus {
+  border-color: #ff5200;
+  background: #ffffff;
+}
+
+.periodo-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.periodo-pill-btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: 'Montserrat', sans-serif;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.periodo-pill-btn.active {
+  background: #0f274e;
+  color: #ffffff;
+  border-color: #0f274e;
+}
+
+.filtro-checkbox-wrap .custom-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+}
+
+.custom-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #ff5200;
+  cursor: pointer;
+}
+
+.filtros-export-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-filtro-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 11.5px;
+  font-weight: 800;
+  font-family: 'Montserrat', sans-serif;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-filtro-action:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* 4. CARD: TABELA DE AUDITORIA */
+.audit-table-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.audit-table-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.table-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.audit-table-title {
+  font-size: 15px;
+  font-weight: 900;
+  color: #0c142c;
+  margin: 0;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.audit-counter-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #059669;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.audit-table-subtitle {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 2px 0 0 0;
+}
+
+.audit-table-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.per-page-selector select {
+  height: 36px;
+  padding: 0 10px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.btn-refresh-audit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1.5px solid #fed7aa;
+  background: #fff7ed;
+  color: #ea580c;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  font-family: 'Montserrat', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-refresh-audit:hover {
+  background: #ffedd5;
+}
+
+.audit-table-wrapper {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.audit-table th {
+  background: #f8fafc;
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  font-family: 'Montserrat', sans-serif;
+  border-bottom: 1.5px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.audit-table td {
+  padding: 14px 16px;
+  font-size: 13px;
+  color: #1e293b;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.audit-tr:hover {
+  background-color: #f8fafc;
+}
+
+.btn-comprovante-print {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-comprovante-print:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
+.audit-td-datetime {
+  font-size: 12px;
+  font-family: 'Inter', monospace;
+  color: #475569;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.audit-td-atleta .atleta-name-main {
+  font-weight: 800;
+  color: #0c142c;
+  font-size: 13.5px;
+}
+
+.audit-td-atleta .atleta-subline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.peito-badge-green {
+  background: #ecfdf5;
+  color: #059669;
+  font-weight: 800;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #a7f3d0;
+}
+
+.audit-badge-tipo {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: 'Montserrat', sans-serif;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.badge-atleta {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.badge-terceiro {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.audit-td-retirado .retirado-name {
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.audit-td-retirado .terceiro-parentesco-text {
+  font-size: 11px;
+  color: #d97706;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.operador-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  border: 1px solid #e2e8f0;
+}
+
+.operador-pill-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.operador-pill-name {
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.audit-td-ponto {
+  color: #475569;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+.audit-td-detalhes .detalhe-kit-text {
+  font-weight: 700;
+  color: #0c142c;
+  font-size: 12.5px;
+}
+
+.audit-td-detalhes .detalhe-camiseta-text {
+  color: #64748b;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.audit-empty-td {
+  padding: 48px 24px;
+  text-align: center;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.audit-pagination-bar {
+  padding: 14px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pagination-info {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-nav-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.page-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-nav-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.pagination-page-indicator {
+  font-size: 12px;
+  color: #475569;
+  margin: 0 6px;
+}
+
+/* ==========================================================================
+   MODAL COMPROVANTE DE RETIRADA
+   ========================================================================== */
+
+.modal-card-comprovante {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: modalScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.comprovante-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+}
+
+.comprovante-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.comprovante-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comprovante-title {
+  font-size: 15px;
+  font-weight: 900;
+  color: #0c142c;
+  margin: 0;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.comprovante-subtitle {
+  font-size: 12px;
+  color: #64748b;
+  margin: 2px 0 0 0;
+}
+
+.comprovante-body {
+  padding: 24px;
+  background: #f1f5f9;
+}
+
+.comprovante-ticket-box {
+  background: #ffffff;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+}
+
+.ticket-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 10px;
+}
+
+.ticket-event-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f274e;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.ticket-badge-ok {
+  background: #ecfdf5;
+  color: #059669;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid #a7f3d0;
+}
+
+.ticket-atleta-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #f8fafc;
+  padding: 12px 14px;
+  border-radius: 8px;
+}
+
+.ticket-peito-badge {
+  font-size: 22px;
+  font-weight: 900;
+  color: #059669;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.ticket-atleta-info .ticket-nome {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0c142c;
+}
+
+.ticket-atleta-info .ticket-cpf-sub {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.ticket-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.ticket-grid-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ticket-grid-col .grid-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.ticket-grid-col .grid-val {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.ticket-signature-section {
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.ticket-sig-line {
+  width: 70%;
+  height: 1px;
+  background: #94a3b8;
+  margin-bottom: 2px;
+}
+
+.ticket-sig-label {
+  font-size: 11px;
+  color: #64748b;
+  text-align: center;
+}
+
+.ticket-security-hash {
+  font-size: 9.5px;
+  font-family: monospace;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.comprovante-footer-actions {
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  background: #ffffff;
+}
+
+.btn-print-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 8px;
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 800;
+  font-family: 'Montserrat', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  transition: all 0.15s ease;
+}
+
+.btn-print-action:hover {
+  background: #1d4ed8;
+}
+
+/* Responsive adjustments for auditoria */
+@media (max-width: 1024px) {
+  .audit-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .filtros-row-1 {
+    grid-template-columns: 1fr;
+  }
+  .filtros-row-2 {
+    grid-template-columns: 1fr;
+  }
+  .planilha-box-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .planilha-box-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .audit-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  .filtros-row-3 {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .audit-table-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+
+

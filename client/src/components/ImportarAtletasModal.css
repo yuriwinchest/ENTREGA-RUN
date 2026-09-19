@@ -1,0 +1,431 @@
+/* ImportarAtletasModal.css */
+
+.importar-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 20, 44, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: modalFadeIn 0.15s ease;
+}
+
+.importar-modal-card {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 620px;
+  max-height: 90vh;
+  box-shadow: 0 20px 48px rgba(12, 20, 44, 0.22);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: cardSlideUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Header */
+.importar-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.importar-modal-title {
+  margin: 0;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #0c142c;
+  text-transform: uppercase;
+}
+
+.importar-close-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.importar-close-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+/* Modal Body */
+.importar-modal-body {
+  padding: 20px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  max-height: calc(90vh - 75px);
+}
+
+.importar-modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+.importar-modal-body::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
+}
+
+/* Alert Box */
+.importar-info-alert {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.alert-icon-box {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.alert-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.alert-title {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0c142c;
+}
+
+.alert-desc {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.btn-baixar-modelo {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #ff5200;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 4px 0 0;
+  width: fit-content;
+  transition: opacity 0.15s ease;
+}
+
+.btn-baixar-modelo:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* Dropzone */
+.importar-dropzone {
+  border: 2px dashed #fed7aa;
+  background: #fffbf7;
+  border-radius: 16px;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.importar-dropzone:hover,
+.importar-dropzone.dragging {
+  border-color: #ff5200;
+  background: #fff7ed;
+  transform: translateY(-1px);
+}
+
+.dropzone-title {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #0c142c;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.dropzone-subtitle {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Textarea Wrap */
+.importar-textarea-wrap {
+  width: 100%;
+}
+
+.importar-raw-textarea {
+  width: 100%;
+  height: 160px;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #0c142c;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.15s ease;
+}
+
+.importar-raw-textarea:focus {
+  border-color: #ff5200;
+}
+
+/* Rodapé de Ações */
+.importar-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.btn-importar-cancel {
+  flex: 1;
+  height: 48px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  color: #0c142c;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-importar-cancel:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.btn-importar-primary {
+  flex: 1.4;
+  height: 48px;
+  background: #ff5200;
+  border: none;
+  border-radius: 12px;
+  color: #ffffff;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 14px rgba(255, 82, 0, 0.35);
+}
+
+.btn-importar-primary:hover:not(:disabled) {
+  background: #ff6014;
+  transform: translateY(-1px);
+}
+
+.btn-importar-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-arrow {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+/* ETAPA 2: MAPEAMENTO DE COLUNAS */
+.mapping-intro-text {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.columns-mapping-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.columns-mapping-grid::-webkit-scrollbar {
+  width: 6px;
+}
+.columns-mapping-grid::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
+}
+
+.column-map-card {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s ease;
+}
+
+.column-map-card:hover {
+  border-color: #cbd5e1;
+}
+
+.column-source-name {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.column-source-name strong {
+  color: #0c142c;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+}
+
+.column-select-field {
+  height: 42px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: #0c142c;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.column-select-field:focus {
+  border-color: #ff5200;
+}
+
+.column-sample-val {
+  font-size: 11px;
+  color: #94a3b8;
+  font-family: ui-monospace, monospace;
+}
+
+/* ETAPA 3: RESUMO */
+.import-success-card {
+  background: #ecfdf5;
+  border: 1.5px solid #a7f3d0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.success-icon-wrap {
+  flex-shrink: 0;
+}
+
+.success-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.success-heading {
+  margin: 0;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  color: #059669;
+  letter-spacing: 0.4px;
+}
+
+.success-subtext {
+  margin: 0;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.import-warnings-card {
+  background: #fffbeb;
+  border: 1.5px solid #fde68a;
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.warnings-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d97706;
+}
+
+.warnings-title {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 13.5px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+
+.warnings-list-scroll {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.warnings-list-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.warnings-list-scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
+}
+
+.warning-list-item {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.45;
+}

@@ -1,0 +1,6 @@
+# Crowley: segredos fora do repositório
+.env
+.env.*
+!.env.example
+node_modules/
+*.log
