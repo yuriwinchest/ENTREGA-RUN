@@ -828,3 +828,21 @@
   - `npm run lint --prefix client`: 0 avisos, 0 erros (Oxlint).
   - `npm run build --prefix client`: Vite build concluído em 778ms (0 erros).
 - **Próximo passo**: Yuri homologar no dispositivo móvel a criação de categorias com o novo modal interno integrado.
+
+## 2026-09-19 — Correção de Crash na Etapa 2 de Importação (Fase A, construir)
+
+- **Demanda do Yuri (PO via áudio)**: Ao adicionar a planilha e avançar para o mapeamento de colunas (ou clicar em adicionar), o app quebrou com tela preta/azul escura ("caiu o sistema").
+- **Roteamento de IA**:
+  - Classificado via **Jev (TypeSafe System One)** em 1329ms: Liderança Ana/Kastiel, `bugfix_urgente` (100%), severidade 1.86.
+- **Causa Raiz**:
+  - As variáveis `showAddFieldInline`, `setShowAddFieldInline`, `newFieldName`, `setNewFieldName` haviam sido removidas das declarações de estado, porém ainda estavam sendo referenciadas na barra de ferramentas da Etapa 2 (`custom-fields-toolbar`). Isso causava um `ReferenceError: showAddFieldInline is not defined` durante a renderização da Etapa 2, desmontando o React e deixando a tela escura.
+- **Solução Implementada**:
+  1. `client/src/components/ImportarAtletasModal.jsx`:
+     - Removida a barra inline obsoleta e unificado o botão `+ ADICIONAR NOVO CAMPO / CATEGORIA` para abrir diretamente o `createFieldModal` nativo integrado.
+     - Eliminadas 100% das referências órfãs.
+- **Validações Reais**:
+  - `scratch/test_no_undef.cjs`: Validado que nenhuma variável órfã existe no componente.
+  - `scratch/test_import_modal_full_flow.cjs`: Fluxo completo (Etapa 1 -> Etapa 2 -> Mapeamento -> Criação de Campo -> Confirmação) testado e 100% aprovado.
+  - `npm run lint --prefix client`: 0 erros, 0 avisos (Oxlint).
+  - `npm run build --prefix client`: Vite build concluído em 516ms (0 erros).
+- **Próximo passo**: Yuri homologar no celular a navegação completa da importação sem nenhum crash.

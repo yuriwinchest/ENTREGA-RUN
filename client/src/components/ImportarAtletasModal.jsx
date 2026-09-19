@@ -556,49 +556,19 @@ export default function ImportarAtletasModal({
                   <p>Colunas como PCD ou categorias extras podem ser mapeadas diretamente para não perder nenhum dado da planilha.</p>
                 </div>
               </div>
-              {!showAddFieldInline ? (
-                <button
-                  type="button"
-                  className="btn-add-custom-field-btn"
-                  onClick={() => setShowAddFieldInline(true)}
-                >
-                  + ADICIONAR NOVO CAMPO / CATEGORIA
-                </button>
-              ) : (
-                <div className="add-field-inline-row">
-                  <input
-                    type="text"
-                    className="add-field-input"
-                    placeholder="Ex: PCD MEMBROS INFERIORES"
-                    value={newFieldName}
-                    onChange={(e) => setNewFieldName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        handleCreateCustomField()
-                      }
-                    }}
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    className="btn-add-field-save"
-                    onClick={() => handleCreateCustomField()}
-                  >
-                    ADICIONAR
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-add-field-cancel"
-                    onClick={() => {
-                      setShowAddFieldInline(false)
-                      setNewFieldName('')
-                    }}
-                  >
-                    CANCELAR
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                className="btn-add-custom-field-btn"
+                onClick={() =>
+                  setCreateFieldModal({
+                    isOpen: true,
+                    columnIndex: null,
+                    inputValue: '',
+                  })
+                }
+              >
+                + ADICIONAR NOVO CAMPO / CATEGORIA
+              </button>
             </div>
 
             <div className="columns-mapping-grid">
