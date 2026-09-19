@@ -289,7 +289,12 @@ export default function OperacaoPage({
   onLogout,
   onOpenTutorial,
 }) {
+  const userRole = user?.role || 'ADMIN'
+  const isOperator = userRole === 'OPERADOR'
+  const isAdmin = userRole === 'ADMIN'
+
   const [activeTab, setActiveTab] = useState('entrega')
+  const effectiveTab = (!isAdmin && activeTab === 'auditoria') ? 'entrega' : activeTab
   const [kitSearch, setKitSearch] = useState('')
   const [atletaSearch, setAtletaSearch] = useState('')
   const [atletaFilter, setAtletaFilter] = useState('TODOS')
@@ -695,6 +700,7 @@ export default function OperacaoPage({
   // Save changes from Detail View
   function handleSaveDetail(e) {
     if (e) e.preventDefault()
+    if (isOperator) return
     if (!detailForm || !selectedAthlete) return
 
     const updated = athletes.map((a) => {
@@ -756,6 +762,7 @@ export default function OperacaoPage({
 
   // Revert / Undo Delivery
   function handleUndoDelivery() {
+    if (isOperator) return
     if (!selectedAthlete) return
 
     // Mark athlete as PENDENTE
@@ -802,6 +809,7 @@ export default function OperacaoPage({
   // Handle Add Athlete Submission
   function handleCreateAthlete(e) {
     e.preventDefault()
+    if (isOperator) return
     if (!athleteForm.nome.trim() || !athleteForm.numero.trim()) return
 
     const newAthlete = {
@@ -1079,7 +1087,7 @@ export default function OperacaoPage({
         <nav className="operacao-tabs-row">
           <button
             type="button"
-            className={`operacao-subtab ${activeTab === 'entrega' ? 'active' : ''}`}
+            className={`operacao-subtab ${effectiveTab === 'entrega' ? 'active' : ''}`}
             onClick={() => {
               setActiveTab('entrega')
             }}
@@ -1090,7 +1098,7 @@ export default function OperacaoPage({
 
           <button
             type="button"
-            className={`operacao-subtab ${activeTab === 'atletas' ? 'active' : ''}`}
+            className={`operacao-subtab ${effectiveTab === 'atletas' ? 'active' : ''}`}
             onClick={() => {
               setActiveTab('atletas')
               setSelectedAthlete(null)
@@ -1102,7 +1110,7 @@ export default function OperacaoPage({
 
           <button
             type="button"
-            className={`operacao-subtab ${activeTab === 'estatisticas' ? 'active' : ''}`}
+            className={`operacao-subtab ${effectiveTab === 'estatisticas' ? 'active' : ''}`}
             onClick={() => {
               setActiveTab('estatisticas')
               setSelectedAthlete(null)
@@ -1112,21 +1120,23 @@ export default function OperacaoPage({
             <span>ESTATÍSTICAS</span>
           </button>
 
-          <button
-            type="button"
-            className={`operacao-subtab ${activeTab === 'auditoria' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('auditoria')
-              setSelectedAthlete(null)
-            }}
-          >
-            <ClipboardIcon />
-            <span>AUDITORIA</span>
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className={`operacao-subtab ${effectiveTab === 'auditoria' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('auditoria')
+                setSelectedAthlete(null)
+              }}
+            >
+              <ClipboardIcon />
+              <span>AUDITORIA</span>
+            </button>
+          )}
         </nav>
 
         {/* TAB 1: ENTREGA DE KIT */}
-        {activeTab === 'entrega' && (
+        {effectiveTab === 'entrega' && (
           <div className="operacao-tab-content">
             {/* VIEW A: DETALHE / MODAL DO ATLETA SELECIONADO (FOTO ENVIADA PELO PO) */}
             {selectedAthlete && detailForm ? (
@@ -1144,15 +1154,17 @@ export default function OperacaoPage({
                         <PrinterIcon />
                         <span>IMPRIMIR COMPROVANTE</span>
                       </button>
-                      <button
-                        type="button"
-                        className="btn-detail-undo"
-                        onClick={handleUndoDelivery}
-                        title="Desfazer entrega do kit"
-                      >
-                        <UndoIcon />
-                        <span>DESFAZER</span>
-                      </button>
+                      {!isOperator && (
+                        <button
+                          type="button"
+                          className="btn-detail-undo"
+                          onClick={handleUndoDelivery}
+                          title="Desfazer entrega do kit"
+                        >
+                          <UndoIcon />
+                          <span>DESFAZER</span>
+                        </button>
+                      )}
                     </>
                   ) : (
                     <>
@@ -1184,15 +1196,17 @@ export default function OperacaoPage({
                     </>
                   )}
 
-                  <button
-                    type="button"
-                    className="btn-detail-save"
-                    onClick={handleSaveDetail}
-                    title="Salvar alterações"
-                  >
-                    <SaveIcon />
-                    <span>SALVAR</span>
-                  </button>
+                  {!isOperator && (
+                    <button
+                      type="button"
+                      className="btn-detail-save"
+                      onClick={handleSaveDetail}
+                      title="Salvar alterações"
+                    >
+                      <SaveIcon />
+                      <span>SALVAR</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -1252,8 +1266,15 @@ export default function OperacaoPage({
                   </div>
                 )}
 
+                {isOperator && (
+                  <div className="operator-permission-notice">
+                    <span>🔒 Perfil Operador: consulta e entrega de kit liberadas. Alteração de dados reservada ao Supervisor.</span>
+                  </div>
+                )}
+
                 {/* 4. Formulário Completo de Dados do Atleta */}
                 <form className="athlete-detail-form-card" onSubmit={handleSaveDetail}>
+                  <fieldset disabled={isOperator} className="athlete-detail-fieldset">
                   {/* Linha 1: NÚMERO, NOME, DOCUMENTO, SEXO */}
                   <div className="detail-form-row-4">
                     <div className="athlete-form-group">
@@ -1526,6 +1547,7 @@ export default function OperacaoPage({
                       />
                     </div>
                   </div>
+                  </fieldset>
                 </form>
 
                 {/* 5. Card: ENTREGUE PARA */}
@@ -1535,6 +1557,7 @@ export default function OperacaoPage({
                     <input
                       type="text"
                       className="athlete-form-input entregue-para-input"
+                      disabled={isOperator}
                       value={detailForm.entreguePara || detailForm.nome}
                       onChange={(e) =>
                         setDetailForm({
@@ -1669,7 +1692,7 @@ export default function OperacaoPage({
         )}
 
         {/* TAB 2: ATLETAS */}
-        {activeTab === 'atletas' && (
+        {effectiveTab === 'atletas' && (
           <div className="operacao-tab-content">
             <div className="atletas-filter-bar">
               <div className="atletas-search-wrap">
@@ -1707,14 +1730,16 @@ export default function OperacaoPage({
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  className="btn-add-atleta"
-                  onClick={() => setShowAddAthleteModal(true)}
-                >
-                  <UserPlusIcon />
-                  <span>NOVO</span>
-                </button>
+                {!isOperator && (
+                  <button
+                    type="button"
+                    className="btn-add-atleta"
+                    onClick={() => setShowAddAthleteModal(true)}
+                  >
+                    <UserPlusIcon />
+                    <span>NOVO</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1773,7 +1798,7 @@ export default function OperacaoPage({
         )}
 
         {/* TAB 3: ESTATÍSTICAS */}
-        {activeTab === 'estatisticas' && (
+        {effectiveTab === 'estatisticas' && (
           <div className="operacao-tab-content">
             <div className="estatisticas-top-action">
               <button type="button" className="fechamento-btn">
@@ -1895,7 +1920,7 @@ export default function OperacaoPage({
         )}
 
         {/* TAB 4: AUDITORIA */}
-        {activeTab === 'auditoria' && (
+        {effectiveTab === 'auditoria' && (
           <div className="operacao-tab-content auditoria-content-layout">
             {/* 1. CARDS DE MÉTRICAS (4 CARDS) */}
             <div className="audit-metrics-grid">

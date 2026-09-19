@@ -75,9 +75,11 @@ export default function App() {
     return ''
   })
 
-  const effectiveEventId = selectedEventId && events.some((e) => e.id === selectedEventId)
-    ? selectedEventId
-    : (events[0]?.id || '')
+  const effectiveEventId = (user?.role !== 'ADMIN' && user?.eventId && user.eventId !== 'all')
+    ? user.eventId
+    : (selectedEventId && events.some((e) => e.id === selectedEventId)
+      ? selectedEventId
+      : (events[0]?.id || ''))
 
   const [currentPage, setCurrentPage] = useState(() => {
     const path = window.location.pathname
@@ -124,23 +126,27 @@ export default function App() {
   }, [user])
 
   function navigateTo(page, id) {
+    let targetPage = page
+    if (targetPage === 'usuarios' && user?.role !== 'ADMIN') {
+      targetPage = 'eventos'
+    }
     const targetId = id || effectiveEventId
     if (targetId) {
       setSelectedEventId(targetId)
     }
-    setCurrentPage(page)
+    setCurrentPage(targetPage)
     let path = '/dashboard'
-    if (page === 'espelho') {
+    if (targetPage === 'espelho') {
       path = targetId ? `/espelho/${targetId}` : '/espelho'
-    } else if (page === 'eventos') {
+    } else if (targetPage === 'eventos') {
       path = '/eventos'
-    } else if (page === 'operacao') {
+    } else if (targetPage === 'operacao') {
       path = targetId ? `/operacao/${targetId}` : '/eventos'
-    } else if (page === 'event-dashboard') {
+    } else if (targetPage === 'event-dashboard') {
       path = targetId ? `/dashboard/${targetId}` : '/dashboard'
-    } else if (page === 'usuarios') {
+    } else if (targetPage === 'usuarios') {
       path = '/usuarios'
-    } else if (page === 'login') {
+    } else if (targetPage === 'login') {
       path = '/'
     }
     window.history.pushState(null, '', path)
@@ -262,6 +268,7 @@ export default function App() {
       {currentPage === 'usuarios' && (
         <UsuariosPage
           user={user}
+          events={events}
           onNavigate={navigateTo}
           onLogout={handleLogout}
           onOpenTutorial={handleOpenTutorial}

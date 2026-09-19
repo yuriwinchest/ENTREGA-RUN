@@ -96,10 +96,20 @@ const ROLE_OPTIONS = [
 
 export default function UsuariosPage({
   user,
+  events = [],
   onNavigate,
   onLogout,
   onOpenTutorial,
 }) {
+  const availableEvents = (events && events.length > 0) ? events : (() => {
+    try {
+      const saved = localStorage.getItem('entregas_run_events')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })()
+
   const [users, setUsers] = useState(() => {
     try {
       const saved = localStorage.getItem('entregas_run_users')
@@ -120,6 +130,8 @@ export default function UsuariosPage({
       name: user?.name || 'FELIPE',
       email: user?.email || 'pacetime@entregas.com',
       role: user?.role || 'ADMIN',
+      eventId: 'all',
+      eventName: 'TODOS OS PROJETOS',
       status: 'ATIVO',
       deliveries: 0,
       avatar: (user?.name || 'F').substring(0, 2).toUpperCase(),
@@ -129,20 +141,28 @@ export default function UsuariosPage({
 
   const [showAddUserModal, setShowAddUserModal] = useState(false)
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false)
+  const [isEventDropdownOpen, setIsEventDropdownOpen] = useState(false)
   const roleDropdownRef = useRef(null)
-  const [newUserForm, setNewUserForm] = useState({
+  const eventDropdownRef = useRef(null)
+
+  const [newUserForm, setNewUserForm] = useState(() => ({
     name: '',
     email: '',
     role: 'OPERADOR',
-  })
+    eventId: availableEvents[0]?.id || 'all',
+    eventName: availableEvents[0]?.name || 'TODOS OS EVENTOS',
+  }))
 
   useEffect(() => {
     function handleClickOutside(event) {
       if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target)) {
         setIsRoleDropdownOpen(false)
       }
+      if (eventDropdownRef.current && !eventDropdownRef.current.contains(event.target)) {
+        setIsEventDropdownOpen(false)
+      }
     }
-    if (isRoleDropdownOpen) {
+    if (isRoleDropdownOpen || isEventDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside)
       document.addEventListener('touchstart', handleClickOutside)
     }
@@ -150,7 +170,7 @@ export default function UsuariosPage({
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('touchstart', handleClickOutside)
     }
-  }, [isRoleDropdownOpen])
+  }, [isRoleDropdownOpen, isEventDropdownOpen])
 
   useEffect(() => {
     try {
@@ -164,18 +184,33 @@ export default function UsuariosPage({
     e.preventDefault()
     if (!newUserForm.name.trim() || !newUserForm.email.trim()) return
 
+    const selectedEv = availableEvents.find((ev) => ev.id === newUserForm.eventId)
+    const assignedName = newUserForm.eventId === 'all'
+      ? 'TODOS OS PROJETOS'
+      : (selectedEv?.name || newUserForm.eventName || 'PROJETO VINCULADO')
+
     const newUser = {
       id: `user-${Date.now()}`,
       name: newUserForm.name.trim().toUpperCase(),
       email: newUserForm.email.trim().toLowerCase(),
       role: newUserForm.role,
+      eventId: newUserForm.eventId,
+      eventName: assignedName,
       status: 'ATIVO',
       deliveries: 0,
       avatar: newUserForm.name.trim().substring(0, 2).toUpperCase(),
     }
 
     setUsers((prev) => [newUser, ...prev])
-    setNewUserForm({ name: '', email: '', role: 'OPERADOR' })
+    setNewUserForm({
+      name: '',
+      email: '',
+      role: 'OPERADOR',
+      eventId: availableEvents[0]?.id || 'all',
+      eventName: availableEvents[0]?.name || 'TODOS OS PROJETOS',
+    })
+    setIsRoleDropdownOpen(false)
+    setIsEventDropdownOpen(false)
     setShowAddUserModal(false)
   }
 
@@ -252,6 +287,10 @@ export default function UsuariosPage({
 
                     <span className={`status-pill-user ${item.status === 'INATIVO' ? 'inactive' : ''}`}>
                       {item.status}
+                    </span>
+
+                    <span className="user-event-pill" title={item.eventName || 'Todos os Projetos'}>
+                      📍 {item.eventName || 'TODOS OS PROJETOS'}
                     </span>
                   </div>
                 </div>
@@ -383,6 +422,108 @@ export default function UsuariosPage({
                             </button>
                           )
                         })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-group" ref={eventDropdownRef}>
+                  <label className="form-label" id="event-select-label">VINCULAR A PROJETO / CORRIDA</label>
+                  <div className="custom-role-dropdown">
+                    <button
+                      type="button"
+                      className={`custom-role-trigger ${isEventDropdownOpen ? 'open' : ''}`}
+                      onClick={() => {
+                        setIsRoleDropdownOpen(false)
+                        setIsEventDropdownOpen((prev) => !prev)
+                      }}
+                      aria-haspopup="listbox"
+                      aria-expanded={isEventDropdownOpen}
+                      aria-labelledby="event-select-label"
+                    >
+                      <div className="role-trigger-text">
+                        <span className="role-trigger-name">
+                          {newUserForm.eventId === 'all'
+                            ? 'TODOS OS PROJETOS (Acesso Global)'
+                            : (availableEvents.find((e) => e.id === newUserForm.eventId)?.name || newUserForm.eventName || 'SELECIONE A CORRIDA')}
+                        </span>
+                      </div>
+                      <ChevronDownIcon className={`role-chevron ${isEventDropdownOpen ? 'rotated' : ''}`} />
+                    </button>
+
+                    {isEventDropdownOpen && (
+                      <div className="role-options-list" role="listbox">
+                        {newUserForm.role === 'ADMIN' && (
+                          <button
+                            type="button"
+                            className={`role-option-item ${newUserForm.eventId === 'all' ? 'selected' : ''}`}
+                            onClick={() => {
+                              setNewUserForm((prev) => ({
+                                ...prev,
+                                eventId: 'all',
+                                eventName: 'TODOS OS PROJETOS',
+                              }))
+                              setIsEventDropdownOpen(false)
+                            }}
+                            role="option"
+                            aria-selected={newUserForm.eventId === 'all'}
+                          >
+                            <div className="role-option-content">
+                              <div className="role-option-title-row">
+                                <span className="role-tag-badge admin">GLOBAL</span>
+                                <span className="role-option-desc">TODOS OS PROJETOS</span>
+                              </div>
+                              <p className="role-option-detail">Acesso e gestão de todas as corridas do sistema</p>
+                            </div>
+                            {newUserForm.eventId === 'all' && (
+                              <div className="role-selected-check">
+                                <CheckIcon />
+                              </div>
+                            )}
+                          </button>
+                        )}
+
+                        {availableEvents.length === 0 ? (
+                          <div className="empty-events-select-msg">
+                            Nenhum projeto cadastrado no momento. Cadastre um evento primeiro na aba Eventos.
+                          </div>
+                        ) : (
+                          availableEvents.map((ev) => {
+                            const isSelected = newUserForm.eventId === ev.id
+                            return (
+                              <button
+                                key={ev.id}
+                                type="button"
+                                className={`role-option-item ${isSelected ? 'selected' : ''}`}
+                                onClick={() => {
+                                  setNewUserForm((prev) => ({
+                                    ...prev,
+                                    eventId: ev.id,
+                                    eventName: ev.name,
+                                  }))
+                                  setIsEventDropdownOpen(false)
+                                }}
+                                role="option"
+                                aria-selected={isSelected}
+                              >
+                                <div className="role-option-content">
+                                  <div className="role-option-title-row">
+                                    <span className="role-tag-badge operador">CORRIDA</span>
+                                    <span className="role-option-desc">{ev.name}</span>
+                                  </div>
+                                  <p className="role-option-detail">
+                                    {ev.dateInput || ev.date || 'Data a definir'} • {ev.location || 'Local a definir'}
+                                  </p>
+                                </div>
+                                {isSelected && (
+                                  <div className="role-selected-check">
+                                    <CheckIcon />
+                                  </div>
+                                )}
+                              </button>
+                            )
+                          })
+                        )}
                       </div>
                     )}
                   </div>

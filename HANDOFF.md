@@ -606,6 +606,45 @@
   - `npm run build --prefix client`: Vite build concluído em 823ms (**0 erros**).
 - **Próximo passo**: Yuri testar o seletor de função no simulador/celular.
 
+## 2026-09-19 — Vinculação a Projetos/Corridas e Matriz de Permissões RBAC (Fase A, construir)
+
+- **Classificação Jev (TypeSafe System One)**:
+  - Roteado em 1140ms: Especialista `crowley_sec` (92% de confiança), `nova_feature` (96% de confiança).
+- **Demandas do Yuri (PO)**:
+  1. No cadastro de usuários, vincular o usuário a um projeto / corrida específica (ou global para Admin).
+  2. Matriz de Permissões Estrita:
+     - **OPERADOR**: apenas entrega de kit. Não pode editar nenhuma página ou atleta. Não tem acesso à aba/página Auditoria.
+     - **SUPERVISOR**: entrega de kit + permissão de editar dados de atletas. Não tem acesso à aba/página Auditoria.
+     - **ADMIN**: acesso total (Auditoria, gestão de usuários, edição de eventos).
+- **Ações Realizadas**:
+  1. `client/src/App.jsx`:
+     - Propagação da lista de eventos (`events`) para `UsuariosPage`.
+     - `effectiveEventId` agora vincula automaticamente o usuário autenticado à corrida atribuída caso possua perfil não-admin.
+     - Rota `/usuarios` bloqueada para não-admins na navegação `navigateTo`.
+  2. `client/src/components/Sidebar.jsx`:
+     - Item de menu `USUÁRIOS` oculto na navegação desktop e na barra inferior mobile (`mobile-bottom-nav`) para papéis `OPERADOR` e `SUPERVISOR`.
+  3. `client/src/components/UsuariosPage.jsx` & `UsuariosPage.css`:
+     - Adicionado campo `PROJETO / CORRIDA VINCULADA` no modal "NOVO USUÁRIO", utilizando seletor customizado in-DOM à prova de overflow no simulador.
+     - Suporte a "TODOS OS PROJETOS" para Admin e seleção das corridas cadastradas para Operador/Supervisor.
+     - Badge do evento exibida em cada card de usuário (`📍 {item.eventName}`).
+  4. `client/src/components/OperacaoPage.jsx` & `OperacaoPage.css`:
+     - Aba `AUDITORIA` removida da barra de navegação para não-admins (`{isAdmin && <button>AUDITORIA</button>}`).
+     - `effectiveTab` derivado automaticamente: se um usuário tentar acessar auditoria sem privilégio, o sistema cai com segurança para `entrega`.
+     - Para `OPERADOR`:
+       - Botão `+ NOVO` atleta na aba `ATLETAS` fica oculto.
+       - Botões `SALVAR` e `DESFAZER` na visualização detalhada do atleta ficam ocultos.
+       - Formulário de dados do atleta encapsulado em `<fieldset disabled={isOperator}>`, tornando todos os inputs somente leitura.
+       - Exibido aviso de perfil: `🔒 Perfil Operador: consulta e entrega de kit liberadas. Alteração de dados reservada ao Supervisor.`.
+     - Para `SUPERVISOR`:
+       - Botão `SALVAR` habilitado para edição de dados do atleta.
+       - Botão `+ NOVO` habilitado para cadastrar atletas.
+       - Sem acesso à aba `AUDITORIA`.
+- **Validações Reais**:
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** em 372ms.
+  - `npm run build --prefix client`: Vite build concluído em 1.18s (**0 erros**).
+- **Próximo passo**: Yuri testar a vinculação de corrida e a troca de permissões entre Operador, Supervisor e Admin.
+
+
 
 
 

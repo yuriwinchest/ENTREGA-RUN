@@ -142,14 +142,16 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
               <span>EVENTOS</span>
             </button>
 
-            <button
-              type="button"
-              className={`nav-item ${activePage === 'usuarios' ? 'active' : ''}`}
-              onClick={() => handleNav('usuarios')}
-            >
-              <UsersIcon />
-              <span>USUÁRIOS</span>
-            </button>
+            {userRole === 'ADMIN' && (
+              <button
+                type="button"
+                className={`nav-item ${activePage === 'usuarios' ? 'active' : ''}`}
+                onClick={() => handleNav('usuarios')}
+              >
+                <UsersIcon />
+                <span>USUÁRIOS</span>
+              </button>
+            )}
           </nav>
         </div>
 
@@ -194,14 +196,16 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
           <span>Eventos</span>
         </button>
 
-        <button
-          type="button"
-          className={`mobile-nav-btn ${activePage === 'usuarios' ? 'active' : ''}`}
-          onClick={() => handleNav('usuarios')}
-        >
-          <UsersIcon />
-          <span>Usuários</span>
-        </button>
+        {userRole === 'ADMIN' && (
+          <button
+            type="button"
+            className={`mobile-nav-btn ${activePage === 'usuarios' ? 'active' : ''}`}
+            onClick={() => handleNav('usuarios')}
+          >
+            <UsersIcon />
+            <span>Usuários</span>
+          </button>
+        )}
 
         <button
           type="button"
