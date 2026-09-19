@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import Sidebar from './Sidebar.jsx'
 import EspelhoModal from './EspelhoModal.jsx'
 import ImportarAtletasModal from './ImportarAtletasModal.jsx'
-import { generateDefaultAudits, exportCsvFile } from '../utils/auditData.js'
+import { exportCsvFile } from '../utils/auditData.js'
 import './OperacaoPage.css'
 
 function HelpCircleIcon() {
@@ -388,8 +388,44 @@ export default function OperacaoPage({
     try {
       if (!currentEvent.id) return []
       const saved = localStorage.getItem(`entregas_run_audits_${currentEvent.id}`)
-      if (saved) return JSON.parse(saved)
-      return []
+      let list = saved ? JSON.parse(saved) : []
+
+      // Reconciliação imediata na montagem: busca atletas já entregues no storage
+      const savedAthletes = localStorage.getItem(`entregas_run_athletes_${currentEvent.id}`)
+      if (savedAthletes) {
+        const athletesList = JSON.parse(savedAthletes)
+        const deliveredAthletes = athletesList.filter((a) => a.status === 'ENTREGUE')
+        const existingAuditNums = new Set(list.map((item) => String(item.atletaNumero)))
+        const missingAudits = []
+
+        for (const athlete of deliveredAthletes) {
+          if (!existingAuditNums.has(String(athlete.numero))) {
+            missingAudits.push({
+              id: `aud-${Date.now()}-${athlete.numero}`,
+              comprovanteId: `CPR-${Math.floor(100000 + Math.random() * 900000)}`,
+              dataHora: athlete.entregueEm || new Date().toLocaleString('pt-BR'),
+              timestamp: Date.now(),
+              atletaNumero: athlete.numero,
+              atletaNome: athlete.nome,
+              atletaCpf: athlete.doc || '—',
+              tipo: athlete.entreguePara && athlete.entreguePara.trim().toUpperCase() !== athlete.nome.trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
+              retiradoPor: athlete.entreguePara || athlete.nome,
+              operadorNome: athlete.entreguePor || user?.name || 'Felipe Admin',
+              operadorEmail: user?.email || 'pacetime@entregas.com',
+              pontoEntrega: 'Guichê Principal',
+              kit: athlete.kit || 'Kit Padrão',
+              camiseta: athlete.camiseta || 'M',
+              modalidade: athlete.modalidade || '5 KM',
+              status: 'ENTREGUE',
+              eventId: currentEvent.id,
+            })
+          }
+        }
+        if (missingAudits.length > 0) {
+          list = [...missingAudits, ...list]
+        }
+      }
+      return list
     } catch {
       return []
     }
@@ -403,6 +439,57 @@ export default function OperacaoPage({
       // ignore
     }
   }, [audits, currentEvent.id])
+
+  // Sincroniza e garante que qualquer atleta entregue possua registro na Auditoria
+  useEffect(() => {
+    if (!currentEvent.id || !athletes.length) return
+    const deliveredAthletes = athletes.filter((a) => a.status === 'ENTREGUE')
+    if (deliveredAthletes.length === 0) return
+
+    // oxlint-disable-next-line react/set-state-in-effect
+    setAudits((prev) => {
+      const existingAuditNums = new Set(prev.map((item) => String(item.atletaNumero)))
+      const missingAudits = []
+
+      for (const athlete of deliveredAthletes) {
+        if (!existingAuditNums.has(String(athlete.numero))) {
+          const nowStr = athlete.entregueEm || new Date().toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          })
+
+          missingAudits.push({
+            id: `aud-${Date.now()}-${athlete.numero}`,
+            comprovanteId: `CPR-${Math.floor(100000 + Math.random() * 900000)}`,
+            dataHora: nowStr,
+            timestamp: Date.now(),
+            atletaNumero: athlete.numero,
+            atletaNome: athlete.nome,
+            atletaCpf: athlete.doc || '—',
+            tipo: athlete.entreguePara && athlete.entreguePara.trim().toUpperCase() !== athlete.nome.trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
+            retiradoPor: athlete.entreguePara || athlete.nome,
+            operadorNome: athlete.entreguePor || user?.name || 'Felipe Admin',
+            operadorEmail: user?.email || 'pacetime@entregas.com',
+            pontoEntrega: 'Guichê Principal',
+            kit: athlete.kit || 'Kit Padrão',
+            camiseta: athlete.camiseta || 'M',
+            modalidade: athlete.modalidade || '5 KM',
+            status: 'ENTREGUE',
+            eventId: currentEvent.id,
+          })
+        }
+      }
+
+      if (missingAudits.length > 0) {
+        return [...missingAudits, ...prev]
+      }
+      return prev
+    })
+  }, [athletes, currentEvent.id, user])
 
   // Filter controls
   const [auditSearch, setAuditSearch] = useState('')
@@ -640,6 +727,29 @@ export default function OperacaoPage({
       })
     )
 
+    // Sincroniza dados com o histórico de Auditoria
+    setAudits((prev) =>
+      prev.map((item) => {
+        if (String(item.atletaNumero) === String(selectedAthlete.numero)) {
+          return {
+            ...item,
+            atletaNome: detailForm.nome.toUpperCase(),
+            atletaCpf: detailForm.doc || item.atletaCpf,
+            retiradoPor: detailForm.entreguePara || detailForm.nome,
+            tipo:
+              detailForm.entreguePara &&
+              detailForm.entreguePara.trim().toUpperCase() !== detailForm.nome.trim().toUpperCase()
+                ? 'TERCEIRO'
+                : 'ATLETA',
+            kit: detailForm.kit || item.kit,
+            camiseta: detailForm.camiseta || item.camiseta,
+            modalidade: detailForm.modalidade || item.modalidade,
+          }
+        }
+        return item
+      })
+    )
+
     setSelectedAthlete(null)
     setDetailForm(null)
   }
@@ -661,6 +771,11 @@ export default function OperacaoPage({
     // Remove from deliveries
     setDeliveries((prev) =>
       prev.filter((d) => String(d.id) !== String(selectedAthlete.numero))
+    )
+
+    // Remove do histórico de Auditoria
+    setAudits((prev) =>
+      prev.filter((item) => String(item.atletaNumero) !== String(selectedAthlete.numero))
     )
 
     // Recalculate metrics
@@ -733,9 +848,32 @@ export default function OperacaoPage({
   function handleDeliverKit(athlete) {
     if (athlete.status === 'ENTREGUE') return
 
+    const now = new Date()
+    const dataHoraFormatada = now.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+
+    const opName = user?.name || 'Felipe Admin'
+    const opEmail = user?.email || 'pacetime@entregas.com'
+
     // Mark athlete as ENTREGUE
     setAthletes((prev) =>
-      prev.map((a) => (a.numero === athlete.numero ? { ...a, status: 'ENTREGUE' } : a))
+      prev.map((a) =>
+        String(a.numero) === String(athlete.numero)
+          ? {
+              ...a,
+              status: 'ENTREGUE',
+              entregueEm: dataHoraFormatada,
+              entreguePor: opName,
+              entreguePara: athlete.nome,
+            }
+          : a
+      )
     )
 
     // Add delivery record
@@ -747,8 +885,31 @@ export default function OperacaoPage({
       size: athlete.camiseta,
       kit: athlete.kit,
       time: 'Agora',
+      dataHora: dataHoraFormatada,
     }
     setDeliveries((prev) => [newDelivery, ...prev])
+
+    // Registra na Auditoria
+    const newAudit = {
+      id: `aud-${Date.now()}-${athlete.numero}`,
+      comprovanteId: `CPR-${Math.floor(100000 + Math.random() * 900000)}`,
+      dataHora: dataHoraFormatada,
+      timestamp: Date.now(),
+      atletaNumero: athlete.numero,
+      atletaNome: athlete.nome,
+      atletaCpf: athlete.doc || '—',
+      tipo: 'ATLETA',
+      retiradoPor: athlete.nome,
+      operadorNome: opName,
+      operadorEmail: opEmail,
+      pontoEntrega: 'Guichê Principal',
+      kit: athlete.kit || 'Kit Padrão',
+      camiseta: athlete.camiseta || 'M',
+      modalidade: athlete.modalidade || '5 KM',
+      status: 'ENTREGUE',
+      eventId: currentEvent.id,
+    }
+    setAudits((prev) => [newAudit, ...prev])
 
     // Update metrics
     const newEntregues = (currentEvent.entregues || 0) + 1
@@ -758,9 +919,9 @@ export default function OperacaoPage({
       ? ((newEntregues / newTotal) * 100).toFixed(1) + '%'
       : '0.0%'
 
-    // Increment Felipe (logged-in operator) delivery count
+    // Increment logged-in operator delivery count
     setOperators((prev) =>
-      prev.map((op) => (op.name === 'FELIPE' ? { ...op, count: op.count + 1 } : op))
+      prev.map((op) => (op.name === 'FELIPE' || op.name.toLowerCase() === opName.toLowerCase() ? { ...op, count: op.count + 1 } : op))
     )
 
     if (onUpdateEvent) {
@@ -1964,7 +2125,14 @@ export default function OperacaoPage({
                     type="button"
                     className="btn-refresh-audit"
                     onClick={() => {
-                      setAudits(generateDefaultAudits())
+                      try {
+                        const saved = localStorage.getItem(`entregas_run_audits_${currentEvent.id}`)
+                        if (saved) {
+                          setAudits(JSON.parse(saved))
+                        }
+                      } catch {
+                        // ignore
+                      }
                       setAuditPage(1)
                     }}
                     title="Atualizar lista"
