@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  entregas-run-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: entregas-run-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3050:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,57 @@
+name: CI/CD Deploy ENTREGAS-RUN (VPS Docker)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validar Build de Produção (Client)
+        working-directory: client
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy Automático Isolado na VPS (Docker)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            echo "=== INICIANDO DEPLOY AUTOMÁTICO ENTREGAS-RUN NA VPS ==="
+            mkdir -p /opt/entregas-run
+            cd /opt/entregas-run
+
+            # Atualizar repositório local na VPS
+            if [ -d ".git" ]; then
+              git fetch origin main
+              git reset --hard origin/main
+            fi
+
+            # Build e Reinicialização Isolada no Docker (porta 3050 -> 3001)
+            docker compose down --remove-orphans || true
+            docker rm -f entregas-run-web || true
+            docker compose build --no-cache
+            docker compose up -d
+
+            # Healthcheck de verificação do serviço
+            sleep 4
+            curl -f http://127.0.0.1:3050/api/health || (echo "Healthcheck falhou!" && exit 1)
+
+            echo "=== DEPLOY CONCLUÍDO COM SUCESSO! ==="
+            docker ps --filter name=entregas-run-web --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
