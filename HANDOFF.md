@@ -444,6 +444,35 @@
   - `npm run build --prefix client`: Vite build para produção concluído com sucesso em 639ms (**0 erros**).
 - **Próximo passo**: Enviar commit e disparar deploy automático para validação pelo Yuri em `https://app.entregasrun.com.br`.
 
+## 2026-09-19 — Correção de Importação de Arquivos Excel e Orquestração Jev (Fase A, construir)
+
+- **Demanda do Yuri (PO)** (Áudio + Print):
+  - Ao selecionar um arquivo Excel (`.xlsx`) no modal de importação de atletas, a aplicação exibia o alerta: `Erro ao ler arquivo Excel: t[0].map is not a function`.
+  - Solicitação de uso prático do Jev para orquestrar e validar a resolução.
+- **Orquestração pelo Jev Router (`scripts/jev-prompt-router.js`)**:
+  - Jev avaliou o prompt em 878ms:
+    - Especialista: `kastiel_dev` (100.0% de confiança).
+    - Tipo de Tarefa: `bugfix_urgente` (100.0% de confiança).
+    - Toca Produção: `35.0%` (escopo restrito ao componente de frontend).
+    - Severidade: `1.96 / 2.00` (impacto bloqueante na importação).
+- **Causa Raiz Identificada**:
+  - A biblioteca `read-excel-file` retorna, para arquivos com estrutura multi-aba ou por padrão em certas planilhas, um array de objetos de abas no formato `[{ sheet: 'Nome', data: [...] }]`.
+  - O código tentava invocar diretamente `rows[0].map(...)`, que falhava com `TypeError: t[0].map is not a function` pois `rows[0]` era o objeto da aba (`{ sheet, data }`) e não um array direto de células.
+- **Ações Realizadas**:
+  1. `ImportarAtletasModal.jsx`: Adicionado suporte transparente para desempacotar `rawRows[0].data` quando o retorno for array de abas, localizando a aba que contém dados.
+  2. Adicionada a função auxiliar `formatCellValue` que trata tipos primitivos do Excel e converte datas (`Date`) automaticamente para o formato brasileiro `DD/MM/AAAA`.
+  3. Aprimorado o mapeamento automático de colunas (`autoGuessMapping`) para priorizar `'kit'` sobre `'modalidade'` e reconhecer variações de nomes de peito e documentos.
+- **Validações Reais**:
+  - Testadas com sucesso as 5 planilhas Excel reais do projeto:
+    - `LISTA OFICIAL CORRE SURUBIM.xlsx`: 351 linhas lidas e mapeadas.
+    - `LISTA OFICIAL CORRIDA DA GALINHA.xlsx`: 431 linhas lidas e mapeadas.
+    - `LISTA OFICIAL CORRIDA DESAFIO TAMBOR RUN.xlsx`: 456 linhas lidas e mapeadas.
+    - `LISTA OFICIAL CORRIDA DO CAFE 2026.xlsx`: 506 linhas lidas e mapeadas.
+    - `LISTA OFICIAL CORRIDA ICIA.xlsx`: 1011 linhas lidas e mapeadas.
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos**.
+  - `npm run build --prefix client`: Vite build concluído em 1.11s (**0 erros**).
+- **Próximo passo**: Commit e deploy automático via GitHub Actions para homologação no navegador.
+
 
 
 

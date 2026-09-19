@@ -116,37 +116,55 @@ export default function ImportarAtletasModal({
     return { headers, rows }
   }
 
-  // Pre-mapping inteligente baseado em nomes comuns
+  // Formata célula com suporte a Date, boolean e números
+  function formatCellValue(cell) {
+    if (cell === null || cell === undefined) return ''
+    if (cell instanceof Date && !isNaN(cell.getTime())) {
+      const d = String(cell.getUTCDate()).padStart(2, '0')
+      const m = String(cell.getUTCMonth() + 1).padStart(2, '0')
+      const y = cell.getUTCFullYear()
+      return `${d}/${m}/${y}`
+    }
+    return String(cell).trim()
+  }
+
+  // Pre-mapping inteligente baseado em nomes comuns de colunas
   function autoGuessMapping(headers) {
     const mapping = {}
     headers.forEach((h, idx) => {
-      const lower = h.toLowerCase()
-      if (lower.includes('peito') || lower.includes('numero') || lower === 'num') {
+      const lower = String(h || '').toLowerCase()
+      if (lower.includes('peito') && lower.includes('nome')) {
+        mapping[idx] = 'nome_peito'
+      } else if (lower.includes('peito') || lower.includes('numero') || lower === 'num' || lower.includes('número')) {
         mapping[idx] = 'numero'
       } else if (lower.includes('chip')) {
         mapping[idx] = 'chip'
-      } else if (lower.includes('inscrito') || lower.includes('atleta') || lower.includes('nome')) {
+      } else if (lower.includes('completo') || lower.includes('inscrito') || lower.includes('atleta') || lower.includes('nome')) {
         mapping[idx] = 'nome'
-      } else if (lower.includes('cpf') || lower.includes('doc')) {
+      } else if (lower.includes('cpf') || lower.includes('doc') || lower.includes('documento')) {
         mapping[idx] = 'doc'
-      } else if (lower.includes('sexo')) {
+      } else if (lower.includes('sexo') || lower === 'sex') {
         mapping[idx] = 'sexo'
       } else if (lower.includes('camis') || lower.includes('tamanho')) {
         mapping[idx] = 'camiseta'
       } else if (lower.includes('equipe') || lower.includes('time')) {
         mapping[idx] = 'equipe'
-      } else if (lower.includes('cidade')) {
+      } else if (lower.includes('cidade') || lower.includes('municipio')) {
         mapping[idx] = 'cidade'
       } else if (lower.includes('nasc') || lower.includes('data')) {
         mapping[idx] = 'nascimento'
+      } else if (lower.includes('kit')) {
+        mapping[idx] = 'kit'
       } else if (lower.includes('mod') || lower.includes('dist')) {
         mapping[idx] = 'modalidade'
       } else if (lower.includes('cat')) {
         mapping[idx] = 'categoria'
       } else if (lower.includes('morador') || lower.includes('visitante')) {
         mapping[idx] = 'morador'
-      } else if (lower.includes('kit')) {
-        mapping[idx] = 'kit'
+      } else if (lower.includes('contato') || lower.includes('tel') || lower.includes('cel')) {
+        mapping[idx] = 'contato'
+      } else if (lower.includes('pais') || lower.includes('nacionalidade')) {
+        mapping[idx] = 'nacionalidade'
       } else {
         mapping[idx] = 'ignore'
       }
@@ -174,19 +192,36 @@ export default function ImportarAtletasModal({
 
     if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
       try {
-        const rows = await readXlsxFile(file)
-        if (rows && rows.length > 0) {
-          const headers = rows[0].map((cell) => String(cell || '').trim())
-          const dataRows = rows.slice(1).map((r) => r.map((c) => String(c || '').trim()))
+        let rawRows = await readXlsxFile(file)
 
-          // Converte para texto amigável para exibição
-          const textPreview = rows.map((r) => r.join(';')).join('\n')
-          setRawText(textPreview)
-          setParsedHeaders(headers)
-          setParsedRows(dataRows)
-          setColumnMapping(autoGuessMapping(headers))
+        // Se readXlsxFile retornar array de abas [{ sheet: '...', data: [...] }]
+        if (Array.isArray(rawRows) && rawRows.length > 0 && !Array.isArray(rawRows[0]) && Array.isArray(rawRows[0]?.data)) {
+          const sheetWithData = rawRows.find((s) => Array.isArray(s?.data) && s.data.length > 0)
+          rawRows = sheetWithData ? sheetWithData.data : (rawRows[0]?.data || [])
+        }
+
+        if (Array.isArray(rawRows) && rawRows.length > 0) {
+          // Filtra linhas vazias
+          const validRows = rawRows.filter((r) => Array.isArray(r) && r.some((c) => c !== null && c !== undefined && String(c).trim() !== ''))
+
+          if (validRows.length > 0) {
+            const headers = validRows[0].map((cell) => formatCellValue(cell))
+            const dataRows = validRows.slice(1).map((r) => r.map((c) => formatCellValue(c)))
+
+            // Converte para texto amigável para exibição
+            const textPreview = [headers.join(';'), ...dataRows.map((r) => r.join(';'))].join('\n')
+            setRawText(textPreview)
+            setParsedHeaders(headers)
+            setParsedRows(dataRows)
+            setColumnMapping(autoGuessMapping(headers))
+          } else {
+            alert('A planilha selecionada está vazia.')
+          }
+        } else {
+          alert('Não foi possível extrair dados da planilha Excel.')
         }
       } catch (err) {
+        console.error('Erro ao ler Excel:', err)
         alert('Erro ao ler arquivo Excel: ' + (err.message || 'formato inválido'))
       }
     } else {
