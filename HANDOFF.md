@@ -846,3 +846,25 @@
   - `npm run lint --prefix client`: 0 erros, 0 avisos (Oxlint).
   - `npm run build --prefix client`: Vite build concluído em 516ms (0 erros).
 - **Próximo passo**: Yuri homologar no celular a navegação completa da importação sem nenhum crash.
+
+## 2026-09-19 — Implementação do Hook Automático Jev (TypeSafe System One) na IDE (Fase A, construir)
+
+- **Demanda do Yuri (PO)**: Exigência de que toda pergunta vá PRIMEIRO para o Jev da TypeSafe, e o Jev retorne a instrução estruturada para o agente antes da execução.
+- **Roteamento de IA**:
+  - Classificado via **Jev (TypeSafe System One)** em 1240ms: Liderança Kastiel (Dev, 99%), `nova_feature` (23%), severidade 1.08.
+- **Solução Arquitetural Implementada**:
+  1. `.agents/hooks.json`:
+     - Configurado o ciclo de vida oficial do Antigravity (`PreInvocation` hook).
+     - Aciona automaticamente `scripts/jev-pre-invocation-hook.cjs` antes de qualquer chamada ao LLM.
+  2. `scripts/jev-pre-invocation-hook.cjs`:
+     - Lê o stdin com os metadados do Antigravity (`transcriptPath`, `conversationId`).
+     - Extrai dinamicamente a pergunta mais recente do usuário (`<USER_REQUEST>`).
+     - Consulta a API TypeSafe System One (`https://api.typesafe.ai/v1/systemone`) com o modelo `jev-latest`.
+     - Classifica o especialista líder da TONE (Kastiel, Ana, Crowley, Teclide ou Vitor), o tipo de tarefa, o risco a produção e a severidade calibrada.
+     - Retorna via stdout no formato oficial `{ injectSteps: [{ ephemeralMessage: ... }] }`.
+     - Possui controle de cache por `step_index` para evitar reprocessamentos desnecessários em ferramentas subsequentes.
+  3. `TONE-INVARIANTS.md`:
+     - Adicionada a Invariante 10 determinando o roteamento obrigatório pelo Jev em todas as interações.
+- **Validações Reais**:
+  - `scratch/test_hook_execution.cjs`: Executado teste de integração end-to-end do hook com a API TypeSafe, validando tempo de resposta em 921ms e contrato JSON `injectSteps` com 100% de conformidade.
+- **Próximo passo**: Cada turno do Yuri agora passa automaticamente pelo Jev antes da resposta do agente.

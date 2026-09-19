@@ -1,0 +1,11 @@
+{
+  "jev-system-one-router": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "node \"d:\\Projetos\\Clientes\\Entregas-run\\scripts\\jev-pre-invocation-hook.cjs\"",
+        "timeout": 10
+      }
+    ]
+  }
+}
