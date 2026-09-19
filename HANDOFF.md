@@ -355,6 +355,48 @@
   - Healthcheck HTTP: `curl http://127.0.0.1:3050/api/health` retornou **200 OK** `{"ok":true,"service":"entregas-run-server"}`.
 - Próximo passo: Yuri criar apontamento DNS tipo `A` para `app.entregasrun.com.br` apontando para `179.198.97.28` e homologar o mapeamento das coleções do Appwrite.
 
+## 2026-09-19 — Limpeza total de dados mockados e conexão com dados reais (Fase A, construir)
+
+- **Demanda do Yuri (PO)**: Remover todos os dados mockados da aplicação e deixar o sistema totalmente limpo e pronto para produção com dados dinâmicos reais.
+- **Ações realizadas**:
+  1. **Banco de Dados (Appwrite)**:
+     - Removidos eventos de teste (`treinao-da-galinha`, `corre-surubim`).
+     - Removidos operadores mockados em `user_profiles`, preservando unicamente o administrador real `admin_pacetime` (`pacetime@entregas.com`, role `ADMIN`, name `Felipe Admin`).
+  2. **Dashboard Geral (`DashboardPage.jsx`)**:
+     - Eliminado banner amarelo de demonstração ("MODO DE DEMONSTRAÇÃO ATIVO").
+     - Métricas (Atletas, Entregues, Pendentes, % Concluído, Operadores e Eventos em Operação) calculadas 100% dinamicamente a partir dos eventos cadastrados.
+     - Implementado empty state visual moderno caso não haja eventos cadastrados, com CTA direto para criar o primeiro evento.
+  3. **Eventos (`EventosPage.jsx`)**:
+     - `INITIAL_EVENTS` redefinido para `[]`.
+     - Adicionado card de empty state visual na grade quando não houver eventos cadastrados ou termos de busca.
+     - `Sidebar` atualizada para receber `user` autenticado dinamicamente.
+  4. **Operação de Kits (`OperacaoPage.jsx`)**:
+     - Removidos arrays mockados `DEFAULT_OPERATORS`, `DEFAULT_ATHLETES_TREINAO` e `DEFAULT_DELIVERIES_TREINAO`.
+     - `athletes`, `deliveries` e `audits` iniciam vazios e persistem isolados por `currentEvent.id` no `localStorage`.
+     - Removidos fallbacks com UUIDs e strings de eventos antigos em formulários e visualizações detalhadas.
+     - `Sidebar` conectada ao `user` real.
+  5. **Usuários (`UsuariosPage.jsx`)**:
+     - Eliminada lista estática `USERS_LIST` (Agner Israel, Agner Araujo, entregas1, 2, 3).
+     - Componente agora inicializa com o administrador real logado (`pacetime@entregas.com` / `Felipe Admin`).
+     - Implementado modal de criação de novos usuários (Operador, Supervisor, Admin) e alternância de status ativo/inativo com persistência.
+  6. **Dashboard do Evento (`EventDashboardPage.jsx`)**:
+     - Recebe `event` e `user` reais via props, renderizando nome, data e localização do evento ativo.
+     - Carrega atletas dinamicamente e exibe empty state instrutivo quando o evento ainda não possui atletas importados.
+  7. **Espelho do Atleta (`EspelhoPage.jsx` e `EspelhoModal.jsx`)**:
+     - Removidos fallbacks fixos para "TREINÃO DA GALINHA" e UUID mockado.
+  8. **Helpers de Auditoria (`auditData.js`)**:
+     - `generateDefaultAudits()` reconfigurado para retornar array vazio `[]`.
+  9. **Root da Aplicação (`App.jsx`)**:
+     - `DEFAULT_EVENTS` limpo para `[]`.
+     - Implementada limpeza automática de resíduos legados de mock no `localStorage` ao carregar o app.
+     - Passagem sistemática de `user` e `events` para todas as telas e para o `Sidebar`.
+- **Validações reais**:
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** (16 arquivos verificados).
+  - `npm run build --prefix client`: Vite build para produção concluído com sucesso em 1.05s (**0 erros**).
+  - GitHub Actions Workflow #35423857597: Concluído com **100% SUCESSO** e deploy em produção na VPS.
+- **Próximo passo**: Homologação visual e funcional pelo Yuri no subdomínio de produção `https://app.entregasrun.com.br`.
+
+
 
 
 
