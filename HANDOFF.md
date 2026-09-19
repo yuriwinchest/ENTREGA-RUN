@@ -804,3 +804,27 @@
   - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** em 391ms em 22 arquivos.
   - `npm run build --prefix client`: Vite build concluído em 717ms (**0 erros**).
 - **Próximo passo**: Yuri homologar no dispositivo móvel a abertura em formato Bottom Sheet sem qualquer corte.
+
+## 2026-09-19 — Modal Nativo Interno para Criação de Categoria Personalizada (Fase A, construir)
+
+- **Demanda do Yuri (PO via áudio)**: Ao clicar em "+ Criar outro campo personalizado...", abria uma janela de `window.prompt` nativa do navegador lá em cima, fora do aplicativo. O Yuri solicitou expressamente que essa janela apareça dentro da aplicação como um componente nativo, sem sair para fora da tela.
+- **Roteamento de IA**:
+  - Classificado via **Jev (TypeSafe System One)** em 860ms: Liderança Kastiel (Dev, 52%) e Ana (UI/UX, 46%), `nova_feature` (63%), severidade 0.85.
+- **Causa Raiz**:
+  - Uso de `window.prompt()` em `ImportarAtletasModal.jsx`, que gerava o diálogo padrão cinza do browser no topo da janela, desvinculado do design system.
+- **Solução Implementada**:
+  1. `client/src/components/ImportarAtletasModal.jsx`:
+     - Eliminado 100% de chamadas `window.prompt()` e `prompt()`.
+     - Criado estado reativo `createFieldModal: { isOpen, columnIndex, inputValue }`.
+     - Implementado diálogo nativo renderizado via `createPortal(..., document.body)` com `z-index: 10000005`, abrindo centralizado dentro do aplicativo móvel e desktop.
+     - Atalhos rápidos em pills (`PCD`, `TAMANHO TÊNIS`, `CIDADE NATAL`, `GRUPO SANGUÍNEO`, `CATEGORIA EXTRA`) para preenchimento rápido com um toque.
+     - Suporte a teclado: `Enter` confirma a criação e aplicação direta na coluna selecionada; `Escape` cancela.
+  2. `client/src/components/ImportarAtletasModal.css`:
+     - Backdrop escurecido com desfoque profundo (`backdrop-filter: blur(10px); background: rgba(12, 20, 44, 0.68)`).
+     - Card com cantos de 22px, borda suave, sombra moderna e ícone badge em laranja `#ff5200`.
+     - Botões elegantes: Cancelar e Criar e Aplicar com degradê laranja de alta conversão.
+- **Validações Reais**:
+  - `scratch/test_custom_field_modal.cjs`: Testes automatizados validando eliminação de `window.prompt` e presença de componentes nativos.
+  - `npm run lint --prefix client`: 0 avisos, 0 erros (Oxlint).
+  - `npm run build --prefix client`: Vite build concluído em 778ms (0 erros).
+- **Próximo passo**: Yuri homologar no dispositivo móvel a criação de categorias com o novo modal interno integrado.

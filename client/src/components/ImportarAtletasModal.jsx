@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import readXlsxFile from 'read-excel-file/browser'
 import CustomSelect from './CustomSelect.jsx'
 import './ImportarAtletasModal.css'
@@ -101,8 +102,11 @@ export default function ImportarAtletasModal({
 
   // Campos personalizados dinâmicos (ex: PCD MEMBROS INFERIORES)
   const [customFields, setCustomFields] = useState([])
-  const [newFieldName, setNewFieldName] = useState('')
-  const [showAddFieldInline, setShowAddFieldInline] = useState(false)
+  const [createFieldModal, setCreateFieldModal] = useState({
+    isOpen: false,
+    columnIndex: null,
+    inputValue: '',
+  })
 
   if (!isOpen) return null
 
@@ -202,12 +206,27 @@ export default function ImportarAtletasModal({
   }
 
   function handleCreateCustomField(nameToUse) {
-    const name = (nameToUse || newFieldName).trim().toUpperCase()
+    const name = String(nameToUse || '').trim().toUpperCase()
     if (!name) return ''
     setCustomFields((prev) => Array.from(new Set([...prev, name])))
-    setNewFieldName('')
-    setShowAddFieldInline(false)
     return name
+  }
+
+  function handleConfirmCreateField() {
+    const name = createFieldModal.inputValue.trim().toUpperCase()
+    if (!name) return
+    const cleanName = handleCreateCustomField(name)
+    if (createFieldModal.columnIndex !== null) {
+      setColumnMapping((prev) => ({
+        ...prev,
+        [createFieldModal.columnIndex]: `custom:${cleanName}`,
+      }))
+    }
+    setCreateFieldModal({ isOpen: false, columnIndex: null, inputValue: '' })
+  }
+
+  function handleCancelCreateField() {
+    setCreateFieldModal({ isOpen: false, columnIndex: null, inputValue: '' })
   }
 
   // Download do Modelo CSV
@@ -596,16 +615,11 @@ export default function ImportarAtletasModal({
                       value={columnMapping[idx] || 'ignore'}
                       onChange={(val) => {
                         if (val === '__ADD_NEW__') {
-                          const name = window.prompt(
-                            'Digite o nome do novo campo/categoria personalizada (ex: PCD MEMBROS INFERIORES):'
-                          )
-                          if (name && name.trim()) {
-                            const cleanName = handleCreateCustomField(name)
-                            setColumnMapping((prev) => ({
-                              ...prev,
-                              [idx]: `custom:${cleanName}`,
-                            }))
-                          }
+                          setCreateFieldModal({
+                            isOpen: true,
+                            columnIndex: idx,
+                            inputValue: '',
+                          })
                           return
                         }
                         setColumnMapping({
@@ -731,6 +745,115 @@ export default function ImportarAtletasModal({
           </div>
         )}
       </div>
+
+      {createFieldModal.isOpen &&
+        createPortal(
+          <div
+            className="custom-field-modal-backdrop"
+            onClick={handleCancelCreateField}
+          >
+            <div
+              className="custom-field-modal-card"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="cfm-title"
+            >
+              <div className="cfm-header">
+                <div className="cfm-title-wrap">
+                  <div className="cfm-icon-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff5200" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 id="cfm-title" className="cfm-title">NOVA CATEGORIA / CAMPO</h3>
+                    <span className="cfm-subtitle">Personalize uma coluna para importar</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="cfm-close-btn"
+                  onClick={handleCancelCreateField}
+                  aria-label="Fechar"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              <div className="cfm-body">
+                <label className="cfm-label" htmlFor="cfm-input">
+                  Nome do campo ou categoria extra:
+                </label>
+                <input
+                  id="cfm-input"
+                  type="text"
+                  className="cfm-input"
+                  placeholder="Ex: PCD MEMBROS INFERIORES"
+                  value={createFieldModal.inputValue}
+                  onChange={(e) =>
+                    setCreateFieldModal((prev) => ({
+                      ...prev,
+                      inputValue: e.target.value.toUpperCase(),
+                    }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleConfirmCreateField()
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault()
+                      handleCancelCreateField()
+                    }
+                  }}
+                  autoFocus
+                />
+
+                <div className="cfm-suggestions">
+                  <span className="cfm-suggestions-title">Sugestões rápidas:</span>
+                  <div className="cfm-pills">
+                    {['PCD', 'TAMANHO TÊNIS', 'CIDADE NATAL', 'GRUPO SANGUÍNEO', 'CATEGORIA EXTRA'].map((pill) => (
+                      <button
+                        key={pill}
+                        type="button"
+                        className="cfm-pill-btn"
+                        onClick={() =>
+                          setCreateFieldModal((prev) => ({
+                            ...prev,
+                            inputValue: pill,
+                          }))
+                        }
+                      >
+                        + {pill}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="cfm-footer">
+                <button
+                  type="button"
+                  className="cfm-btn-cancel"
+                  onClick={handleCancelCreateField}
+                >
+                  CANCELAR
+                </button>
+                <button
+                  type="button"
+                  className="cfm-btn-confirm"
+                  disabled={!createFieldModal.inputValue.trim()}
+                  onClick={handleConfirmCreateField}
+                >
+                  <span>CRIAR E APLICAR</span>
+                  <span className="cfm-btn-arrow">→</span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }
