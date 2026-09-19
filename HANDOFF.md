@@ -530,6 +530,32 @@
   - Deploy em andamento para a VPS com healthcheck 200 ativo em `https://app.entregasrun.com.br/api/health`.
 - **Próximo passo**: Yuri homologar o fluxo de entrega e impressão das 2 vias na aplicação.
 
+## 2026-09-19 — Responsividade Mobile: Drawer Deslizante, Topbar e Bottom Nav (Fase A, construir)
+
+- **Demanda do Yuri (PO)**:
+  - Print enviado demonstrando layout mobile quebrado no smartphone: a sidebar lateral ficava fixa aberta ocupando ~60% da tela estreita, espremendo o Dashboard e os cartões métricos em uma coluna mínima ilegível.
+- **Orquestração pelo Jev Router (`scripts/jev-prompt-router.js`)**:
+  - Prompt avaliado pelo Jev System One (`jev-1.13.0`) em **1365ms**:
+    - Especialista: `ana_ui_ux` (87.0% de confiança).
+    - Tipo de Tarefa: `bugfix_urgente` (99.0% de confiança).
+    - Severidade: `1.38 / 2.00`.
+- **Causa Raiz Identificada**:
+  - Os layouts (`.dashboard-layout`, `.eventos-layout`, etc.) usavam `display: flex` estático lado a lado, enquanto `.app-sidebar` possuía largura rígida de `230px` (min-width: 230px). Em celulares com telas de 375px a 414px, a sidebar consumia a maior parte da viewport física.
+- **Ações Realizadas**:
+  1. `Sidebar.jsx`:
+     - Transformada em drawer off-canvas deslizante no mobile (`max-width: 768px`) com backdrop escuro e animação fluida.
+     - Adicionada **Barra Superior Mobile** com botão hamburger, logotipo do evento e avatar do operador.
+     - Adicionada **Bottom Navigation Bar** com acesso direto com o polegar para as 3 seções principais (`Dashboard`, `Eventos`, `Usuários`) e botão `Menu`.
+  2. `Sidebar.css` & `index.css`:
+     - Layouts no mobile configurados em coluna única (`100% width`), com padding inferior adequado para evitar sobreposição da bottom nav.
+     - Grid de métricas redimensionado para preencher 100% da largura no mobile de forma limpa, moderna e legível.
+- **Validações Reais**:
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos**.
+  - `npm run build --prefix client`: Vite build concluído em 795ms (**0 erros**).
+  - Git commit e push realizados (`3619f40`).
+  - Deploy em andamento para a VPS com healthcheck 200 ativo em `https://app.entregasrun.com.br/api/health`.
+- **Próximo passo**: Yuri recarregar o celular e homologar o layout mobile.
+
 
 
 
