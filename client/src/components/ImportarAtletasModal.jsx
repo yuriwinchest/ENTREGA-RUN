@@ -184,7 +184,7 @@ export default function ImportarAtletasModal({
         mapping[idx] = 'nascimento'
       } else if (lower.includes('kit')) {
         mapping[idx] = 'kit'
-      } else if (lower.includes('mod') || lower.includes('dist') || lower.includes('percurso')) {
+      } else if (lower.includes('mod') || lower.includes('dist') || lower.includes('percurso') || lower.includes('prova') || lower.includes('corrida') || lower.includes('circuito')) {
         mapping[idx] = 'modalidade'
       } else if (lower.includes('cat') || lower.includes('faixa')) {
         mapping[idx] = 'categoria'

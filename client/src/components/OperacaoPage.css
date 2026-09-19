@@ -821,7 +821,151 @@
   transform: translateY(-1px);
 }
 
-/* Stat Tags Summary in Estatísticas */
+/* Stat Tags Summary & Breakdown Cards in Estatísticas */
+.section-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-heading-badge {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  letter-spacing: 0.4px;
+}
+
+.simple-white-box.breakdown-box {
+  padding: 18px;
+  display: block;
+  min-height: auto;
+}
+
+/* Stat Breakdown Grid (Camisetas & Modalidades) */
+.stat-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.stat-breakdown-card {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.stat-breakdown-card:hover {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(12, 20, 44, 0.05);
+  transform: translateY(-1px);
+}
+
+.sbc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sbc-title {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #0c142c;
+  text-transform: uppercase;
+}
+
+.sbc-percent {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  color: #ff5200;
+  background: rgba(255, 82, 0, 0.08);
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.sbc-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: #ffffff;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #f1f5f9;
+  box-sizing: border-box;
+}
+
+.sbc-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.sbc-stat-label {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.sbc-stat-val {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+  color: #0c142c;
+  line-height: 1.1;
+}
+
+.sbc-stat-val.green {
+  color: #10b981;
+}
+
+.sbc-stat-val.amber {
+  color: #f59e0b;
+}
+
+.sbc-progress-track {
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sbc-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+@media (max-width: 640px) {
+  .stat-breakdown-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
 .stat-tags-summary {
   display: flex;
   flex-wrap: wrap;
@@ -3328,6 +3472,25 @@
   font-size: 12.5px;
   font-weight: 700;
   color: #b45309;
+}
+
+@media (max-width: 640px) {
+  .modal-card-athlete {
+    max-width: 95vw !important;
+    max-height: 92vh !important;
+  }
+  .modal-athlete-header {
+    padding: 16px 18px 14px !important;
+  }
+  .modal-athlete-body {
+    padding: 16px 18px 20px !important;
+    max-height: calc(92vh - 70px) !important;
+  }
+  .athlete-row-2,
+  .athlete-row-3 {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
 }
 
 @media (max-width: 360px) {

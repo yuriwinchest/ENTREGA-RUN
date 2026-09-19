@@ -212,7 +212,7 @@ export default function AssociarPlanilhasModal({
         mapping.nome = String(idx)
       } else if (!mapping.doc && (lower.includes('cpf') || lower.includes('doc') || lower.includes('documento'))) {
         mapping.doc = String(idx)
-      } else if (!mapping.modalidade && (lower.includes('mod') || lower.includes('dist') || lower.includes('percurso'))) {
+      } else if (!mapping.modalidade && (lower.includes('mod') || lower.includes('dist') || lower.includes('percurso') || lower.includes('prova') || lower.includes('corrida') || lower.includes('circuito'))) {
         mapping.modalidade = String(idx)
       } else if (!mapping.categoria && (lower.includes('cat') || lower.includes('faixa'))) {
         mapping.categoria = String(idx)

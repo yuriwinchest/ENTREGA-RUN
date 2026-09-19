@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Sidebar from './Sidebar.jsx'
 import EspelhoModal from './EspelhoModal.jsx'
 import ImportarAtletasModal from './ImportarAtletasModal.jsx'
@@ -321,7 +321,7 @@ export default function OperacaoPage({
   const [selectedAthlete, setSelectedAthlete] = useState(null)
   const [detailForm, setDetailForm] = useState(null)
 
-  const currentEvent = event || {
+  const currentEvent = useMemo(() => event || {
     id: '',
     name: 'SELECIONE UM EVENTO',
     date: '',
@@ -331,7 +331,7 @@ export default function OperacaoPage({
     entregues: 0,
     pendentes: 0,
     concl: '0.0%',
-  }
+  }, [event])
 
   // Load and manage athletes per event with localStorage persistence
   const [athletes, setAthletes] = useState(() => {
@@ -384,6 +384,106 @@ export default function OperacaoPage({
       // ignore
     }
   }, [deliveries, currentEvent.id])
+
+  // Reactive, dynamic event metrics based on true athlete dataset
+  const totalAthletes = athletes.length > 0 ? athletes.length : (currentEvent.total || 0)
+  const deliveredAthletes = athletes.length > 0
+    ? athletes.filter((a) => String(a.status || '').toUpperCase() === 'ENTREGUE').length
+    : (currentEvent.entregues || 0)
+  const pendingAthletes = Math.max(0, totalAthletes - deliveredAthletes)
+  const percentDone = totalAthletes > 0
+    ? ((deliveredAthletes / totalAthletes) * 100).toFixed(1) + '%'
+    : '0.0%'
+
+  // Synchronize event metrics with parent state / localStorage
+  useEffect(() => {
+    if (!currentEvent.id || !onUpdateEvent) return
+    if (
+      currentEvent.total !== totalAthletes ||
+      currentEvent.entregues !== deliveredAthletes ||
+      currentEvent.pendentes !== pendingAthletes ||
+      currentEvent.concl !== percentDone
+    ) {
+      onUpdateEvent({
+        ...currentEvent,
+        total: totalAthletes,
+        entregues: deliveredAthletes,
+        pendentes: pendingAthletes,
+        concl: percentDone,
+      })
+    }
+  }, [
+    totalAthletes,
+    deliveredAthletes,
+    pendingAthletes,
+    percentDone,
+    currentEvent,
+    onUpdateEvent,
+  ])
+
+  // Dynamic breakdown of Camisetas (Total, Entregues, Pendentes)
+  const camisetaStats = useMemo(() => {
+    const map = {}
+    athletes.forEach((a) => {
+      const raw = (a.camiseta || a.tamanho || a['TAMANHO'] || a['CAMISETA'] || 'M').trim().toUpperCase()
+      if (!map[raw]) {
+        map[raw] = { size: raw, total: 0, entregues: 0, pendentes: 0, conclPercent: 0 }
+      }
+      map[raw].total++
+      if (String(a.status || '').toUpperCase() === 'ENTREGUE') {
+        map[raw].entregues++
+      }
+    })
+    const order = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XXG', 'EXG', 'BL P', 'BL M', 'BL G', 'BL GG', 'INFANTIL', 'SEM CAMISETA']
+    return Object.values(map)
+      .map((item) => ({
+        ...item,
+        pendentes: Math.max(0, item.total - item.entregues),
+        conclPercent: item.total > 0 ? Math.round((item.entregues / item.total) * 100) : 0,
+      }))
+      .sort((a, b) => {
+        const idxA = order.indexOf(a.size)
+        const idxB = order.indexOf(b.size)
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB
+        if (idxA !== -1) return -1
+        if (idxB !== -1) return 1
+        return a.size.localeCompare(b.size)
+      })
+  }, [athletes])
+
+  // Dynamic breakdown of Modalidades (Total, Entregues, Pendentes)
+  const modalidadeStats = useMemo(() => {
+    const map = {}
+    athletes.forEach((a) => {
+      const raw = (
+        a.modalidade ||
+        a.distancia ||
+        a.percurso ||
+        a.prova ||
+        a['MODALIDADE'] ||
+        a['DISTANCIA'] ||
+        a['PERCURSO'] ||
+        a['PROVA'] ||
+        a.categoria ||
+        'GERAL'
+      ).trim().toUpperCase()
+
+      if (!map[raw]) {
+        map[raw] = { name: raw, total: 0, entregues: 0, pendentes: 0, conclPercent: 0 }
+      }
+      map[raw].total++
+      if (String(a.status || '').toUpperCase() === 'ENTREGUE') {
+        map[raw].entregues++
+      }
+    })
+    return Object.values(map)
+      .map((item) => ({
+        ...item,
+        pendentes: Math.max(0, item.total - item.entregues),
+        conclPercent: item.total > 0 ? Math.round((item.entregues / item.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+  }, [athletes])
 
   // Operators state
   const [operators, setOperators] = useState(() => [
@@ -1057,7 +1157,6 @@ export default function OperacaoPage({
     : []
 
   const hasDeliveries = deliveries.length > 0
-  const hasAthletes = athletes.length > 0
 
   return (
     <div className="operacao-layout">
@@ -1102,22 +1201,22 @@ export default function OperacaoPage({
           <div className="banner-stats">
             <div className="banner-stat-col">
               <span className="banner-stat-label">TOTAL</span>
-              <span className="banner-stat-val white">{currentEvent.total || 0}</span>
+              <span className="banner-stat-val white">{totalAthletes}</span>
             </div>
 
             <div className="banner-stat-col">
               <span className="banner-stat-label">ENTREGUES</span>
-              <span className="banner-stat-val green">{currentEvent.entregues || 0}</span>
+              <span className="banner-stat-val green">{deliveredAthletes}</span>
             </div>
 
             <div className="banner-stat-col">
               <span className="banner-stat-label">PENDENTES</span>
-              <span className="banner-stat-val amber">{currentEvent.pendentes || 0}</span>
+              <span className="banner-stat-val amber">{pendingAthletes}</span>
             </div>
 
             <div className="banner-stat-col">
               <span className="banner-stat-label">% CONCL.</span>
-              <span className="banner-stat-val orange">{currentEvent.concl || '0.0%'}</span>
+              <span className="banner-stat-val orange">{percentDone}</span>
             </div>
           </div>
         </section>
@@ -1407,9 +1506,9 @@ export default function OperacaoPage({
                           })
                         }
                       >
-                        <option value="5 KM">5 KM</option>
-                        <option value="10 KM">10 KM</option>
-                        <option value="21 KM">21 KM</option>
+                        {Array.from(new Set(['5 KM', '10 KM', '21 KM', ...modalidadeStats.map((m) => m.name), detailForm.modalidade].filter(Boolean))).map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -1894,7 +1993,7 @@ export default function OperacaoPage({
                   <span className="stat-overview-label">TOTAL</span>
                   <UsersTabIcon />
                 </div>
-                <div className="stat-overview-number">{currentEvent.total || 0}</div>
+                <div className="stat-overview-number">{totalAthletes}</div>
               </div>
 
               <div className="stat-overview-card">
@@ -1902,7 +2001,7 @@ export default function OperacaoPage({
                   <span className="stat-overview-label">ENTREGUES</span>
                   <CheckCircleIcon />
                 </div>
-                <div className="stat-overview-number green">{currentEvent.entregues || 0}</div>
+                <div className="stat-overview-number green">{deliveredAthletes}</div>
               </div>
 
               <div className="stat-overview-card">
@@ -1910,7 +2009,7 @@ export default function OperacaoPage({
                   <span className="stat-overview-label">PENDENTES</span>
                   <PackageIcon />
                 </div>
-                <div className="stat-overview-number amber">{currentEvent.pendentes || 0}</div>
+                <div className="stat-overview-number amber">{pendingAthletes}</div>
               </div>
 
               <div className="stat-overview-card">
@@ -1918,29 +2017,51 @@ export default function OperacaoPage({
                   <span className="stat-overview-label">% CONCLUÍDO</span>
                   <PercentIcon />
                 </div>
-                <div className="stat-overview-number orange">{currentEvent.concl || '0.0%'}</div>
+                <div className="stat-overview-number orange">{percentDone}</div>
               </div>
             </div>
 
             {/* Camisetas Section */}
             <section className="estatisticas-section">
-              <h3 className="section-heading">CAMISETAS</h3>
-              <div className="simple-white-box">
-                {!hasAthletes ? (
+              <div className="section-heading-row">
+                <h3 className="section-heading">CAMISETAS</h3>
+                <span className="section-heading-badge">{camisetaStats.length} TAMANHO{camisetaStats.length === 1 ? '' : 'S'}</span>
+              </div>
+              <div className="simple-white-box breakdown-box">
+                {camisetaStats.length === 0 ? (
                   <div className="empty-message-box">
                     Nenhum dado de camiseta registrado ainda.
                   </div>
                 ) : (
-                  <div className="stat-tags-summary">
-                    {['P', 'M', 'G', 'GG', 'XG'].map((size) => {
-                      const count = athletes.filter((a) => a.camiseta === size).length
-                      return (
-                        <div key={size} className="summary-pill">
-                          <span className="summary-pill-label">CAMISETA {size}</span>
-                          <span className="summary-pill-count">{count}</span>
+                  <div className="stat-breakdown-grid">
+                    {camisetaStats.map((item) => (
+                      <div key={item.size} className="stat-breakdown-card">
+                        <div className="sbc-header">
+                          <span className="sbc-title">CAMISETA {item.size}</span>
+                          <span className="sbc-percent">{item.conclPercent}%</span>
                         </div>
-                      )
-                    })}
+                        <div className="sbc-stats-row">
+                          <div className="sbc-stat-item">
+                            <span className="sbc-stat-label">TOTAL</span>
+                            <span className="sbc-stat-val">{item.total}</span>
+                          </div>
+                          <div className="sbc-stat-item">
+                            <span className="sbc-stat-label">ENTREGUES</span>
+                            <span className="sbc-stat-val green">{item.entregues}</span>
+                          </div>
+                          <div className="sbc-stat-item">
+                            <span className="sbc-stat-label">FALTAM</span>
+                            <span className="sbc-stat-val amber">{item.pendentes}</span>
+                          </div>
+                        </div>
+                        <div className="sbc-progress-track">
+                          <div
+                            className="sbc-progress-fill"
+                            style={{ width: `${item.conclPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -1948,18 +2069,45 @@ export default function OperacaoPage({
 
             {/* Modalidades Section */}
             <section className="estatisticas-section">
-              <h3 className="section-heading">MODALIDADES</h3>
-              <div className="simple-white-box">
-                {!hasAthletes ? (
+              <div className="section-heading-row">
+                <h3 className="section-heading">MODALIDADES</h3>
+                <span className="section-heading-badge">{modalidadeStats.length} MODALIDADE{modalidadeStats.length === 1 ? '' : 'S'}</span>
+              </div>
+              <div className="simple-white-box breakdown-box">
+                {modalidadeStats.length === 0 ? (
                   <div className="empty-message-box">
                     Nenhuma modalidade registrada ainda.
                   </div>
                 ) : (
-                  <div className="stat-tags-summary">
-                    <div className="summary-pill">
-                      <span className="summary-pill-label">5 KM</span>
-                      <span className="summary-pill-count">{athletes.length}</span>
-                    </div>
+                  <div className="stat-breakdown-grid">
+                    {modalidadeStats.map((item) => (
+                      <div key={item.name} className="stat-breakdown-card">
+                        <div className="sbc-header">
+                          <span className="sbc-title">{item.name}</span>
+                          <span className="sbc-percent">{item.conclPercent}%</span>
+                        </div>
+                        <div className="sbc-stats-row">
+                          <div className="sbc-stat-item">
+                            <span className="sbc-stat-label">TOTAL</span>
+                            <span className="sbc-stat-val">{item.total}</span>
+                          </div>
+                          <div className="sbc-stat-item">
+                            <span className="sbc-stat-label">ENTREGUES</span>
+                            <span className="sbc-stat-val green">{item.entregues}</span>
+                          </div>
+                          <div className="sbc-stat-item">
+                            <span className="sbc-stat-label">FALTAM</span>
+                            <span className="sbc-stat-val amber">{item.pendentes}</span>
+                          </div>
+                        </div>
+                        <div className="sbc-progress-track">
+                          <div
+                            className="sbc-progress-fill"
+                            style={{ width: `${item.conclPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
