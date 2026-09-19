@@ -334,6 +334,28 @@
   - Dependência `read-excel-file`: Audit npm com **0 vulnerabilidades**.
 - **Próximo passo**: Homologação visual e funcional pelo Yuri (PO) no navegador.
 
+## 2026-09-19 — Pipeline CI/CD, Dockerfile e Deploy Isolado na VPS (Fase A, construir)
+
+- Demanda do Yuri (PO):
+  1. Configurar o repositório Git e sincronizar com o GitHub (`yuriwinchest/ENTREGA-RUN`).
+  2. Subdomínio escolhido: `app.entregasrun.com.br`.
+  3. Deploy isolado em Docker na VPS (`179.198.97.28`) sem interferir com outras aplicações em execução (`largada`, `chipower`, `appwrite`, `yuri-portfolio`).
+  4. CI/CD automático via GitHub Actions: push na `main` dispara validação, build do Docker e deploy com healthcheck.
+  5. Banco de dados Appwrite: credenciais testadas via API REST (200 OK); criação de tabelas pausada aguardando fechamento do mapeamento de dados.
+- Ações realizadas:
+  - Repositório Git local inicializado e sincronizado com `yuriwinchest/ENTREGA-RUN` na branch `main`.
+  - Criado `Dockerfile` multi-stage (Node 22) com usuário não-root `node` e healthcheck na porta interna 3001.
+  - Criado `docker-compose.yml` com container isolado `entregas-run-web` mapeando exclusivamente para `127.0.0.1:3050:3001` (sem colisão com outras portas da VPS).
+  - Configurados os secrets no GitHub (`VPS_HOST`, `VPS_USERNAME`, `VPS_PASSWORD`) via API de forma criptografada.
+  - Criado workflow `.github/workflows/deploy.yml` executando checkout, build Vite e deploy SSH com restart isolado.
+  - Atualizado Caddyfile na VPS com bloco seguro para `app.entregasrun.com.br` com reverse_proxy para `127.0.0.1:3050`, validação e reload com zero downtime.
+- Validações reais:
+  - GitHub Actions Workflow #35419295608: Concluído com **100% SUCESSO** em 40 segundos.
+  - Container Docker `entregas-run-web`: Status **healthy** na VPS na porta `127.0.0.1:3050`.
+  - Healthcheck HTTP: `curl http://127.0.0.1:3050/api/health` retornou **200 OK** `{"ok":true,"service":"entregas-run-server"}`.
+- Próximo passo: Yuri criar apontamento DNS tipo `A` para `app.entregasrun.com.br` apontando para `179.198.97.28` e homologar o mapeamento das coleções do Appwrite.
+
+
 
 
 
