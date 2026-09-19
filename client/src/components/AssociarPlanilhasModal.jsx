@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import readXlsxFile from 'read-excel-file/browser'
+import CustomSelect from './CustomSelect.jsx'
 import './AssociarPlanilhasModal.css'
 
 function CloseIcon() {
@@ -555,62 +556,62 @@ export default function AssociarPlanilhasModal({
                       <div className="inline-mapping-area">
                         <div className="mapping-field-item">
                           <label>Coluna do Nome (Obrigatória):</label>
-                          <select
+                          <CustomSelect
                             value={atletasMapping.nome}
-                            onChange={(e) => setAtletasMapping({ ...atletasMapping, nome: e.target.value })}
-                          >
-                            <option value="">-- Selecione a coluna --</option>
-                            {atletasHeaders.map((h, idx) => (
-                              <option key={idx} value={idx}>
-                                Coluna {idx + 1}: {h || `(Sem título)`}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(val) => setAtletasMapping({ ...atletasMapping, nome: val })}
+                            options={[
+                              { value: '', label: '-- Selecione a coluna --' },
+                              ...atletasHeaders.map((h, idx) => ({
+                                value: String(idx),
+                                label: `Coluna ${idx + 1}: ${h || '(Sem título)'}`,
+                              })),
+                            ]}
+                          />
                         </div>
 
                         <div className="mapping-field-item">
                           <label>Coluna de CPF / Doc (Opcional):</label>
-                          <select
+                          <CustomSelect
                             value={atletasMapping.doc}
-                            onChange={(e) => setAtletasMapping({ ...atletasMapping, doc: e.target.value })}
-                          >
-                            <option value="">-- Não mapear CPF --</option>
-                            {atletasHeaders.map((h, idx) => (
-                              <option key={idx} value={idx}>
-                                Coluna {idx + 1}: {h || `(Sem título)`}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(val) => setAtletasMapping({ ...atletasMapping, doc: val })}
+                            options={[
+                              { value: '', label: '-- Não mapear CPF --' },
+                              ...atletasHeaders.map((h, idx) => ({
+                                value: String(idx),
+                                label: `Coluna ${idx + 1}: ${h || '(Sem título)'}`,
+                              })),
+                            ]}
+                          />
                         </div>
 
                         <div className="mapping-field-item">
                           <label>Coluna de Modalidade (Opcional):</label>
-                          <select
+                          <CustomSelect
                             value={atletasMapping.modalidade}
-                            onChange={(e) => setAtletasMapping({ ...atletasMapping, modalidade: e.target.value })}
-                          >
-                            <option value="">-- Não mapear (usar padrão) --</option>
-                            {atletasHeaders.map((h, idx) => (
-                              <option key={idx} value={idx}>
-                                Coluna {idx + 1}: {h || `(Sem título)`}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(val) => setAtletasMapping({ ...atletasMapping, modalidade: val })}
+                            options={[
+                              { value: '', label: '-- Não mapear (usar padrão) --' },
+                              ...atletasHeaders.map((h, idx) => ({
+                                value: String(idx),
+                                label: `Coluna ${idx + 1}: ${h || '(Sem título)'}`,
+                              })),
+                            ]}
+                          />
                         </div>
 
                         <div className="mapping-field-item">
                           <label>Coluna de Nº de Peito (Se já existir):</label>
-                          <select
+                          <CustomSelect
                             value={atletasMapping.numero}
-                            onChange={(e) => setAtletasMapping({ ...atletasMapping, numero: e.target.value })}
-                          >
-                            <option value="">-- Não tem nº de peito ainda --</option>
-                            {atletasHeaders.map((h, idx) => (
-                              <option key={idx} value={idx}>
-                                Coluna {idx + 1}: {h || `(Sem título)`}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(val) => setAtletasMapping({ ...atletasMapping, numero: val })}
+                            options={[
+                              { value: '', label: '-- Não tem nº de peito ainda --' },
+                              ...atletasHeaders.map((h, idx) => ({
+                                value: String(idx),
+                                label: `Coluna ${idx + 1}: ${h || '(Sem título)'}`,
+                              })),
+                            ]}
+                          />
                         </div>
                       </div>
                     </div>
@@ -681,13 +682,14 @@ export default function AssociarPlanilhasModal({
                       <div className="inline-mapping-area">
                         <div className="mapping-field-item">
                           <label>Coluna com o Número/Código do Chip:</label>
-                          <select value={chipColIdx} onChange={(e) => setChipColIdx(Number(e.target.value))}>
-                            {chipsHeaders.map((h, idx) => (
-                              <option key={idx} value={idx}>
-                                Coluna {idx + 1}: {h || `(Coluna ${idx + 1})`}
-                              </option>
-                            ))}
-                          </select>
+                          <CustomSelect
+                            value={String(chipColIdx)}
+                            onChange={(val) => setChipColIdx(Number(val))}
+                            options={chipsHeaders.map((h, idx) => ({
+                              value: String(idx),
+                              label: `Coluna ${idx + 1}: ${h || `(Coluna ${idx + 1})`}`,
+                            }))}
+                          />
                         </div>
 
                         {/* Amostra dos primeiros 3 chips */}

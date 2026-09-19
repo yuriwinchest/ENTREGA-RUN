@@ -3,6 +3,7 @@ import Sidebar from './Sidebar.jsx'
 import EspelhoModal from './EspelhoModal.jsx'
 import ImportarAtletasModal from './ImportarAtletasModal.jsx'
 import AssociarPlanilhasModal from './AssociarPlanilhasModal.jsx'
+import CustomSelect from './CustomSelect.jsx'
 import { exportCsvFile } from '../utils/auditData.js'
 import './OperacaoPage.css'
 
@@ -2158,37 +2159,35 @@ export default function OperacaoPage({
 
                   <div className="filtro-field">
                     <label className="filtro-label">OPERADOR</label>
-                    <select
-                      className="filtro-select"
+                    <CustomSelect
+                      className="filtro-select-custom"
                       value={auditOperatorFilter}
-                      onChange={(e) => {
-                        setAuditOperatorFilter(e.target.value)
+                      onChange={(val) => {
+                        setAuditOperatorFilter(val)
                         setAuditPage(1)
                       }}
-                    >
-                      <option value="TODOS">TODOS OS OPERADORES</option>
-                      {operators.map((op) => (
-                        <option key={op.id} value={op.name}>
-                          {op.name}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: 'TODOS', label: 'TODOS OS OPERADORES' },
+                        ...operators.map((op) => ({ value: op.name, label: op.name })),
+                      ]}
+                    />
                   </div>
 
                   <div className="filtro-field">
                     <label className="filtro-label">TIPO DE RETIRADA</label>
-                    <select
-                      className="filtro-select"
+                    <CustomSelect
+                      className="filtro-select-custom"
                       value={auditTypeFilter}
-                      onChange={(e) => {
-                        setAuditTypeFilter(e.target.value)
+                      onChange={(val) => {
+                        setAuditTypeFilter(val)
                         setAuditPage(1)
                       }}
-                    >
-                      <option value="TODOS">TODOS OS TIPOS</option>
-                      <option value="ATLETA">PELO ATLETA</option>
-                      <option value="TERCEIRO">POR TERCEIRO</option>
-                    </select>
+                      options={[
+                        { value: 'TODOS', label: 'TODOS OS TIPOS' },
+                        { value: 'ATLETA', label: 'PELO ATLETA' },
+                        { value: 'TERCEIRO', label: 'POR TERCEIRO' },
+                      ]}
+                    />
                   </div>
                 </div>
 
@@ -2226,15 +2225,16 @@ export default function OperacaoPage({
 
                   <div className="filtro-field modo-busca-field">
                     <label className="filtro-label">MODO DE BUSCA</label>
-                    <select
-                      className="filtro-select"
+                    <CustomSelect
+                      className="filtro-select-custom"
                       value={auditMatchMode}
-                      onChange={(e) => setAuditMatchMode(e.target.value)}
-                    >
-                      <option value="contem">Contém o termo</option>
-                      <option value="inicia">Início do termo</option>
-                      <option value="exato">Termo exato</option>
-                    </select>
+                      onChange={(val) => setAuditMatchMode(val)}
+                      options={[
+                        { value: 'contem', label: 'Contém o termo' },
+                        { value: 'inicia', label: 'Início do termo' },
+                        { value: 'exato', label: 'Termo exato' },
+                      ]}
+                    />
                   </div>
                 </div>
 
@@ -2253,15 +2253,16 @@ export default function OperacaoPage({
 
                   <div className="filtro-field preset-field">
                     <label className="filtro-label">PRESET</label>
-                    <select
-                      className="filtro-select"
+                    <CustomSelect
+                      className="filtro-select-custom"
                       value={auditPreset}
-                      onChange={(e) => setAuditPreset(e.target.value)}
-                    >
-                      <option value="tudo">Tudo</option>
-                      <option value="apenas_entregues">Apenas entregues</option>
-                      <option value="apenas_nao_entregues">Apenas não entregues</option>
-                    </select>
+                      onChange={(val) => setAuditPreset(val)}
+                      options={[
+                        { value: 'tudo', label: 'Tudo' },
+                        { value: 'apenas_entregues', label: 'Apenas entregues' },
+                        { value: 'apenas_nao_entregues', label: 'Apenas não entregues' },
+                      ]}
+                    />
                   </div>
 
                   <div className="filtros-export-actions">
@@ -2302,18 +2303,20 @@ export default function OperacaoPage({
                 </div>
                 <div className="audit-table-header-right">
                   <div className="per-page-selector">
-                    <select
+                    <CustomSelect
+                      className="per-page-select-custom"
                       value={auditPerPage}
-                      onChange={(e) => {
-                        setAuditPerPage(Number(e.target.value))
+                      onChange={(val) => {
+                        setAuditPerPage(Number(val))
                         setAuditPage(1)
                       }}
-                    >
-                      <option value={25}>25 por página</option>
-                      <option value={50}>50 por página</option>
-                      <option value={100}>100 por página</option>
-                      <option value={200}>200 por página</option>
-                    </select>
+                      options={[
+                        { value: 25, label: '25 por página' },
+                        { value: 50, label: '50 por página' },
+                        { value: 100, label: '100 por página' },
+                        { value: 200, label: '200 por página' },
+                      ]}
+                    />
                   </div>
                   <button
                     type="button"
@@ -2335,6 +2338,11 @@ export default function OperacaoPage({
                     <span>ATUALIZAR</span>
                   </button>
                 </div>
+              </div>
+
+              {/* DICA VISUAL MOBILE DE ROLAGEM DA TABELA */}
+              <div className="audit-mobile-scroll-indicator">
+                <span>⇄ Deslize horizontalmente para ver todos os dados</span>
               </div>
 
               {/* TABELA */}

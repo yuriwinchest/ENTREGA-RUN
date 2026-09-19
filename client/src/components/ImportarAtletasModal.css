@@ -397,18 +397,23 @@
 }
 
 .column-map-card {
-  background: #ffffff;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 12px 16px;
+  background: rgba(248, 250, 252, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(226, 232, 240, 0.9);
+  border-radius: 14px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  transition: border-color 0.15s ease;
+  gap: 8px;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 8px rgba(12, 20, 44, 0.03);
 }
 
 .column-map-card:hover {
   border-color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 14px rgba(12, 20, 44, 0.05);
 }
 
 .column-source-name {
@@ -422,22 +427,7 @@
 }
 
 .column-select-field {
-  height: 42px;
-  background: #ffffff;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 0 12px;
-  font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 800;
-  color: #0c142c;
-  outline: none;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-
-.column-select-field:focus {
-  border-color: #ff5200;
+  width: 100%;
 }
 
 .column-sample-val {

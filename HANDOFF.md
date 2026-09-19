@@ -753,6 +753,32 @@
   - `npm run build --prefix client`: Vite build concluído em 1.38s com sucesso.
 - **Próximo passo**: Yuri homologar no dispositivo móvel a visualização das 4 abas completas.
 
+## 2026-09-19 — Responsividade da Aba Auditoria e Dropdowns Nativos com Efeito Vidro (Fase A, construir)
 
-
-
+- **Demanda do Yuri (PO)**:
+  - Elementos da aba Auditoria cortando no mobile: botões do card "Planilha de Atletas" cortados à direita (`ASS... PLA...`) e tabela "Entregas no Período" comprimida e com colunas ilegíveis.
+  - Dropdowns (`<select>`) com fundo branco chapado e popup quadrado do navegador, sem visual nativo mobile nem acabamento de vidro (glassmorphism), especialmente nos modais de importação/associação e filtros da auditoria.
+- **Roteamento de IA**:
+  - Classificado via **Jev (TypeSafe System One)** em 1179ms: Liderança Ana (UI/UX, 99%), `bugfix_urgente` (100%), severidade 1.1.
+- **Ajustes Implementados**:
+  1. `client/src/components/CustomSelect.jsx` & `CustomSelect.css`:
+     - Componente de seleção sob medida com visual nativo para mobile/web.
+     - Efeito **Glassmorphism** (`background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);`).
+     - Cantos arredondados (`border-radius: 14px`), sombras suaves, suporte a grupos (`optgroup`), destaque ativo laranja e checkmark.
+     - Renderização via **React Portal** (`createPortal` para `document.body`) com cálculo de viewport inteligente, evitando qualquer corte por containers com `overflow: hidden/auto`.
+  2. `client/src/components/ImportarAtletasModal.jsx` & `ImportarAtletasModal.css`:
+     - Substituído o `<select>` nativo pelo `<CustomSelect>` no mapeamento de colunas.
+     - `.column-map-card` aprimorado com fundo de vidro translúcido (`background: rgba(248, 250, 252, 0.75); backdrop-filter: blur(8px);`) e cantos arredondados (14px).
+  3. `client/src/components/AssociarPlanilhasModal.jsx` & `AssociarPlanilhasModal.css`:
+     - Selects de mapeamento de atletas e chips convertidos para `<CustomSelect>`.
+     - `.dual-card` atualizado para estética glassmorphism.
+  4. `client/src/components/OperacaoPage.jsx` & `OperacaoPage.css`:
+     - Card "Planilha de Atletas" no mobile: botões organizados em grid de 2 colunas (`grid-template-columns: repeat(2, 1fr) !important;`), eliminando o corte horizontal do botão "Associar Planilha".
+     - Tabela "Entregas no Período": garantido `min-width: 820px !important;` na tabela com `overflow-x: auto` e scroll suave no wrapper, impedindo o colapso e esmagamento das colunas.
+     - Adicionado indicador visual mobile: `⇄ Deslize para ver todas as 8 colunas`.
+     - Filtros de Auditoria (Operador, Tipo de Retirada, Modo de Busca, Preset e Por Página) substituídos por `<CustomSelect>`.
+- **Validações Reais**:
+  - `scratch/test_auditoria_responsiveness_and_selects.cjs`: 15 assertivas aprovadas com 100% de sucesso.
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** em 342ms em 22 arquivos.
+  - `npm run build --prefix client`: Vite build concluído em 926ms (**0 erros**).
+- **Próximo passo**: Yuri homologar no celular os dropdowns com fundo de vidro e a nova disposição responsiva da aba Auditoria.

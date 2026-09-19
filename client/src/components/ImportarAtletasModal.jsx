@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import readXlsxFile from 'read-excel-file/browser'
+import CustomSelect from './CustomSelect.jsx'
 import './ImportarAtletasModal.css'
 
 function CloseIcon() {
@@ -590,11 +591,11 @@ export default function ImportarAtletasModal({
                       Coluna {idx + 1}: <strong>{headerName || `(sem nome)`}</strong>
                     </span>
 
-                    <select
+                    <CustomSelect
                       className="column-select-field"
                       value={columnMapping[idx] || 'ignore'}
-                      onChange={(e) => {
-                        if (e.target.value === '__ADD_NEW__') {
+                      onChange={(val) => {
+                        if (val === '__ADD_NEW__') {
                           const name = window.prompt(
                             'Digite o nome do novo campo/categoria personalizada (ex: PCD MEMBROS INFERIORES):'
                           )
@@ -609,37 +610,39 @@ export default function ImportarAtletasModal({
                         }
                         setColumnMapping({
                           ...columnMapping,
-                          [idx]: e.target.value,
+                          [idx]: val,
                         })
                       }}
-                    >
-                      <optgroup label="Campos Principais do Sistema">
-                        {AVAILABLE_FIELDS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </optgroup>
-
-                      <optgroup label="Campos Personalizados / Categorias Extras">
-                        {headerName && headerName.trim() && (
-                          <option value={`custom:${headerName.trim()}`}>
-                            ✓ Salvar como campo "{headerName.trim()}"
-                          </option>
-                        )}
-                        {customFields
-                          .filter((cf) => cf !== headerName?.trim())
-                          .map((cf) => (
-                            <option key={cf} value={`custom:${cf}`}>
-                              {cf} (Personalizado)
-                            </option>
-                          ))}
-                      </optgroup>
-
-                      <optgroup label="Ações">
-                        <option value="__ADD_NEW__">+ Criar outro campo personalizado...</option>
-                      </optgroup>
-                    </select>
+                      groups={[
+                        {
+                          label: 'Campos Principais do Sistema',
+                          options: AVAILABLE_FIELDS.map((opt) => ({
+                            value: opt.value,
+                            label: opt.label,
+                          })),
+                        },
+                        {
+                          label: 'Campos Personalizados / Categorias Extras',
+                          options: [
+                            ...(headerName && headerName.trim()
+                              ? [{ value: `custom:${headerName.trim()}`, label: `✓ Salvar como campo "${headerName.trim()}"` }]
+                              : []),
+                            ...customFields
+                              .filter((cf) => cf !== headerName?.trim())
+                              .map((cf) => ({
+                                value: `custom:${cf}`,
+                                label: `${cf} (Personalizado)`,
+                              })),
+                          ],
+                        },
+                        {
+                          label: 'Ações',
+                          options: [
+                            { value: '__ADD_NEW__', label: '+ Criar outro campo personalizado...', isAction: true },
+                          ],
+                        },
+                      ]}
+                    />
 
                     <span className="column-sample-val">
                       Ex.: {sampleVal}
