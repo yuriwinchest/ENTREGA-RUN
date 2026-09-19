@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import './CustomSelect.css'
 
@@ -18,6 +18,15 @@ function CheckIcon() {
   )
 }
 
+function CloseIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  )
+}
+
 export default function CustomSelect({
   value,
   onChange,
@@ -29,9 +38,24 @@ export default function CustomSelect({
   id,
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth <= 768
+    }
+    return false
+  })
   const [menuStyle, setMenuStyle] = useState({})
   const triggerRef = useRef(null)
   const menuRef = useRef(null)
+
+  // Detecta se a viewport atual é mobile para chavear entre Bottom Sheet e Popover
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= 768)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Normaliza opções: ou vem em "groups" ou converte "options" simples em 1 grupo padrão
   const allGroups = groups.length > 0
@@ -53,13 +77,15 @@ export default function CustomSelect({
     if (selectedOption) break
   }
 
-  // Atualiza posição do menu flutuante (Portal) ancorado ao botão trigger
-  const updatePosition = () => {
-    if (!triggerRef.current) return
+  // Atualiza posição do menu flutuante (Portal) ancorado ao botão trigger no Desktop
+  const updatePosition = useCallback(() => {
+    if (isMobile || !triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
     const spaceBelow = window.innerHeight - rect.bottom
     const spaceAbove = rect.top
     const openUpwards = spaceBelow < 280 && spaceAbove > spaceBelow
+    const availableSpace = openUpwards ? spaceAbove : spaceBelow
+    const maxHeight = Math.min(320, Math.max(140, availableSpace - 24))
 
     const width = Math.min(Math.max(rect.width, 280), window.innerWidth - 24)
     let left = rect.left
@@ -74,22 +100,23 @@ export default function CustomSelect({
       bottom: openUpwards ? `${Math.round(window.innerHeight - rect.top + 6)}px` : undefined,
       left: `${Math.round(left)}px`,
       width: `${Math.round(width)}px`,
-      maxHeight: '320px',
+      maxHeight: `${Math.round(maxHeight)}px`,
       zIndex: 999999,
     })
-  }
+  }, [isMobile])
 
   useLayoutEffect(() => {
     if (isOpen) {
       updatePosition()
     }
-  }, [isOpen])
+  }, [isOpen, updatePosition])
 
-  // Fecha ao clicar fora ou rolar o fundo
+  // Fecha ao clicar fora ou rolar no Desktop
   useEffect(() => {
     if (!isOpen) return
 
     function handleClickOutside(e) {
+      if (isMobile) return // O clique fora no mobile é tratado pelo backdrop da Bottom Sheet
       if (
         triggerRef.current && !triggerRef.current.contains(e.target) &&
         menuRef.current && !menuRef.current.contains(e.target)
@@ -99,6 +126,7 @@ export default function CustomSelect({
     }
 
     function handleScroll(e) {
+      if (isMobile) return
       if (menuRef.current && menuRef.current.contains(e.target)) return
       setIsOpen(false)
     }
@@ -110,19 +138,17 @@ export default function CustomSelect({
     }
 
     document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('touchstart', handleClickOutside)
     window.addEventListener('scroll', handleScroll, true)
     window.addEventListener('resize', updatePosition)
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('touchstart', handleClickOutside)
       window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen])
+  }, [isOpen, isMobile, updatePosition])
 
   const handleSelect = (val) => {
     setIsOpen(false)
@@ -131,6 +157,42 @@ export default function CustomSelect({
     }
   }
 
+  // Renderiza a lista de opções reutilizada no Desktop e Mobile
+  const renderOptionsList = () => (
+    <>
+      {allGroups.map((g, gIdx) => (
+        <div key={gIdx} className="custom-select-group">
+          {g.label && (
+            <div className="custom-select-group-label">
+              <span>{g.label}</span>
+            </div>
+          )}
+          <div className="custom-select-group-items">
+            {(g.options || []).map((opt) => {
+              const isSelected = String(opt.value) === String(value)
+              return (
+                <div
+                  key={String(opt.value)}
+                  className={`custom-select-option ${isSelected ? 'selected' : ''} ${opt.isAction ? 'is-action' : ''}`}
+                  onClick={() => handleSelect(opt.value)}
+                  role="option"
+                  aria-selected={isSelected}
+                >
+                  <span className="custom-select-option-label">{opt.label}</span>
+                  {isSelected && (
+                    <span className="custom-select-option-check">
+                      <CheckIcon />
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </>
+  )
+
   return (
     <div className={`custom-select-container ${className} ${disabled ? 'disabled' : ''}`}>
       <button
@@ -138,7 +200,12 @@ export default function CustomSelect({
         id={id}
         ref={triggerRef}
         className={`custom-select-trigger ${isOpen ? 'active' : ''}`}
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!disabled) {
+            setIsMobile(window.innerWidth <= 768)
+            setIsOpen((prev) => !prev)
+          }
+        }}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         disabled={disabled}
@@ -153,43 +220,51 @@ export default function CustomSelect({
 
       {isOpen &&
         createPortal(
-          <div
-            ref={menuRef}
-            className="custom-select-menu"
-            style={menuStyle}
-            role="listbox"
-          >
-            {allGroups.map((g, gIdx) => (
-              <div key={gIdx} className="custom-select-group">
-                {g.label && (
-                  <div className="custom-select-group-label">
-                    <span>{g.label}</span>
+          isMobile ? (
+            /* VISUAL NATIVO MOBILE: BOTTOM SHEET DESLIZANTE COM EFEITO VIDRO */
+            <div
+              className="custom-select-mobile-backdrop"
+              onClick={() => setIsOpen(false)}
+            >
+              <div
+                className="custom-select-bottom-sheet"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+              >
+                <div className="custom-select-sheet-drag-wrap">
+                  <div className="custom-select-sheet-drag-pill" />
+                </div>
+                <div className="custom-select-sheet-header">
+                  <div className="custom-select-sheet-header-text">
+                    <span className="custom-select-sheet-subtitle">SELECIONE UMA OPÇÃO</span>
+                    <h4 className="custom-select-sheet-title">{selectedLabel || placeholder}</h4>
                   </div>
-                )}
-                <div className="custom-select-group-items">
-                  {(g.options || []).map((opt) => {
-                    const isSelected = String(opt.value) === String(value)
-                    return (
-                      <div
-                        key={String(opt.value)}
-                        className={`custom-select-option ${isSelected ? 'selected' : ''} ${opt.isAction ? 'is-action' : ''}`}
-                        onClick={() => handleSelect(opt.value)}
-                        role="option"
-                        aria-selected={isSelected}
-                      >
-                        <span className="custom-select-option-label">{opt.label}</span>
-                        {isSelected && (
-                          <span className="custom-select-option-check">
-                            <CheckIcon />
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
+                  <button
+                    type="button"
+                    className="custom-select-sheet-close-btn"
+                    onClick={() => setIsOpen(false)}
+                    aria-label="Fechar opções"
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+                <div className="custom-select-sheet-body" role="listbox">
+                  {renderOptionsList()}
                 </div>
               </div>
-            ))}
-          </div>,
+            </div>
+          ) : (
+            /* VISUAL DESKTOP: POPOVER ANCORADO COM CÁLCULO DE VIEWPORT */
+            <div
+              ref={menuRef}
+              className="custom-select-menu"
+              style={menuStyle}
+              role="listbox"
+            >
+              {renderOptionsList()}
+            </div>
+          ),
           document.body
         )}
     </div>

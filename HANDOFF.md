@@ -782,3 +782,25 @@
   - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** em 342ms em 22 arquivos.
   - `npm run build --prefix client`: Vite build concluído em 926ms (**0 erros**).
 - **Próximo passo**: Yuri homologar no celular os dropdowns com fundo de vidro e a nova disposição responsiva da aba Auditoria.
+
+## 2026-09-19 — Bottom Sheet Nativo Mobile para CustomSelect (Fase A, construir)
+
+- **Demanda do Yuri (PO)**: Ao clicar no campo "MODALIDADE" (ou qualquer select de coluna/filtro) no celular, a lista de opções ainda cortava na parte inferior, ultrapassando a tela e colidindo com a barra de navegação/endereço inferior do navegador.
+- **Roteamento de IA**:
+  - Classificado via **Jev (TypeSafe System One)** em 1208ms: Liderança Ana (UI/UX, 81%), `bugfix_urgente` (100%), severidade 0.81.
+- **Causa Raiz**:
+  - O cálculo flutuante baseado em `rect.bottom + 6` com `maxHeight: 320px` fixo estendia o popover além do limite inferior da tela móvel em viewports pequenas ou quando a barra inferior do navegador ocupava espaço.
+- **Solução Implementada**:
+  1. `client/src/components/CustomSelect.jsx`:
+     - Implementado suporte dinâmico a **Mobile Bottom Sheet (Folha Inferior Móvel)** para telas `≤ 768px`.
+     - No mobile, o seletor abre deslizando suavemente a partir da base da tela, com backdrop escurecido (`rgba(12, 20, 44, 0.52)`), barra superior de arraste (drag pill), título do campo e botão de fechar (`✕`).
+     - No desktop (`> 768px`), permanece o popover flutuante com cálculo dinâmico de `maxHeight` limitado ao espaço real da janela.
+  2. `client/src/components/CustomSelect.css`:
+     - Efeito glassmorphic ampliado no Bottom Sheet: `backdrop-filter: blur(24px); background: rgba(255, 255, 255, 0.98); border-radius: 24px 24px 0 0;`.
+     - Altura máxima restrita a `75vh` com rolagem suave (`-webkit-overflow-scrolling: touch`), e padding inferior adaptado com `max(32px, env(safe-area-inset-bottom))`.
+     - Zero corte de opções: `+ Criar outro campo personalizado...` e todas as opções do sistema ficam 100% visíveis e com toque ergonômico.
+- **Validações Reais**:
+  - `scratch/test_auditoria_responsiveness_and_selects.cjs`: 18 assertivas aprovadas com 100% de sucesso.
+  - `npm run lint --prefix client`: Oxlint executado com **0 erros e 0 avisos** em 391ms em 22 arquivos.
+  - `npm run build --prefix client`: Vite build concluído em 717ms (**0 erros**).
+- **Próximo passo**: Yuri homologar no dispositivo móvel a abertura em formato Bottom Sheet sem qualquer corte.

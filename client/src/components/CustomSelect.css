@@ -77,7 +77,9 @@
   transform: rotate(180deg);
 }
 
-/* Floating Portal Dropdown Menu */
+/* ==========================================================================
+   VISUAL DESKTOP: POPOVER ANCORADO FLUTUANTE
+   ========================================================================== */
 .custom-select-menu {
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(16px);
@@ -110,7 +112,136 @@
   border-radius: 10px;
 }
 
-/* Group */
+/* ==========================================================================
+   VISUAL MOBILE: BOTTOM SHEET NATIVO DESLIZANTE COM EFEITO VIDRO
+   ========================================================================== */
+.custom-select-mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 20, 44, 0.52);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 9999999;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  animation: csBackdropFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes csBackdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.custom-select-bottom-sheet {
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1.5px solid rgba(226, 232, 240, 0.95);
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -12px 48px rgba(12, 20, 44, 0.28);
+  width: 100%;
+  max-height: 75vh;
+  display: flex;
+  flex-direction: column;
+  animation: csSheetSlideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+@keyframes csSheetSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.custom-select-sheet-drag-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-top: 10px;
+  padding-bottom: 4px;
+}
+
+.custom-select-sheet-drag-pill {
+  width: 44px;
+  height: 4.5px;
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.custom-select-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 18px 12px 18px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.custom-select-sheet-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.custom-select-sheet-subtitle {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #ff5200;
+  text-transform: uppercase;
+}
+
+.custom-select-sheet-title {
+  margin: 0;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 14.5px;
+  font-weight: 900;
+  color: #0c142c;
+  letter-spacing: 0.3px;
+}
+
+.custom-select-sheet-close-btn {
+  background: #f1f5f9;
+  border: none;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.custom-select-sheet-close-btn:hover {
+  background: #e2e8f0;
+  color: #0c142c;
+}
+
+.custom-select-sheet-body {
+  padding: 12px 14px max(32px, env(safe-area-inset-bottom)) 14px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: calc(75vh - 78px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.custom-select-sheet-body::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-select-sheet-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+/* ==========================================================================
+   GRUPOS E ITENS COMPARTILHADOS (MOBILE E DESKTOP)
+   ========================================================================== */
 .custom-select-group {
   margin-bottom: 6px;
 }
@@ -139,20 +270,20 @@
 .custom-select-group-items {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
-/* Option */
+/* Opções */
 .custom-select-option {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 9px 12px;
-  border-radius: 9px;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
   cursor: pointer;
   font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 700;
   color: #0c142c;
   transition: all 0.12s ease;
@@ -176,7 +307,8 @@
   font-weight: 800;
   background: #fffbf7;
   border: 1px dashed #fed7aa;
-  margin-top: 4px;
+  margin-top: 6px;
+  padding: 12px 14px;
 }
 
 .custom-select-option.is-action:hover {
@@ -199,7 +331,7 @@
   flex-shrink: 0;
 }
 
-/* Mobile responsive adjustments */
+/* Ajustes finos mobile */
 @media (max-width: 768px) {
   .custom-select-trigger {
     height: 44px;
@@ -207,7 +339,8 @@
     border-radius: 11px;
   }
   .custom-select-option {
-    padding: 11px 12px;
-    font-size: 12.5px;
+    padding: 12px 14px;
+    font-size: 13px;
+    border-radius: 10px;
   }
 }
