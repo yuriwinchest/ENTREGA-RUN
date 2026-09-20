@@ -956,3 +956,15 @@
   5. Telas baixas (`max-height: 700px`, notebooks): compactação extra do ícone, QR e espaçamentos.
 - **Validações reais**: `npm run lint --prefix client` 0 erros/avisos; `npm run build --prefix client` 127 módulos, 0 erros.
 - **Próximo passo**: Yuri homologar o modal no desktop e no celular (todas as ações visíveis sem corte; rolagem interna suave quando a tela for muito baixa).
+
+## 2026-09-19 — Card "BASE GERAL DE ATLETAS" da Auditoria vazando/quebrando (Fase A, construir)
+
+- **Demanda do Yuri (PO)** (print desktop): no card da aba Auditoria, o título "BASE GERAL DE ATLETAS" quebrava em 4 linhas e a coluna de botões (BAIXAR/IMPORTAR/ASSOCIAR/RESTAURAR) saía para fora do card pela direita.
+- **Causa raiz**: `.planilha-box-left` não tinha `min-width: 0`/`flex` definido e `.planilha-box-actions` usava `flex-shrink: 0` — os 4 botões inline (~1300px) impunham sua largura total, esmagavam a área do texto e transbordavam o card em viewports < ~1850px úteis.
+- **Ajustes em `OperacaoPage.css`**:
+  1. Card com `width: 100%`, `box-sizing: border-box` e `overflow: hidden` — nada vaza pela borda.
+  2. `.planilha-box-left`: `flex: 1 1 0` + `min-width: 0`; título em **linha única** (`white-space: nowrap` + ellipsis de proteção); subtítulo com clamp de 2 linhas.
+  3. `.planilha-box-actions`: `flex-shrink: 1` + `min-width: 0`; botões com `white-space: normal` para quebrar internamente em vez de estourar.
+  4. Nova faixa intermediária (`1025px–1400px`): botões viram grade 2×2 (`flex: 0 1 560px`), preservando o título em linha única. Abaixo de 1024px o layout empilhado existente e o grid 2×2 mobile continuam valendo.
+- **Validações reais**: `npm run lint --prefix client` 0 erros; `npm run build --prefix client` 127 módulos; `scratch/test_auditoria_responsiveness_and_selects.cjs` 18/18 PASS.
+- **Próximo passo**: Yuri homologar no PC (título em linha única e botões dentro do card em qualquer largura) e no celular (grid 2×2 intacto).
