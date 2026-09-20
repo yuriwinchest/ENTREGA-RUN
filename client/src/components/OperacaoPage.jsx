@@ -23,6 +23,7 @@ import {
   getAthleteTableValue,
   mergeAthleteColumnSchemas,
 } from '../utils/athleteTable.js'
+import { publishEspelhoState } from '../utils/espelhoSync.js'
 import './OperacaoPage.css'
 
 function HelpCircleIcon() {
@@ -850,6 +851,16 @@ export default function OperacaoPage({
   const endIndex = Math.min(startIndex + auditPerPage, filteredAudits.length)
   const paginatedAudits = filteredAudits.slice(startIndex, endIndex)
 
+  // Espelho público: publica a ficha aberta/entregue no servidor para
+  // a segunda tela (/espelho/:id) exibir em qualquer aparelho.
+  function publishEspelho(status, atleta = null) {
+    publishEspelhoState(currentEvent.id, {
+      status,
+      eventName: currentEvent.name,
+      atleta,
+    })
+  }
+
   // Open Athlete Detail View
   function handleOpenAthleteDetail(athleteId) {
     const athlete = athletes.find(
@@ -891,6 +902,7 @@ export default function OperacaoPage({
     }
     setDetailFeedback('')
     setActiveTab('entrega')
+    publishEspelho('ATENDENDO', selectedAthlete)
   }
 
   function closeAthleteDetail({ force = false } = {}) {
@@ -905,6 +917,7 @@ export default function OperacaoPage({
     setDetailForm(null)
     setDetailInitialForm(null)
     setDetailFeedback('')
+    publishEspelho('LIVRE')
     return true
   }
 
@@ -996,6 +1009,7 @@ export default function OperacaoPage({
     setSelectedAthlete(normalized)
     setDetailForm(savedDraft)
     setDetailInitialForm(buildAthleteDetailDraft(normalized))
+    publishEspelho(normalized.status === 'ENTREGUE' ? 'ENTREGUE' : 'ATENDENDO', normalized)
     if (showFeedback) {
       setDetailFeedback(
         normalized.status === 'ENTREGUE'
@@ -1069,6 +1083,7 @@ export default function OperacaoPage({
     setDetailForm(null)
     setDetailInitialForm(null)
     setDetailFeedback('')
+    publishEspelho('LIVRE')
   }
 
   // Handle Add Athlete Submission
@@ -1219,6 +1234,13 @@ export default function OperacaoPage({
     window.setTimeout(() => {
       deliveryLocksRef.current.delete(deliveryKey)
     }, 0)
+
+    publishEspelho('ENTREGUE', {
+      ...athlete,
+      camiseta: newAudit.camiseta,
+      kit: newAudit.kit,
+      modalidade: newAudit.modalidade,
+    })
 
     return newAudit
   }

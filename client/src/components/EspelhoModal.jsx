@@ -1,7 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import QRCode from 'qrcode'
 import {
   DEFAULT_ESPELHO_CONFIG,
   getEspelhoConfig,
+  publishEspelhoState,
   saveEspelhoConfig,
 } from '../utils/espelhoSync.js'
 import './EspelhoModal.css'
@@ -57,6 +59,7 @@ export default function EspelhoModal({ isOpen, onClose, event }) {
   const [activeTab, setActiveTab] = useState('acesso') // 'acesso' | 'aparencia'
   const [config, setConfig] = useState(() => getEspelhoConfig(event?.id))
   const [copied, setCopied] = useState(false)
+  const [qrDataUrl, setQrDataUrl] = useState('')
   const bgInputRef = useRef(null)
   const logoInputRef = useRef(null)
 
@@ -69,12 +72,39 @@ export default function EspelhoModal({ isOpen, onClose, event }) {
     return `${window.location.origin}/espelho/${eventId}`
   }
 
+  // Gera o QR Code da URL pública sempre que o modal abre/troca de evento
+  useEffect(() => {
+    if (!isOpen || !eventId) {
+      setQrDataUrl('')
+      return
+    }
+    let cancelled = false
+    QRCode.toDataURL(getEspelhoUrl(), {
+      width: 640,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#0c142c', light: '#ffffff' },
+    })
+      .then((url) => {
+        if (!cancelled) setQrDataUrl(url)
+      })
+      .catch(() => {
+        if (!cancelled) setQrDataUrl('')
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, eventId])
+
   if (!isOpen) return null
 
   function updateConfig(newPartial) {
     const updated = { ...config, ...newPartial }
     setConfig(updated)
     saveEspelhoConfig(eventId, updated)
+    // Espelho remoto (celular/TV via QR) herda a aparência pelo servidor
+    publishEspelhoState(eventId, { config: updated, eventName })
   }
 
   function handleOpenSecondScreen() {
@@ -128,6 +158,7 @@ export default function EspelhoModal({ isOpen, onClose, event }) {
   function handleRestoreDefault() {
     setConfig(DEFAULT_ESPELHO_CONFIG)
     saveEspelhoConfig(eventId, DEFAULT_ESPELHO_CONFIG)
+    publishEspelhoState(eventId, { config: DEFAULT_ESPELHO_CONFIG, eventName })
   }
 
   return (
@@ -175,6 +206,23 @@ export default function EspelhoModal({ isOpen, onClose, event }) {
               <h3 className="espelho-access-title">ESPELHO DA SEGUNDA TELA</h3>
               <p className="espelho-helper-text">
                 A segunda tela espelha em tempo real a busca e a ficha aberta aqui.
+              </p>
+            </div>
+
+            {/* QR Code para abrir o espelho em outro aparelho */}
+            <div className="espelho-qr-section">
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt={`QR Code para abrir o espelho do evento ${eventName}`}
+                  className="espelho-qr-image"
+                />
+              ) : (
+                <div className="espelho-qr-placeholder" aria-hidden="true" />
+              )}
+              <p className="espelho-qr-hint">
+                Aponte a câmera do celular para abrir a tela pública do espelho em
+                qualquer aparelho.
               </p>
             </div>
 

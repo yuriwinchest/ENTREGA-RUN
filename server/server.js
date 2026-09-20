@@ -22,6 +22,104 @@ app.use(
   })
 )
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || true }))
+
+// ============================================================
+// ESPELHO PÚBLICO (segunda tela / QR Code)
+// Quadro de avisos em memória por evento: o guichê (OperacaoPage)
+// publica a ficha aberta e a config de aparência; a tela pública
+// (/espelho/:id) consome via polling. Não persiste em disco e não
+// exige autenticação por ser uma tela pública de exibição.
+// Montado ANTES do parser global de 16kb porque a aparência pode
+// carregar imagens (data URL) enviadas pelo painel.
+// ============================================================
+const espelhoStates = new Map()
+
+const espelhoLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { ok: false, message: 'Muitas requisições. Aguarde um instante.' },
+})
+
+const espelhoJsonParser = express.json({ limit: '6mb' })
+
+function espelhoKey(rawId) {
+  return String(rawId || 'default').replace(/[^\w-]/g, '').slice(0, 64) || 'default'
+}
+
+function sanitizeHexColor(value, fallback) {
+  const text = String(value ?? '').trim()
+  return /^#[0-9a-fA-F]{3,8}$/.test(text) ? text : fallback
+}
+
+function sanitizeImageDataUrl(value) {
+  const text = String(value ?? '')
+  if (!text.startsWith('data:image/')) return null
+  return text.length <= 4 * 1024 * 1024 ? text : null
+}
+
+function sanitizeEspelhoConfig(raw) {
+  if (!raw || typeof raw !== 'object') return undefined
+  return {
+    fundo: sanitizeHexColor(raw.fundo, '#071526'),
+    texto: sanitizeHexColor(raw.texto, '#ffffff'),
+    destaque: sanitizeHexColor(raw.destaque, '#ff6b00'),
+    fontSize: Math.min(150, Math.max(70, Number(raw.fontSize) || 100)),
+    mensagem: String(raw.mensagem ?? 'Guichê disponível').slice(0, 120),
+    bgImage: sanitizeImageDataUrl(raw.bgImage),
+    logo: sanitizeImageDataUrl(raw.logo),
+  }
+}
+
+app.get('/api/espelho/:eventId/estado', espelhoLimiter, (req, res) => {
+  const state = espelhoStates.get(espelhoKey(req.params.eventId))
+  if (!state) return res.json({ ok: true, state: null })
+  res.json({ ok: true, state })
+})
+
+app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req, res) => {
+  const body = req.body || {}
+  const key = espelhoKey(req.params.eventId)
+  const previous = espelhoStates.get(key)
+  const hasAtletaField = Object.prototype.hasOwnProperty.call(body, 'atleta')
+  const atleta = body.atleta
+  const state = {
+    status: ['LIVRE', 'ATENDENDO', 'ENTREGUE'].includes(body.status)
+      ? body.status
+      : (previous?.status ?? 'LIVRE'),
+    eventName:
+      typeof body.eventName === 'string'
+        ? body.eventName.slice(0, 120)
+        : (previous?.eventName ?? ''),
+    // Atleta: ausência do campo preserva a ficha atual (ex: post só de
+    // config); campo explícito (objeto ou null) substitui/limpa a ficha.
+    // Exceção: status LIVRE sempre limpa a ficha — guichê sem atleta.
+    atleta:
+      body.status === 'LIVRE'
+        ? null
+        : !hasAtletaField
+          ? (previous?.atleta ?? null)
+          : atleta && typeof atleta === 'object'
+            ? {
+                numero: String(atleta.numero ?? '').slice(0, 30),
+                nome: String(atleta.nome ?? '').slice(0, 120),
+                modalidade: String(atleta.modalidade ?? '').slice(0, 60),
+                categoria: String(atleta.categoria ?? '').slice(0, 60),
+                camiseta: String(atleta.camiseta ?? '').slice(0, 10),
+                kit: String(atleta.kit ?? '').slice(0, 80),
+                chip: String(atleta.chip ?? '').slice(0, 60),
+                sexo: String(atleta.sexo ?? '').slice(0, 20),
+                equipe: String(atleta.equipe ?? '').slice(0, 80),
+              }
+            : null,
+    config: sanitizeEspelhoConfig(body.config) ?? previous?.config ?? null,
+    updatedAt: Date.now(),
+  }
+  espelhoStates.set(key, state)
+  res.json({ ok: true })
+})
+
 app.use(express.json({ limit: '16kb' }))
 
 // Crowley (Fase A, desenho): login com limite de tentativas, sem logar senha.

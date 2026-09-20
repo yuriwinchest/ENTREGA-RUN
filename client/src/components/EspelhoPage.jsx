@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   DEFAULT_ESPELHO_CONFIG,
+  fetchEspelhoState,
   getEspelhoConfig,
   subscribeEspelhoSync,
 } from '../utils/espelhoSync.js'
@@ -20,6 +21,9 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
   })()
 
   const [config, setConfig] = useState(() => getEspelhoConfig(eventId))
+  const [mirrorState, setMirrorState] = useState(null)
+  const [remoteName, setRemoteName] = useState('')
+  const [connected, setConnected] = useState(false)
   const eventName = (() => {
     if (propEventName) return propEventName
     try {
@@ -32,7 +36,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     } catch {
       // fallback
     }
-    return 'EVENTO'
+    return remoteName || 'EVENTO'
   })()
 
   // Sincronização em tempo real via BroadcastChannel e Storage Events
@@ -50,6 +54,33 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     }
   }, [eventId])
 
+  // Polling do estado público publicado pelo guichê (funciona em
+  // qualquer aparelho que abrir o link/QR Code, não só neste PC).
+  useEffect(() => {
+    if (!eventId) return undefined
+    let cancelled = false
+
+    async function poll() {
+      try {
+        const state = await fetchEspelhoState(eventId)
+        if (cancelled) return
+        setMirrorState(state)
+        setConnected(true)
+        if (state?.eventName) setRemoteName(state.eventName)
+        if (state?.config) setConfig({ ...DEFAULT_ESPELHO_CONFIG, ...state.config })
+      } catch {
+        if (!cancelled) setConnected(false)
+      }
+    }
+
+    poll()
+    const interval = window.setInterval(poll, 2000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [eventId])
+
   // Suporte a tela cheia (F11 ou duplo clique na tela)
   function handleToggleFullscreen() {
     if (!document.fullscreenElement) {
@@ -60,6 +91,28 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
   }
 
   const fontScale = (config.fontSize || 100) / 100
+  const mirrorStatus = mirrorState?.status || 'LIVRE'
+  const atleta = mirrorState?.atleta || null
+  const isDelivered = mirrorStatus === 'ENTREGUE' && atleta
+  const isAttending = mirrorStatus === 'ATENDENDO' && atleta
+  const statusLabel = isDelivered ? 'ENTREGUE' : isAttending ? 'ATENDENDO' : 'LIVRE'
+  const statusClass = isDelivered
+    ? 'status-entregue'
+    : isAttending
+      ? 'status-atendendo'
+      : 'status-livre'
+
+  function athleteInfoRows() {
+    if (!atleta) return []
+    return [
+      { label: 'NOME', value: atleta.nome },
+      { label: 'MODALIDADE', value: [atleta.modalidade, atleta.categoria].filter(Boolean).join(' • ') },
+      { label: 'KIT', value: atleta.kit },
+      { label: 'CHIP', value: atleta.chip },
+      { label: 'SEXO', value: atleta.sexo },
+      { label: 'EQUIPE', value: atleta.equipe },
+    ].filter((row) => row.value && String(row.value).trim() !== '')
+  }
 
   return (
     <div
@@ -75,7 +128,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
       {/* Overlay escuro sutil para garantir legibilidade perfeita se houver foto de fundo */}
       {config.bgImage && <div className="espelho-screen-overlay" />}
 
-      {/* Topo: Logo ou Nome do Evento à esquerda, Tag LIVRE à direita */}
+      {/* Topo: Logo ou Nome do Evento à esquerda, Status do guichê à direita */}
       <header className="espelho-screen-header">
         <div className="espelho-header-brand">
           {config.logo ? (
@@ -91,38 +144,110 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
 
         <div className="espelho-header-status">
           <span
-            className="espelho-tag-livre"
-            style={{ color: config.destaque || '#ff6b00' }}
+            className={`espelho-tag-livre ${statusClass}`}
+            style={!isDelivered && !isAttending ? { color: config.destaque || '#ff6b00' } : undefined}
           >
-            LIVRE
+            {statusLabel}
           </span>
         </div>
       </header>
 
-      {/* Centro Monumental: Mensagem Livre + Subtítulo */}
+      {/* Centro: Ficha do atleta espelhada ou mensagem de guichê livre */}
       <main className="espelho-screen-main">
-        <div className="espelho-hero-box">
-          <h2
-            className="espelho-hero-headline"
-            style={{
-              color: config.texto || '#ffffff',
-              fontSize: `clamp(34px, ${6.2 * fontScale}vw, ${96 * fontScale}px)`,
-            }}
-          >
-            {config.mensagem?.toUpperCase() || 'GUICHÊ DISPONÍVEL'}
-          </h2>
+        {atleta ? (
+          <div className={`espelho-athlete-card ${statusClass}`}>
+            <div className="espelho-athlete-topline">
+              <span
+                className="espelho-athlete-modalidade"
+                style={{ color: config.destaque || '#ff6b00' }}
+              >
+                {[atleta.modalidade, atleta.categoria].filter(Boolean).join(' • ') || 'ATLETA'}
+              </span>
+            </div>
 
-          <p className="espelho-hero-subheadline">
-            AGUARDANDO ATLETA
-          </p>
-        </div>
+            <h2
+              className="espelho-athlete-numero"
+              style={{
+                color: config.texto || '#ffffff',
+                fontSize: `clamp(72px, ${14 * fontScale}vw, ${220 * fontScale}px)`,
+              }}
+            >
+              {atleta.numero || '—'}
+            </h2>
+
+            {atleta.nome && (
+              <p
+                className="espelho-athlete-nome"
+                style={{ color: config.texto || '#ffffff' }}
+              >
+                {atleta.nome}
+              </p>
+            )}
+
+            <div className="espelho-athlete-chips-row">
+              {atleta.camiseta && (
+                <div className="espelho-athlete-chip">
+                  <strong className="espelho-athlete-chip-value">{atleta.camiseta}</strong>
+                  <span className="espelho-athlete-chip-label">CAMISETA</span>
+                </div>
+              )}
+              {atleta.kit && (
+                <div className="espelho-athlete-chip">
+                  <strong className="espelho-athlete-chip-value">{atleta.kit}</strong>
+                  <span className="espelho-athlete-chip-label">KIT</span>
+                </div>
+              )}
+              {atleta.chip && (
+                <div className="espelho-athlete-chip">
+                  <strong className="espelho-athlete-chip-value">{atleta.chip}</strong>
+                  <span className="espelho-athlete-chip-label">CHIP</span>
+                </div>
+              )}
+            </div>
+
+            {athleteInfoRows().length > 0 && (
+              <div className="espelho-athlete-info-grid">
+                {athleteInfoRows().map((row) => (
+                  <div key={row.label} className="espelho-athlete-info-item">
+                    <span className="espelho-athlete-info-label">{row.label}</span>
+                    <span className="espelho-athlete-info-value">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {isDelivered && (
+              <div className="espelho-athlete-entregue-banner">
+                ✓ KIT ENTREGUE — BOM PROVEITO E BOA CORRIDA!
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="espelho-hero-box">
+            <h2
+              className="espelho-hero-headline"
+              style={{
+                color: config.texto || '#ffffff',
+                fontSize: `clamp(34px, ${6.2 * fontScale}vw, ${96 * fontScale}px)`,
+              }}
+            >
+              {config.mensagem?.toUpperCase() || 'GUICHÊ DISPONÍVEL'}
+            </h2>
+
+            <p className="espelho-hero-subheadline">
+              AGUARDANDO ATLETA
+            </p>
+          </div>
+        )}
       </main>
 
       {/* Rodapé: Indicador de Conexão com o Guichê */}
       <footer className="espelho-screen-footer">
-        <div className="espelho-connection-indicator">
+        <div className={`espelho-connection-indicator ${connected ? '' : 'disconnected'}`}>
           <span className="connection-pulse-dot" />
-          <span className="connection-text">CONECTADO AO GUICHÊ</span>
+          <span className="connection-text">
+            {connected ? 'CONECTADO AO GUICHÊ' : 'CONECTANDO AO GUICHÊ...'}
+          </span>
         </div>
       </footer>
     </div>

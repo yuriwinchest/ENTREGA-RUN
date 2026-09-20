@@ -158,6 +158,44 @@
   text-transform: uppercase;
 }
 
+/* QR Code (Aba ACESSO) */
+.espelho-qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.espelho-qr-image {
+  width: 188px;
+  height: 188px;
+  border-radius: 16px;
+  border: 1.5px solid #e2e8f0;
+  box-shadow: 0 8px 22px rgba(12, 20, 44, 0.1);
+  background: #ffffff;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.espelho-qr-placeholder {
+  width: 188px;
+  height: 188px;
+  border-radius: 16px;
+  border: 1.5px dashed #cbd5e1;
+  background: #f8fafc;
+}
+
+.espelho-qr-hint {
+  margin: 0;
+  max-width: 300px;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #64748b;
+}
+
 .btn-copy-link-subtle {
   background: transparent;
   border: none;

@@ -77,3 +77,65 @@ export function subscribeEspelhoSync(callback) {
     }
   }
 }
+
+// ============================================================
+// SINCRONIZAÇÃO VIA SERVIDOR (espelho público em outro aparelho)
+// O BroadcastChannel/localStorage só alcança abas do mesmo
+// navegador. Para o QR Code abrir no celular do atleta ou em uma
+// TV separada, o guichê publica o estado no backend e o espelho
+// consulta periodicamente (polling leve, resposta ~200 bytes).
+// ============================================================
+
+function text(value) {
+  return value == null ? '' : String(value)
+}
+
+export function buildEspelhoAthlete(athlete) {
+  if (!athlete) return null
+  return {
+    numero: text(athlete.numero ?? athlete.id),
+    nome: text(athlete.nome),
+    modalidade: text(athlete.modalidade),
+    categoria: text(athlete.categoria),
+    camiseta: text(athlete.camiseta),
+    kit: text(athlete.kit),
+    chip: text(athlete.chip),
+    sexo: text(athlete.sexo),
+    equipe: text(athlete.equipe),
+  }
+}
+
+export async function publishEspelhoState(eventId, state) {
+  if (!eventId || typeof fetch !== 'function') return
+  const payload = {
+    status: state?.status || 'LIVRE',
+    eventName: text(state?.eventName),
+    atleta: buildEspelhoAthlete(state?.atleta),
+  }
+  if (state?.config && typeof state.config === 'object') {
+    payload.config = state.config
+  } else if (state?.status) {
+    // Post de ficha/status: envia atleta explicitamente (null limpa a ficha)
+    payload.atleta = buildEspelhoAthlete(state?.atleta)
+  }
+  try {
+    await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    })
+  } catch {
+    // rede indisponível: o espelho remoto aguarda o próximo ciclo
+  }
+}
+
+export async function fetchEspelhoState(eventId) {
+  if (!eventId || typeof fetch !== 'function') return null
+  const response = await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado`, {
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  const data = await response.json()
+  return data?.state || null
+}
