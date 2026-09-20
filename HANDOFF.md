@@ -16,6 +16,7 @@
 - Validação feita pelo próprio PO no terminal: `npm run jev:watch -- --once --since=300` retornou 13 registros, 0 falhas, última chegada 62s antes e o veredito `OK: mensagens estão chegando ao Jev.`
 - Alterações desta tarefa: bloco "Convenção de registro" no topo desta memória; regra de registro obrigatório no `AGENTS.md`; mesma regra replicada no kit `D:\Projetos\Clientes\.ai-memory-kit` (AGENTS.md e HANDOFF.md) para valer em projetos novos.
 - Esclarecimento operacional registrado: `.metrics/jev-hook-events.jsonl` grava em UTC (`21:06:06Z`) e o `jev:watch` exibe em horário local (`18:06:06`) — é a mesma mensagem em fusos diferentes, não log atrasado.
+- A autoria passou a constar também no anexo técnico (`docs/correcoes-jev-grpc-2026-09-20.md`, linha "Autor: Cline").
 - Fato mantido: os registros existentes vêm de envios manuais (`real-check`, `cli-*`); o cliente atual (terminal/Cline) não dispara o hook PreInvocation. Uso garantido: `npm run jev:route -- "pedido"` antes de executar.
 - Próximo passo: rodar `jev:route` no início das tarefas (ou migrar para um cliente que execute hooks) e, depois, medir o efeito no desenvolvimento (com e sem Jev).
 

@@ -1,5 +1,8 @@
 # Correções da integração Jev + ponte gRPC — 20/09/2026
 
+**Autor: Cline** (agente de código no terminal/Cline). Documento anexo à entrada de
+memória de mesmo título em `HANDOFF.md`.
+
 Fase A (construir). Escopo: corrigir os defeitos reproduzidos em
 `docs/avaliacao-jev-existente-2026-09-20.md` e concluir a ponte gRPC que havia
 sido iniciada (dependências instaladas, sem código).
