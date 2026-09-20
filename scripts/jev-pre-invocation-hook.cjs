@@ -1,220 +1,278 @@
 #!/usr/bin/env node
+'use strict';
 /**
  * scripts/jev-pre-invocation-hook.cjs
- * 
- * Antigravity PreInvocation Lifecycle Hook.
- * Este script é executado automaticamente pela IDE antes de cada chamada ao modelo.
- * Ele lê o arquivo de transcript, intercepta a pergunta do usuário, envia para o modelo
- * Jev (TypeSafe System One), e injeta as instruções estruturadas diretamente no prompt.
+ *
+ * PreInvocation lifecycle hook: intercepta o pedido do usuario, consulta o Jev
+ * (TypeSafe System One) e injeta a diretiva estruturada antes da resposta.
+ *
+ * Correcoes aplicadas (ver docs/correcoes-jev-grpc-2026-09-20.md):
+ * 1. Cache por sessao + passo + hash do texto; nunca suprime pedido alheio.
+ * 2. Confianca governa a diretiva (alta/media/baixa) conforme docs oficiais.
+ * 3. Diretiva adaptativa (tipo de tarefa, testes, producao, severidade).
+ * 4. Toda saida vazia tem motivo registrado em .metrics/jev-hook-events.jsonl.
+ * 5. Transporte: ponte gRPC local primeiro (auto) com fallback para HTTPS.
+ * 6. Contrato de transcript com adaptadores (USER_INPUT, event_msg/payload, role:user).
  */
 
-const fs = require('fs');
 const path = require('path');
+const core = require('./jev-core.cjs');
 
-// Carrega .env se disponível nativamente no Node
-try {
-  if (typeof process.loadEnvFile === 'function') {
-    process.loadEnvFile();
-  }
-} catch {
-  // ignore
+const STDIN_MAX_BYTES = 1024 * 1024;
+
+function emit(payload) {
+  return new Promise((resolve) => {
+    process.stdout.write(`${JSON.stringify(payload)}\n`, () => resolve());
+  });
 }
 
-const API_KEY = process.env.TYPESAFE_API_KEY;
+function emitEmpty() {
+  return emit({ injectSteps: [] });
+}
+
+function debug(config, message) {
+  if (config && config.debug) console.error(`[jev-hook] ${message}`);
+}
+
+async function readStdin() {
+  let data = '';
+  let bytes = 0;
+  for await (const chunk of process.stdin) {
+    bytes += Buffer.byteLength(chunk);
+    if (bytes > STDIN_MAX_BYTES) return { ok: false, reason: 'stdin_too_large' };
+    data += chunk;
+  }
+  if (!data.trim()) return { ok: false, reason: 'stdin_empty' };
+  try {
+    return { ok: true, context: JSON.parse(data) };
+  } catch {
+    return { ok: false, reason: 'stdin_not_json' };
+  }
+}
+
+function resolveTranscriptPath(context) {
+  const candidate = context.transcriptPath || context.transcript_path || context.transcript || null;
+  if (!candidate || typeof candidate !== 'string') return null;
+  return path.isAbsolute(candidate) ? candidate : path.resolve(core.PROJECT_ROOT, candidate);
+}
+
+function resolveSessionId(context, prompt) {
+  const fromContext = context.sessionId || context.session_id || context.conversationId || context.conversation_id || null;
+  if (fromContext) return String(fromContext);
+  if (prompt && prompt.sessionId) return String(prompt.sessionId);
+  if (prompt && prompt.transcriptPath) return `transcript:${core.hashValue(prompt.transcriptPath, 12)}`;
+  return 'no-session';
+}
+
+function resolveStepIndex(context, prompt) {
+  if (prompt && prompt.stepIndex !== null && prompt.stepIndex !== undefined) return prompt.stepIndex;
+  const candidate = context.stepIndex ?? context.step_index ?? null;
+  return candidate === '' ? null : candidate;
+}
+
+async function probeBridge(config) {
+  try {
+    const { healthViaGrpc } = require('./jev-grpc-client.cjs');
+    const probe = await healthViaGrpc({ address: config.grpcAddress, timeoutMs: config.grpcProbeMs });
+    if (!probe.ok) return { ok: false, errorCode: probe.errorCode || 'grpc_unavailable' };
+    if (!probe.health || !probe.health.has_api_key) return { ok: false, errorCode: 'bridge_without_api_key' };
+    return { ok: true };
+  } catch (err) {
+    // Projeto sem @grpc/grpc-js ou sem o cliente: segue por HTTPS direto.
+    return { ok: false, errorCode: 'grpc_client_unavailable', errorMessage: err && err.message ? err.message : String(err) };
+  }
+}
+
+async function callBridge(config, { text, sessionId, stepIndex }) {
+  try {
+    const { routeViaGrpc } = require('./jev-grpc-client.cjs');
+    return await routeViaGrpc({
+      state: text,
+      sessionId,
+      stepIndex,
+      address: config.grpcAddress,
+      timeoutMs: config.grpcTimeoutMs,
+      includeDirective: true
+    });
+  } catch (err) {
+    return { ok: false, transport: 'grpc', errorCode: 'grpc_client_unavailable', errorMessage: err && err.message ? err.message : String(err) };
+  }
+}
+
+async function routeWithFallback(config, { text, sessionId, stepIndex }) {
+  const attempts = [];
+  const grpcFirst = config.transport === 'grpc' || config.transport === 'auto';
+
+  if (grpcFirst) {
+    let probeFailure = null;
+    if (config.transport === 'auto') {
+      const probe = await probeBridge(config);
+      if (!probe.ok) probeFailure = probe.errorCode;
+    }
+    if (!probeFailure) {
+      const grpc = await callBridge(config, { text, sessionId, stepIndex });
+      if (grpc.ok) {
+        attempts.push('grpc:ok');
+        return { ...grpc, attempts };
+      }
+      attempts.push(`grpc:${grpc.errorCode}`);
+      if (config.grpcRequired) {
+        return { ok: false, transport: 'grpc', errorCode: grpc.errorCode, errorMessage: grpc.errorMessage, attempts };
+      }
+    } else {
+      attempts.push(`grpc_probe:${probeFailure}`);
+      if (config.grpcRequired) {
+        return { ok: false, transport: 'grpc', errorCode: probeFailure, errorMessage: 'ponte gRPC indisponivel', attempts };
+      }
+    }
+  }
+
+  const rest = await core.classifyViaRest({ state: text, config });
+  attempts.push(rest.ok ? 'rest:ok' : `rest:${rest.errorCode}`);
+  if (rest.ok) {
+    return { ...rest, transport: 'rest', fallbackFrom: attempts.length > 1 ? attempts[0] : null, attempts };
+  }
+  return {
+    ok: false,
+    transport: 'rest',
+    errorCode: rest.errorCode,
+    errorMessage: rest.errorMessage,
+    httpStatus: rest.httpStatus,
+    durationMs: rest.durationMs,
+    attempts
+  };
+}
 
 async function main() {
-  if (!API_KEY) {
-    // Sem chave configurada no ambiente ou .env, prossegue sem injetar diretiva
-    console.log(JSON.stringify({ injectSteps: [] }));
+  const config = core.getConfig();
+  const stdin = await readStdin();
+  if (!stdin.ok) {
+    core.logEvent(config, { event: 'hook', ok: false, reason: stdin.reason });
+    debug(config, `entrada ignorada: ${stdin.reason}`);
+    await emitEmpty();
     return;
   }
 
-  let stdinData = '';
-  process.stdin.setEncoding('utf8');
-
-  for await (const chunk of process.stdin) {
-    stdinData += chunk;
-  }
-
-  let hookContext = {};
-  try {
-    if (stdinData.trim()) {
-      hookContext = JSON.parse(stdinData);
-    }
-  } catch {
-    console.log(JSON.stringify({ injectSteps: [] }));
+  const context = stdin.context && typeof stdin.context === 'object' ? stdin.context : {};
+  const transcriptPath = resolveTranscriptPath(context);
+  if (!transcriptPath) {
+    core.logEvent(config, { event: 'hook', ok: false, reason: 'missing_transcript_path' });
+    await emitEmpty();
     return;
   }
 
-  const transcriptPath = hookContext.transcriptPath;
-  if (!transcriptPath || !fs.existsSync(transcriptPath)) {
-    console.log(JSON.stringify({ injectSteps: [] }));
+  const prompt = core.readLatestUserPrompt(transcriptPath);
+  if (!prompt.ok) {
+    core.logEvent(config, { event: 'hook', ok: false, reason: prompt.reason, transcriptHash: core.hashValue(transcriptPath, 12) });
+    await emitEmpty();
     return;
   }
 
-  // Lê as últimas 150 linhas do transcript.jsonl para capturar o último USER_INPUT
-  try {
-    const content = fs.readFileSync(transcriptPath, 'utf8');
-    const lines = content.split('\n').filter(Boolean);
-    let latestUserInput = null;
+  const text = prompt.text;
+  const sessionId = resolveSessionId(context, prompt);
+  const stepIndex = resolveStepIndex(context, prompt);
+  const baseEvent = {
+    event: 'hook',
+    sessionId,
+    stepIndex,
+    promptHash: core.hashValue(text, 16),
+    promptLength: text.length,
+    transcriptShape: prompt.shape
+  };
 
-    for (let i = lines.length - 1; i >= 0; i--) {
-      try {
-        const item = JSON.parse(lines[i]);
-        if (item.type === 'USER_INPUT' && item.content) {
-          latestUserInput = item;
-          break;
-        }
-      } catch {
-        continue;
-      }
-    }
+  if (!config.apiKey) {
+    core.logEvent(config, { ...baseEvent, ok: false, reason: 'missing_api_key' });
+    debug(config, 'TYPESAFE_API_KEY ausente; nenhuma diretiva injetada');
+    await emitEmpty();
+    return;
+  }
+  if (text.length > config.maxStateChars) {
+    core.logEvent(config, { ...baseEvent, ok: false, reason: 'state_too_large' });
+    await emitEmpty();
+    return;
+  }
 
-    if (!latestUserInput) {
-      console.log(JSON.stringify({ injectSteps: [] }));
+  const key = core.cacheKey({ sessionId, stepIndex, text });
+  if (!core.toBool(process.env.JEV_HOOK_BYPASS_CACHE, false)) {
+    const hit = core.cacheLookup(config, key);
+    if (hit.hit) {
+      core.logEvent(config, { ...baseEvent, ok: true, reason: 'cache_hit', cachedAt: hit.createdAt });
+      debug(config, 'mesmo pedido ja roteado; nada injetado');
+      await emitEmpty();
       return;
     }
+  }
 
-    // Extrai apenas o texto entre <USER_REQUEST> e </USER_REQUEST> se existir
-    let rawText = latestUserInput.content;
-    const reqMatch = rawText.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
-    if (reqMatch) {
-      rawText = reqMatch[1].trim();
-    }
-
-    if (!rawText || rawText.length < 2) {
-      console.log(JSON.stringify({ injectSteps: [] }));
-      return;
-    }
-
-    // Cache para não re-rotear o mesmo step_index em múltiplas invocações do mesmo turno
-    const cacheDir = path.resolve(__dirname, '../scratch');
-    const cacheFile = path.join(cacheDir, '.last_routed_step.json');
-    if (!fs.existsSync(cacheDir)) {
-      try { fs.mkdirSync(cacheDir, { recursive: true }); } catch {}
-    }
-
-    let lastRouted = {};
-    if (fs.existsSync(cacheFile)) {
-      try { lastRouted = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); } catch {}
-    }
-
-    if (lastRouted.stepIndex === latestUserInput.step_index && lastRouted.directive) {
-      // Já roteado neste mesmo turno
-      console.log(JSON.stringify({ injectSteps: [] }));
-      return;
-    }
-
-    // Envia a pergunta bruta para o Jev (TypeSafe System One)
-    const t0 = performance.now();
-    const payload = {
-      state: rawText,
-      model: 'jev-latest',
-      questions: {
-        especialista_tone: {
-          type: 'choice',
-          instructions: 'Qual especialista da Operação TONE deve liderar esta demanda técnica?',
-          criteria: {
-            ana_ui_ux: 'Alterações visuais, componentes de tela, cores, tipografia, jornada do usuário e CSS',
-            kastiel_dev: 'Implementação de lógica no código, hooks, funções, APIs, componentes React e integração',
-            crowley_sec: 'Segurança, autenticação, permissões, sanitização contra XSS e análise de risco',
-            teclide_qa: 'Testes de performance, assertividade, qualidade de código e homologação funcional',
-            vitor_sre: 'Infraestrutura, Docker, deploy na VPS, portas de rede, Caddy, SSL e disponibilidade'
-          }
-        },
-        tipo_tarefa: {
-          type: 'choice',
-          instructions: 'Qual o formato e o tipo desta tarefa?',
-          criteria: {
-            bugfix_urgente: 'Correção de algo que quebrou ou não está se comportando como o esperado',
-            nova_feature: 'Construção de uma funcionalidade nova ou página não existente',
-            duvida_conceitual: 'Pergunta sobre arquitetura, ferramentas, documentação ou estratégia',
-            deploy_infra: 'Publicação, subida de versão, comandos de servidor ou apontamento'
-          }
-        },
-        toca_producao: {
-          type: 'noul',
-          instructions: 'Esta solicitação afeta diretamente o servidor de produção, containers Docker ou serviços no ar?'
-        },
-        requer_testes_reais: {
-          type: 'noul',
-          instructions: 'A conclusão desta demanda exige execução de testes reais automatizados no terminal?'
-        },
-        severidade: {
-          type: 'score',
-          instructions: 'Nível de criticidade ou impacto da demanda',
-          criteria: [
-            'Baixo: dúvida ou refinamento visual menor',
-            'Médio: ajuste de funcionalidade ativa com impacto local',
-            'Alto: erro bloqueante de operação ou risco a produção'
-          ]
-        }
-      }
-    };
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    const res = await fetch('https://api.typesafe.ai/v1/systemone', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal
+  const result = await routeWithFallback(config, { text, sessionId, stepIndex });
+  if (!result.ok) {
+    core.logEvent(config, {
+      ...baseEvent,
+      ok: false,
+      reason: result.errorCode,
+      transport: result.transport,
+      httpStatus: result.httpStatus || 0,
+      durationMs: result.durationMs || 0,
+      attempts: result.attempts
     });
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      console.log(JSON.stringify({ injectSteps: [] }));
-      return;
-    }
-
-    const data = await res.json();
-    const durMs = Math.round(performance.now() - t0);
-    const answers = data.answers;
-
-    const especialistaNome = {
-      ana_ui_ux: 'Ana (Especialista em UI/UX)',
-      kastiel_dev: 'Kastiel (Desenvolvedor Sênior Fullstack)',
-      crowley_sec: 'Crowley (Especialista em Segurança da Informação)',
-      teclide_qa: 'Teclide (Engenheiro de QA e Performance)',
-      vitor_sre: 'Vitor (SRE / Infraestrutura e Produção)'
-    }[answers.especialista_tone.choice] || 'TONE';
-
-    const directive = `
-======================================================================
-⚡ [ORQUESTRAÇÃO OFICIAL JEV (TypeSafe System One) — ${durMs}ms]
-======================================================================
-- Especialista Líder Designado: ${especialistaNome} (${(answers.especialista_tone.confidence * 100).toFixed(0)}% confiança)
-- Tipo de Tarefa:               ${answers.tipo_tarefa.choice.toUpperCase()} (${(answers.tipo_tarefa.confidence * 100).toFixed(0)}% confiança)
-- Risco em Produção:            ${(answers.toca_producao.noul * 100).toFixed(1)}%
-- Exigência de Testes Reais:    ${(answers.requer_testes_reais.noul * 100).toFixed(1)}%
-- Severidade Calibrada:         ${answers.severidade.score.toFixed(2)} / 2.00
-- Modelo Jev Ativo:             ${data.model}
-
-DIRETIVA OBRIGATÓRIA PARA ESTA RESPOSTA:
-1. Obedeça a liderança de ${especialistaNome}.
-2. Execute todos os testes reais automatizados necessários no terminal.
-3. Não presuma nem use mocks quando o sistema real estiver acessível.
-======================================================================
-`.trim();
-
-    try {
-      fs.writeFileSync(cacheFile, JSON.stringify({ stepIndex: latestUserInput.step_index, directive }));
-    } catch {}
-
-    console.log(JSON.stringify({
-      injectSteps: [
-        {
-          ephemeralMessage: directive
-        }
-      ]
-    }));
-  } catch (err) {
-    console.log(JSON.stringify({ injectSteps: [] }));
+    debug(config, `sem diretiva: ${result.errorCode} ${result.errorMessage || ''}`);
+    await emitEmpty();
+    return;
   }
+
+  const decision = core.decideRouting(result.answers, config);
+  const directive =
+    result.directive ||
+    core.buildDirective(decision, {
+      model: result.model,
+      transport: result.transport,
+      durationMs: result.durationMs,
+      leaderLowPct: config.thresholds.leaderLow * 100
+    });
+  core.cacheStore(config, key, directive, { decision, transport: result.transport });
+
+  const usage = result.usage || {};
+  core.logEvent(config, {
+    ...baseEvent,
+    ok: true,
+    reason: 'injected',
+    transport: result.transport,
+    transportCached: Boolean(result.cached),
+    fallbackFrom: result.fallbackFrom || null,
+    attempts: result.attempts,
+    model: result.model,
+    durationMs: result.durationMs,
+    leader: decision.leaderId,
+    leaderLevel: decision.leaderLevel,
+    leaderConfidence: decision.leaderConfidence,
+    taskType: decision.taskType,
+    testsPolicy: decision.testsPolicy,
+    productionRisk: decision.productionRisk,
+    severity: decision.severity,
+    mustAskUser: decision.mustAskUser,
+    notices: decision.notices,
+    inputTokens: usage.input_tokens || 0,
+    outputTokens: usage.output_tokens || 0,
+    directiveChars: directive.length
+  });
+  await emit({ injectSteps: [{ ephemeralMessage: directive }] });
 }
 
-main();
+main()
+  .catch(async (err) => {
+    try {
+      const config = core.getConfig();
+      core.logEvent(config, {
+        event: 'hook',
+        ok: false,
+        reason: 'hook_exception',
+        errorMessage: err && err.message ? err.message : String(err)
+      });
+      debug(config, `excecao: ${err && err.message ? err.message : err}`);
+    } catch {
+      // nada a fazer: o hook nunca pode quebrar o turno
+    }
+    await emitEmpty();
+  })
+  .finally(() => {
+    if (!core.toBool(process.env.JEV_HOOK_NO_EXIT, false)) process.exit(0);
+  });

@@ -1,5 +1,41 @@
 # Handoff
 
+## 2026-09-20 — Correções da integração Jev + ponte gRPC (Fase A, construir)
+
+- Autor: Cline; pedido do PO: concluir as correções levantadas no diagnóstico e terminar a integração gRPC iniciada (deps instaladas, sem código).
+- Entrega: `docs/correcoes-jev-grpc-2026-09-20.md`. Arquivos novos/reescritos em `scripts/`: `jev-core.cjs`, `jev-router.proto`, `jev-grpc-server.cjs`, `jev-grpc-client.cjs`, `jev-bridge.cjs`, `jev-selftest.cjs`, além de `jev-pre-invocation-hook.cjs` e `jev-prompt-router.js` reescritos.
+- Correções verificadas: cache por sessão+passo+hash do texto; confiança governando a diretiva (faixas 0,65/0,45); diretiva adaptativa (tipo de tarefa, testes, produção, severidade); toda saída vazia com motivo em `.metrics/jev-hook-events.jsonl`; adaptadores de transcript (`USER_INPUT`, `payload.user_message`, `event_msg.payload`, `role:user`); diretiva sem autoridade (não autoriza deploy/produção/segredos); telemetria sem o texto do prompt.
+- Ponte gRPC: `Route` e `Health` tipados, deadline, `INVALID_ARGUMENT` para contrato e `ok:false` para falha do provedor, bind loopback por padrão, cliente fecha canal em `finally`.
+- Provas reais: `npm run jev:selftest` 13/13 com API oficial simulada (nenhuma requisição externa, nenhuma chave real); chamada real via ponte `jev-1.13.0` 783ms com `kastiel_dev` 100%; hook ponta a ponta auto→gRPC `injectSteps=1` em 281ms com faixa média tratada como hipótese; ponte ATIVA em `127.0.0.1:50051` (`jev-grpc-bridge 1.0.0`).
+- Configuração: `package.json` ganhou `jev:bridge`, `jev:bridge:stop`, `jev:bridge:status`, `jev:route`, `jev:router`, `jev:selftest`; `.env.example` documenta as variáveis JEV_*; `.agents/hooks.json` timeout 10→20s; Invariante 10 do `TONE-INVARIANTS.md` revisada (classificação é apoio probabilístico, não autoriza produção).
+- Instalador para outros projetos atualizado: `D:\Projetos\Clientes\INSTALAR-JEV-AQUI.ps1` copia o conjunto completo, instala as deps gRPC, registra a Invariante 10 revisada e roda o selftest.
+- Ainda não medido: benefício de desenvolvimento (retrabalho/erros/tokens com e sem Jev). Próximo passo é o piloto comparativo; o custo por chamada observado é ~760 tokens de entrada e ~190 de saída.
+- Visibilidade de chegada: `scripts/jev-watch.cjs` (`npm run jev:watch`) mostra cada mensagem que chega ao Jev (HOOK/PONTE/ROUTER) e `--once --since=300` responde "as mensagens estão chegando?" com código de saída 1 quando nada chega.
+- Fato confirmado no cliente atual (Cline/terminal): os pedidos enviados nesta sessão **não** dispararam o hook — o log só tem eventos das verificações manuais (`real-check`, `cli-*`). O caminho automático depende de o cliente executar o contrato PreInvocation; até então, o uso garantido é `npm run jev:route -- "pedido"` antes de executar.
+- Nenhuma alteração em produção, nenhuma chamada com dados de cliente e nenhuma mudança nas telas do produto.
+
+
+## 2026-09-20 — Diagnóstico da implementação Jev existente
+
+- Autor: Codex/Tony; Teclide realizou revisão independente somente leitura.
+- Esclarecimento do PO: avaliar se o Jev já instalado ajuda o desenvolvimento do Entregas-run e funciona corretamente; não propor funcionalidades de IA para o produto.
+- Entrega: `docs/avaliacao-jev-existente-2026-09-20.md`.
+- Confirmado: API funciona por chamada manual anterior desta sessão. Telemetria atual possui duas entradas; não mede resultado das tarefas ou economia. Hook automático/consumo pela IDE não demonstrado.
+- Testes locais reais do código do hook com filesystem/fetch simulados: colisão entre sessões com mesmo step_index; colisão entre mensagens sem step_index; liderança obrigatória com confiança 20%; formato de transcript incompatível ignorado. Não tocaram cache real ou API. São testes de lógica, não E2E de IDE.
+- Veredito: classificador funcional, integração incompleta com defeitos reproduzíveis e benefício no desenvolvimento ainda não comprovado. Corrige a interpretação excessiva de registros históricos que tratavam chamada manual como prova de funcionamento automático em todo turno.
+- Nenhuma correção de código nesta avaliação. Próximo passo: contrato real do cliente/IDE, cache por sessão/mensagem, tratamento de confiança, observabilidade e comparação de resultado com/sem Jev.
+
+## 2026-09-20 — Estudo de Jev nos projetos locais (Fase A)
+
+- Autor: Codex/Tony; subagentes Kastiel, Ulisses e Teclide participaram de leitura e revisão do estudo.
+- Pedido: estudar Jev e avaliar quais projetos em Projetos podem se beneficiar. Pasta encontrada: `D:/Projetos`; feita triagem de diretórios e leitura dirigida, não revisão exaustiva de todos os repositórios.
+- Entrega: `docs/estudo-jev-projetos-2026-09-20.md`, com fontes oficiais, evidências do código, oportunidades priorizadas e limites de cobertura.
+- Candidatos: sugestões para cabeçalhos desconhecidos nos importadores Entregas-run/ENTREGADEKIS; ordenação semântica de contexto no TEMINAL; recomendação de presets no deepseek-harness. Ganhos permanecem hipóteses sem comparação A/B.
+- Validação real: chamada manual de `scripts/jev-prompt-router.js` com descrição genérica do estudo retornou jev-1.13.0, kastiel_dev, duvida_conceitual, 877 ms, 770 tokens de entrada e 192 de saída. Telemetria gravada pelo próprio script. Não comprova disparo automático do hook nem economia de tokens/modelos.
+- Nenhuma alteração de código dos produtos, instalação, teste funcional ou deploy. Acrescentados apenas estudo e este registro; telemetria local foi atualizada pela chamada.
+- Riscos/pendências: decisões podem estar erradas, português precisa de avaliação própria e chamadas remotas precisam minimizar dados enviados. Não usar Jev para substituir cálculo exato, autorização ou captura RFID offline.
+- Próximo passo recomendado: piloto comparativo de mapeamento somente de cabeçalhos, se houver variação recorrente; alternativa é avaliar seleção de contexto no TEMINAL. Implementação não iniciada.
+
 ## Estado inicial
 
 - Projeto recém-adicionado à memória de agentes.
@@ -1123,5 +1159,3 @@
   - `npm run lint --prefix client`: 0 erros e 0 avisos.
   - `npm run build --prefix client`: 127 módulos construídos em 1.17s.
 - **Próximo passo**: Yuri homologar as telas e rotacionar a chave no dashboard da TypeSafe se desejar.
-
-

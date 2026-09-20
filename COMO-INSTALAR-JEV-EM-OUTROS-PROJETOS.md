@@ -1,5 +1,12 @@
 # GUIA MESTRE — COMO INSTALAR E ATIVAR O JEV (TYPESAFE SYSTEM ONE) EM QUALQUER PROJETO
 
+> **Versão 2 — 20/09/2026.** O código embutido neste guia (Passo 2) foi substituído
+> pelo conjunto atual, que inclui política de confiança, cache isolado por
+> sessão/turno, observabilidade e ponte gRPC local com fallback. Prefira o
+> instalador da seção 4, que copia os arquivos atuais verbatim, e consulte a
+> seção 5 para a arquitetura em vigor e os comandos de verificação.
+> Detalhes das correções: `docs/correcoes-jev-grpc-2026-09-20.md` no Entregas-run.
+
 > **Instrução Direta para a IA / Agente de Código (Gemini, Claude, Codex, GPT, Antigravity):**  
 > Se o Yuri enviou ou indicou este arquivo para você na abertura de um novo projeto, **execute imediatamente os passos abaixo** para configurar o **Jev (TypeSafe System One)** como a primeira camada de inteligência e roteamento obrigatório deste repositório. Toda pergunta do Yuri deve ser avaliada e orquestrada pelo Jev antes da sua execução técnica.
 
@@ -355,4 +362,82 @@ Para instalar o Jev automaticamente na raiz de qualquer projeto sem precisar col
 ```powershell
 & "D:\Projetos\Clientes\INSTALAR-JEV-AQUI.ps1"
 ```
+
+---
+
+## 5. Arquitetura em vigor (v2) — instalação e verificação
+
+### 5.1 O que o instalador copia
+
+| Arquivo (pasta `scripts/`) | Papel |
+|---|---|
+| `jev-core.cjs` | Núcleo: config por ambiente, perguntas do Jev, adaptadores de transcript, cache por sessão/passo/texto, política de confiança e diretiva adaptativa |
+| `jev-pre-invocation-hook.cjs` | Hook PreInvocation: lê o transcript, consulta o Jev (gRPC → fallback HTTPS) e injeta a diretiva |
+| `jev-router.proto` | Contrato gRPC (`jev.v1.JevRouter` com `Route` e `Health`) |
+| `jev-grpc-server.cjs` | Ponte local que chama `https://api.typesafe.ai/v1/systemone` |
+| `jev-grpc-client.cjs` | Cliente da ponte e CLI (`--health`, `--json`, `--no-directive`, `--bypass-cache`) |
+| `jev-bridge.cjs` | Ciclo de vida da ponte: `start` / `stop` / `status` / `restart` |
+| `jev-watch.cjs` | Monitor das mensagens que chegam ao Jev (`--once --since=300` dá o veredito) |
+| `jev-prompt-router.js` | CLI de classificação manual (HTTPS direto ou `--grpc`) |
+| `jev-selftest.cjs` | Verificação automatizada dos 14 cenários com API simulada |
+
+Também são necessários: `.agents/hooks.json` (timeout 20), as devDependencies
+`@grpc/grpc-js` e `@grpc/proto-loader`, e a Invariante 10 revisada em
+`TONE-INVARIANTS.md`.
+
+### 5.2 Instalação
+
+```powershell
+& "D:\Projetos\Clientes\INSTALAR-JEV-AQUI.ps1" -TargetDir "D:\Projetos\Clientes\NOME-DO-PROJETO"
+```
+
+O script copia os arquivos, instala as dependências do gRPC, adiciona a Invariante
+10 (se ainda não existir) e roda `scripts/jev-selftest.cjs` como prova de
+instalação. Nenhuma credencial é copiada: cada projeto usa o próprio `.env` com
+`TYPESAFE_API_KEY`.
+
+### 5.3 Operação
+
+```bash
+npm run jev:bridge           # sobe a ponte local (opcional)
+npm run jev:bridge:status    # confirma serviço, versão, chave e base URL
+npm run jev:route -- "texto" # classifica pela ponte e imprime a diretiva
+npm run jev:router -- "texto"        # classificação manual via HTTPS
+npm run jev:router -- --grpc "texto" # classificação manual via ponte
+npm run jev:selftest         # valida a integração inteira (sem rede)
+npm run jev:watch -- --once --since=300   # confirma se as mensagens estão chegando ao Jev
+npm run jev:watch            # monitor ao vivo
+npm run jev:bridge:stop      # encerra a ponte
+```
+
+### 5.4 Variáveis de ambiente relevantes
+
+| Variável | Padrão | Para que serve |
+|---|---|---|
+| `TYPESAFE_API_KEY` | — | Credencial do Jev (obrigatória) |
+| `JEV_TRANSPORT` | `auto` | `auto` (gRPC com fallback) / `grpc` / `rest` |
+| `JEV_GRPC_ADDRESS` | `127.0.0.1:50051` | Endereço da ponte |
+| `JEV_GRPC_REQUIRED` | `0` | `1` = não injetar diretiva se a ponte estiver fora do ar |
+| `JEV_THRESHOLDS_JSON` | — | Ajusta limiares de confiança sem editar código |
+| `JEV_CACHE_TTL_MS` | `1800000` | Validade do cache de roteamento |
+| `JEV_DEBUG` | `0` | `1` = diagnóstico no stderr do hook |
+| `JEV_HOOK_BYPASS_CACHE` | `0` | `1` = ignora o cache do hook e força nova classificação |
+| `JEV_SKIP_DOTENV` | `0` | `1` = ignora o `.env` (usado nos testes) |
+
+### 5.5 O que observar depois de instalar
+
+- `.metrics/jev-hook-events.jsonl`: cada turno gera um evento com `reason`
+  (`injected`, `cache_hit`, `missing_api_key`, `upstream_error`, ...). Se não
+  houver evento, o hook não está sendo chamado pelo cliente.
+- A diretiva deve trazer a faixa de confiança (alta/média/baixa) e, em faixa
+  baixa, pedir uma pergunta em vez de impor especialista.
+- Diferença entre `routes` no log e turnos reais indica cache funcionando.
+
+### 5.6 Limites
+
+A ponte é local (loopback), sem TLS e sem autenticação; não exponha na rede sem
+TLS/mTLS e autorização explícita. A classificação do Jev orienta o trabalho e não
+autoriza deploy, produção, exclusão de dados ou uso de segredos. O ganho de
+desenvolvimento ainda depende de medição comparativa por projeto.
+
 Ele cria `.agents/hooks.json`, os scripts em `scripts/` e registra a Invariante 10 automaticamente.

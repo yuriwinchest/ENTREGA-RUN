@@ -4,7 +4,7 @@
       {
         "type": "command",
         "command": "node \"./scripts/jev-pre-invocation-hook.cjs\"",
-        "timeout": 10
+        "timeout": 20
       }
     ]
   }

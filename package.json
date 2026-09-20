@@ -6,9 +6,18 @@
   "scripts": {
     "dev": "concurrently -n web,api -c orange,blue \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
     "build": "npm run build --prefix client",
-    "start": "npm run start --prefix server"
+    "start": "npm run start --prefix server",
+    "jev:bridge": "node scripts/jev-bridge.cjs start",
+    "jev:bridge:stop": "node scripts/jev-bridge.cjs stop",
+    "jev:bridge:status": "node scripts/jev-bridge.cjs status",
+    "jev:route": "node scripts/jev-grpc-client.cjs",
+    "jev:router": "node scripts/jev-prompt-router.js",
+    "jev:watch": "node scripts/jev-watch.cjs",
+    "jev:selftest": "node scripts/jev-selftest.cjs"
   },
   "devDependencies": {
+    "@grpc/grpc-js": "1.14.5",
+    "@grpc/proto-loader": "0.8.1",
     "concurrently": "^9.0.0"
   }
 }

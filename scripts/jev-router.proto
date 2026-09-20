@@ -1,0 +1,85 @@
+// scripts/jev-router.proto
+//
+// Contrato local da ponte gRPC do Jev (TypeSafe System One).
+//
+// Papel desta ponte:
+// - O Jev oficial da TypeSafe e exposto por HTTPS (POST /v1/systemone).
+// - Esta ponte transforma essa classificacao em um contrato tipado, local, com
+//   deadline e codigos de status gRPC, reutilizavel por qualquer cliente
+//   (Node, Python, C#, Android/Kotlin) sem repetir o payload das perguntas.
+// - A ponte NAO substitui a API oficial: ela chama a API oficial e devolve a
+//   classificacao ja normalizada mais a decisao de politica (gating) calculada
+//   em codigo, conforme https://docs.typesafe.ai/confidence.
+syntax = "proto3";
+
+package jev.v1;
+
+service JevRouter {
+  // Classifica o estado (pedido do usuario) e devolve respostas tipadas +
+  // decisao de politica pronta para orquestrar o agente.
+  rpc Route (RouteRequest) returns (RouteResponse);
+
+  // Diagnostico da ponte: versao, presenca da chave e base URL em uso.
+  rpc Health (HealthRequest) returns (HealthResponse);
+}
+
+message RouteRequest {
+  // Texto do pedido do usuario (estado enviado ao Jev). Obrigatorio.
+  string state = 1;
+  // Modelo Jev. Vazio usa JEV_MODEL/jev-latest.
+  string model = 2;
+  // Identificador da sessao/conversa. Usado para cache e telemetria.
+  string session_id = 3;
+  // Indice do passo/turno dentro da sessao. Usado para cache e telemetria.
+  string step_index = 4;
+  // Ignora o cache local e forca nova classificacao.
+  bool bypass_cache = 5;
+  // Orcamento de tempo da chamada a API oficial, em milissegundos.
+  int32 timeout_ms = 6;
+  // Quando true, o servidor tambem devolve a diretiva textual pronta.
+  bool include_directive = 7;
+}
+
+message QuestionAnswer {
+  string name = 1;    // especialista_tone | tipo_tarefa | toca_producao | ...
+  string type = 2;    // choice | score | noul
+  string choice = 3;  // preenchido para choice
+  double confidence = 4;
+  double score = 5;   // preenchido para score
+  double noul = 6;    // preenchido para noul
+  map<string, double> probabilities = 7;
+  string legend_json = 8;
+}
+
+message RouteResponse {
+  bool ok = 1;
+  string error_code = 2;     // missing_api_key | upstream_error | timeout | ...
+  string error_message = 3;
+  int32 http_status = 4;
+  string model = 5;
+  int64 duration_ms = 6;
+  string transport = 7;      // rest | grpc | grpc-cache
+  bool cached = 8;
+  string route_id = 9;
+  repeated QuestionAnswer answers = 10;
+  int64 input_tokens = 11;
+  int64 output_tokens = 12;
+  // Decisao de politica (gating por confianca) serializada em JSON.
+  string decision_json = 13;
+  // Diretiva textual para o agente. Somente quando include_directive = true.
+  string directive = 14;
+  string leader = 15;
+  double leader_confidence = 16;
+  string leader_confidence_level = 17; // alta | media | baixa | unknown
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string service = 1;
+  string version = 2;
+  bool has_api_key = 3;
+  string api_base_url = 4;
+  string model = 5;
+  int64 uptime_ms = 6;
+}
