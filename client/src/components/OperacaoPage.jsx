@@ -1040,6 +1040,11 @@ export default function OperacaoPage({
     }
   }
 
+  // Fluxo definido pelo PO: ao editar qualquer campo, a entrega fica
+  // bloqueada até salvar; sem alterações pendentes, a entrega é liberada.
+  const detailHasPendingEdits = detailHasChanges
+  const deliverBlockedByEdits = !isOperator && detailHasPendingEdits
+
   // Revert / Undo Delivery
   function handleUndoDelivery() {
     if (isOperator) return
@@ -1532,44 +1537,45 @@ export default function OperacaoPage({
                     </>
                   ) : (
                     <>
+                      {!isOperator && (
+                        <button
+                          type="button"
+                          className="btn-detail-save"
+                          onClick={handleSaveDetail}
+                          disabled={!detailHasChanges || detailActionInProgress}
+                          title={detailHasChanges
+                            ? 'Salvar o cadastro sem entregar o kit'
+                            : 'Nenhuma alteração para salvar'}
+                        >
+                          <SaveIcon />
+                          <span>{detailHasChanges ? 'SALVAR ALTERAÇÕES' : 'SALVO'}</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="btn-detail-entregar"
                         onClick={() => handleSaveAndDeliver()}
-                        disabled={detailActionInProgress}
-                        title={isOperator ? 'Confirmar entrega do kit' : 'Salvar os dados atuais e entregar o kit'}
+                        disabled={detailActionInProgress || deliverBlockedByEdits}
+                        title={deliverBlockedByEdits
+                          ? 'Existem alterações não salvas — clique em SALVAR ALTERAÇÕES para liberar a entrega'
+                          : (isOperator ? 'Confirmar entrega do kit' : 'Entregar o kit com os dados salvos')}
                       >
                         <CheckCircleIcon />
-                        <span>{isOperator ? 'ENTREGAR KIT' : 'SALVAR E ENTREGAR KIT'}</span>
+                        <span>ENTREGAR KIT</span>
                       </button>
                       <button
                         type="button"
                         className="btn-detail-entregar-print"
                         onClick={() => handleSaveAndDeliver({ print: true })}
-                        disabled={detailActionInProgress}
-                        title={isOperator
-                          ? 'Confirmar entrega e abrir comprovante (2 vias)'
-                          : 'Salvar os dados atuais, entregar e abrir comprovante (2 vias)'}
+                        disabled={detailActionInProgress || deliverBlockedByEdits}
+                        title={deliverBlockedByEdits
+                          ? 'Existem alterações não salvas — clique em SALVAR ALTERAÇÕES para liberar a entrega'
+                          : 'Entregar o kit e abrir o comprovante (2 vias)'}
                       >
                         <PrinterIcon />
-                        <span>{isOperator ? 'ENTREGAR & IMPRIMIR' : 'SALVAR, ENTREGAR E IMPRIMIR'}</span>
+                        <span>ENTREGAR & IMPRIMIR</span>
                       </button>
                     </>
-                  )}
-
-                  {!isOperator && (
-                    <button
-                      type="button"
-                      className="btn-detail-save"
-                      onClick={handleSaveDetail}
-                      disabled={!detailHasChanges || detailActionInProgress}
-                      title={detailHasChanges
-                        ? 'Salvar o cadastro sem entregar o kit'
-                        : 'Nenhuma alteração para salvar'}
-                    >
-                      <SaveIcon />
-                      <span>SALVAR ALTERAÇÕES</span>
-                    </button>
                   )}
 
                   <button
@@ -1584,8 +1590,10 @@ export default function OperacaoPage({
                 </div>
 
                 {!isOperator && detailForm.status !== 'ENTREGUE' && (
-                  <p className="athlete-detail-action-hint">
-                    Salvar alterações não registra a entrega. Para concluir a retirada agora, use “Salvar e entregar kit”.
+                  <p className={`athlete-detail-action-hint ${detailHasPendingEdits ? 'pending-warning' : ''}`}>
+                    {detailHasPendingEdits
+                      ? '⚠ Alterações pendentes: clique em SALVAR ALTERAÇÕES para liberar o botão de entrega.'
+                      : 'Cadastro salvo. O botão ENTREGAR KIT está liberado — salvar não registra a entrega.'}
                   </p>
                 )}
 

@@ -981,3 +981,16 @@
   3. **Paginação 10/página** (`OperacaoPage.jsx/css`): `ATHLETES_PER_PAGE = 10`, controles "← ANTERIOR / Página X de Y / PRÓXIMA →" no rodapé com contagem "Mostrando 1–10 de N (total da base: M) · C campos"; reset para a página 1 ao buscar/filtrar feito com o padrão oficial de ajuste de estado durante a renderização (sem `setState` em effect — lint react Compiler limpo). Mobile: botões ocupam a largura toda, empilhados.
 - **Validações reais**: `scratch/test_import_all_columns.mjs` (colunas "Não importar" entram como custom com nome original; reservadas/vazias bloqueadas) PASS; regressão `test_athlete_table_columns.mjs` e `test_athlete_detail_flow.mjs` PASS; lint 0 erros/avisos; build 127 módulos.
 - **Próximo passo**: Yuri homologar: importar uma planilha marcando colunas como "Não importar" e confirmar que aparecem na grade; conferir CAMISETA completa com scroll horizontal; navegar pelas páginas de 10 atletas.
+
+## 2026-09-19 — Ficha de entrega: fluxo editou → salva → entrega (Fase A, construir)
+
+- **Demanda do Yuri (PO)**: ao alterar qualquer campo da ficha (ex.: nome incompleto), o operador precisa poder SALVAR sem entregar; a entrega só pode acontecer depois de salvar. Fluxo exigido: 1) editou → ENTREGAR KIT desativa; 2) ENTREGAR KIT só reativa após SALVAR; 3) após salvar, entrega liberada.
+- **Diagnóstico**: já existiam `SALVAR ALTERAÇÕES` (habilita só com mudança real via `hasAthleteDetailChanges`) e `SALVAR E ENTREGAR KIT` combinado — o PO não percebia o salvar isolado e a entrega nunca era bloqueada por edição pendente.
+- **Alterações em `OperacaoPage.jsx`**:
+  1. Barra de ações da ficha pendente agora é: **SALVAR ALTERAÇÕES** (primeiro, azul) → **ENTREGAR KIT** (verde) → **ENTREGAR & IMPRIMIR** (laranja) → VOLTAR À LISTA. O rótulo combinado "SALVAR E ENTREGAR KIT" deixou de existir.
+  2. `deliverBlockedByEdits = !isOperator && detailHasChanges`: com qualquer edição pendente, **ambos os botões de entrega ficam desabilitados** (tooltip explica: "clique em SALVAR ALTERAÇÕES para liberar a entrega"). Operador não edita, então a entrega dele nunca é bloqueada.
+  3. Botão de salvar vira **"SALVO"** desabilitado quando não há alterações — feedback visual explícito de que o cadastro está persistido.
+  4. Hint sob a barra vira aviso âmbar quando há edições pendentes ("⚠ Alterações pendentes...") e confirmação discreta quando está tudo salvo ("Cadastro salvo. O botão ENTREGAR KIT está liberado — salvar não registra a entrega.").
+  5. `handleSaveAndDeliver` continua persistindo antes de entregar (rede de segurança), mas a UI impede o caminho com edição pendente.
+- **Validações reais**: E2E Playwright com Chrome real (viewport 390×844) atualizado e executado contra Vite :5174 — **PASS exit=0**: SALVO desabilitado na abertura; edição habilita SALVAR ALTERAÇÕES e desabilita ENTREGAR KIT; após salvar, botão vira SALVO e entrega reativa; entrega final mantém uma única auditoria; grade mobile e demais asserts intactos. `test_athlete_detail_flow.mjs` atualizado (assert do `deliverBlockedByEdits`) PASS; lint 0 erros/avisos; build 127 módulos.
+- **Próximo passo**: Yuri homologar no PC e no celular: editar nome → ver ENTREGAR bloqueado + aviso âmbar → salvar → entrega liberada → entregar.
