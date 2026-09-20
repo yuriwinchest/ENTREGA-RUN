@@ -192,3 +192,36 @@ export function getAthleteTableValue(athlete, column) {
   if (typeof value === 'boolean') return value ? 'SIM' : 'NÃO'
   return String(value)
 }
+
+/**
+ * Compara dois números de atleta para ordenação natural crescente (1, 2, 3... 10, 20).
+ * Trata números inteiros, strings puramente numéricas e formatos alfanuméricos.
+ */
+export function compareAthleteNumbers(a, b) {
+  const strA = String(a ?? '').trim()
+  const strB = String(b ?? '').trim()
+
+  const numA = Number(strA)
+  const numB = Number(strB)
+  const isNumA = strA !== '' && !Number.isNaN(numA)
+  const isNumB = strB !== '' && !Number.isNaN(numB)
+
+  if (isNumA && isNumB) {
+    if (numA !== numB) return numA - numB
+    return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' })
+  }
+  if (isNumA) return -1
+  if (isNumB) return 1
+
+  const digitsA = parseInt(strA.replace(/\D/g, ''), 10)
+  const digitsB = parseInt(strB.replace(/\D/g, ''), 10)
+  const hasDigitsA = !Number.isNaN(digitsA)
+  const hasDigitsB = !Number.isNaN(digitsB)
+
+  if (hasDigitsA && hasDigitsB && digitsA !== digitsB) {
+    return digitsA - digitsB
+  }
+
+  return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' })
+}
+

@@ -1049,3 +1049,51 @@
   - `npm run lint --prefix client`: oxlint 0 erros e 0 avisos em 24 arquivos.
   - `npm run build --prefix client`: 127 módulos construídos em 1.59s.
 - **Próximo passo**: Yuri homologar: abrir ficha → alterar campo → ver botão "Salvar Alterações" verdezinho vibrante e botões de entrega cinzas → salvar → entrega liberada em verde/laranja.
+
+## 2026-09-19 — Aba Entrega de Kit: ordenação natural crescente por número de peito (Fase A, construir)
+
+- **Demanda do Yuri (PO)** (áudio e print anexados):
+  - Áudio: *"O que precisa ser feito aqui na aba de entrega de kits que eles quando vierem já venham na ordem: número 1, número 2, número 3, número 4, porque ele tá vindo na ordem bagunçada quando eu entrego o kit."*
+  - Print anexado: exibe a seção "ÚLTIMAS ENTREGAS" mostrando os cartões na ordem em que os kits foram entregues: Nº 2 ADRIANO PEREIRA7, Nº 5 ALDRINA SOUSA, Nº 1 ADRIANA SILVA.
+- **Roteamento Jev (TypeSafe System One)**:
+  - Avaliado via `scripts/jev-prompt-router.js` em **2183ms** (modelo `jev-1.13.0`):
+    - Liderança: Kastiel (Dev Lead, 95% de confiança).
+    - Tipo: `bugfix_urgente` (100% de confiança).
+    - Severidade calibrada: 1.01 / 2.00.
+- **Causa raiz**:
+  1. No momento da entrega (`handleDeliverKit`), o código executava `setDeliveries((prev) => [newDelivery, ...prev])`, empilhando em ordem cronológica reversa (a entrega mais recente no topo). Ao entregar primeiro o atleta 1, depois o 5 e depois o 2, a lista renderizava como 2, 5, 1, gerando a percepção de lista "bagunçada"/desordenada para o operador.
+  2. Não havia ordenação numérica natural aplicada em `deliveries`, nem na renderização sob "ÚLTIMAS ENTREGAS", nem na busca de kits pendentes (`searchResultsKit`), nem na grade da aba "Atletas" (`filteredAthletes`).
+- **Solução implementada**:
+  1. `client/src/utils/athleteTable.js`:
+     - Criado e exportado o helper `compareAthleteNumbers(a, b)` com suporte a números inteiros puros, strings numéricas e formatos alfanuméricos com dígitos embutidos (ordenação natural crescente: 1, 2, 3, 4, 5... 10, 20).
+  2. `client/src/components/OperacaoPage.jsx`:
+     - **Inicialização limpa**: `deliveries` inicializa ordenado por `compareAthleteNumbers` tanto a partir de `localStorage` quanto reconciliando com atletas já entregues na base, sem provocar renders em cascata (0 warnings no React Compiler/oxlint).
+     - **Renderização memoizada**: criado `sortedDeliveries = useMemo(() => [...deliveries].sort((a, b) => compareAthleteNumbers(a.id, b.id)), [deliveries])` e aplicado diretamente na renderização de "ÚLTIMAS ENTREGAS". Desta forma, até mesmo registros previamente salvos no navegador do operador são reorganizados automaticamente em ordem crescente (1, 2, 3, 4...).
+     - **Registro de nova entrega (`handleDeliverKit`)**: ao entregar qualquer atleta, a nova entrega é inserida e o array é ordenado crescentemente via `compareAthleteNumbers(a.id, b.id)`.
+     - **Edição de atleta (`handleSaveAthleteDetail`)**: mantém as entregas ordenadas após atualização de dados cadastrais.
+     - **Importação de planilha (`handleImportSuccess`)**: sincroniza atletas entregues da planilha e ordena por número.
+     - **Botão Atualizar (`refresh-btn`)**: conectado ao handler `handleRefreshDeliveries`, sincronizando qualquer atleta entregue pendente e garantindo ordenação estrita.
+     - **Busca de kit (`searchResultsKit`)**: resultados da busca em tempo real na aba de entrega agora também retornam em ordem numérica crescente.
+     - **Aba Atletas (`filteredAthletes`)**: tabela de atletas agora lista os atletas ordenados de forma crescente por número de peito por padrão.
+- **Validações reais**:
+  - `scratch/test_delivery_number_order.cjs` (Playwright E2E com Chrome real):
+    - Etapa 1: Carregamento inicial com entregas em ordem 2, 5, 1 -> Renderiza estritamente `['Nº 1', 'Nº 2', 'Nº 5']` (**PASS**).
+    - Etapa 2: Entrega atleta Nº 4 -> Lista atualiza para `['Nº 1', 'Nº 2', 'Nº 4', 'Nº 5']` (**PASS**).
+    - Etapa 3: Entrega atleta Nº 3 pela ficha -> Lista atualiza para `['Nº 1', 'Nº 2', 'Nº 3', 'Nº 4', 'Nº 5']` (**PASS**).
+    - Etapa 4: Botão Atualizar clicado -> Ordenação permanece intacta `1, 2, 3, 4, 5` (**PASS**).
+    - Etapa 5: Aba ATLETAS conferida -> Grade exibe `['1', '2', '3', '4', '5']` (**PASS**).
+    - Screenshot salvo em: `scratch/ultimas_entregas_ordenadas_1_a_5.png`.
+  - Regressão completa de testes Playwright / Chrome:
+    - `scratch/test_save_button_colors.cjs`: **PASS (100%)**.
+    - `scratch/test_athlete_table_scroll_mobile_and_pc.cjs`: **PASS (100%)**.
+    - `scratch/test_operacao_mobile_e2e.cjs`: **PASS (100%)**.
+    - `scratch/test_athlete_detail_flow.mjs`: **PASS (100%)**.
+    - `scratch/test_athlete_table_columns.mjs`: **PASS (100%)**.
+    - `scratch/test_import_all_columns.mjs`: **PASS (100%)**.
+    - `scratch/test_auditoria_responsiveness_and_selects.cjs`: **PASS (100%)**.
+  - `npm run lint --prefix client`: oxlint concluído com **0 erros e 0 avisos** em 24 arquivos.
+  - `npm run build --prefix client`: build do Vite concluído com sucesso em **1.17s** (127 módulos).
+- **Próximo passo**: Yuri homologar no navegador:
+  - Abrir a aba "Entrega de Kit" e conferir que "ÚLTIMAS ENTREGAS" já exibe os atletas ordenados crescentemente por número (Nº 1, Nº 2, Nº 5...).
+  - Realizar novas entregas e conferir que cada atleta entregue se posiciona exatamente em sua posição numérica natural (1, 2, 3, 4, 5...).
+

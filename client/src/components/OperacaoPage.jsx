@@ -19,6 +19,7 @@ import {
   normalizeAthleteDetail,
 } from '../utils/athleteDetail.js'
 import {
+  compareAthleteNumbers,
   getAthleteColumnWidth,
   getAthleteTableColumns,
   getAthleteTableValue,
@@ -464,13 +465,42 @@ export default function OperacaoPage({
     }
   }, [athleteColumnSchema, currentEvent.id])
 
-  // Deliveries list
+  // Deliveries list: sempre ordenado de forma crescente por número de peito (1, 2, 3...)
   const [deliveries, setDeliveries] = useState(() => {
     try {
       if (!currentEvent.id) return []
       const saved = localStorage.getItem(`entregas_run_deliveries_${currentEvent.id}`)
-      if (saved) return JSON.parse(saved)
-      return []
+      let list = []
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed)) {
+          list = parsed
+        }
+      }
+
+      // Reconciliação imediata na montagem com atletas já entregues no storage
+      const savedAthletes = localStorage.getItem(`entregas_run_athletes_${currentEvent.id}`)
+      if (savedAthletes) {
+        const athletesList = JSON.parse(savedAthletes)
+        const existingIds = new Set(list.map((d) => String(d.id)))
+        for (const a of athletesList) {
+          if (a.status === 'ENTREGUE' && !existingIds.has(String(a.numero))) {
+            list.push({
+              id: a.numero,
+              name: a.nome,
+              doc: a.doc,
+              category: a.categoria || 'GERAL',
+              size: a.camiseta || 'M',
+              kit: a.kit || 'Kit Padrão',
+              time: a.entregueEm || 'Entregue',
+              dataHora: a.entregueEm || new Date().toLocaleString('pt-BR'),
+            })
+            existingIds.add(String(a.numero))
+          }
+        }
+      }
+
+      return list.sort((a, b) => compareAthleteNumbers(a.id, b.id))
     } catch {
       return []
     }
@@ -753,6 +783,30 @@ export default function OperacaoPage({
       }
       return updated
     })
+
+    const importedDelivered = (newAthletes || []).filter((a) => a.status === 'ENTREGUE')
+    if (importedDelivered.length > 0) {
+      setDeliveries((prev) => {
+        const existingIds = new Set(prev.map((d) => String(d.id)))
+        const merged = [...prev]
+        for (const a of importedDelivered) {
+          if (!existingIds.has(String(a.numero))) {
+            merged.push({
+              id: a.numero,
+              name: a.nome,
+              doc: a.doc,
+              category: a.categoria || 'GERAL',
+              size: a.camiseta || 'M',
+              kit: a.kit || 'Kit Padrão',
+              time: a.entregueEm || 'Entregue',
+              dataHora: a.entregueEm || new Date().toLocaleString('pt-BR'),
+            })
+            existingIds.add(String(a.numero))
+          }
+        }
+        return merged.sort((a, b) => compareAthleteNumbers(a.id, b.id))
+      })
+    }
   }
 
   function handleRestoreOriginalAthletes() {
@@ -1028,8 +1082,8 @@ export default function OperacaoPage({
       return found ? updated : [normalized, ...updated]
     })
 
-    setDeliveries((prev) =>
-      prev.map((delivery) => {
+    setDeliveries((prev) => {
+      const updated = prev.map((delivery) => {
         if (String(delivery.id) !== String(selectedAthlete.numero)) return delivery
         return {
           ...delivery,
@@ -1041,7 +1095,8 @@ export default function OperacaoPage({
           kit: normalized.kit,
         }
       })
-    )
+      return updated.sort((a, b) => compareAthleteNumbers(a.id, b.id))
+    })
 
     const recipient = normalized.entreguePara || normalized.nome
     setAudits((prev) =>
@@ -1237,7 +1292,7 @@ export default function OperacaoPage({
       )
     )
 
-    // Add delivery record
+    // Add delivery record (mantendo a lista sempre em ordem numérica crescente)
     const newDelivery = {
       id: athlete.numero,
       name: athlete.nome,
@@ -1248,7 +1303,10 @@ export default function OperacaoPage({
       time: 'Agora',
       dataHora: dataHoraFormatada,
     }
-    setDeliveries((prev) => [newDelivery, ...prev])
+    setDeliveries((prev) => {
+      const next = [newDelivery, ...prev.filter((d) => String(d.id) !== String(newDelivery.id))]
+      return next.sort((a, b) => compareAthleteNumbers(a.id, b.id))
+    })
 
     // Registra na Auditoria
     const newAudit = {
@@ -1376,22 +1434,26 @@ export default function OperacaoPage({
     setSelectedComprovante(fallbackAudit)
   }
 
-  // Filtered Athletes for Tab 2
-  const filteredAthletes = athletes.filter((a) => {
-    const q = atletaSearch.toLowerCase().trim()
-    const matchesSearch =
-      !q ||
-      (a.nome && a.nome.toLowerCase().includes(q)) ||
-      (a.numero && String(a.numero).includes(q)) ||
-      (a.doc && a.doc.toLowerCase().includes(q))
+  // Filtered Athletes for Tab 2 (sempre ordenados de forma crescente por número de peito)
+  const filteredAthletes = useMemo(() => {
+    return athletes
+      .filter((a) => {
+        const q = atletaSearch.toLowerCase().trim()
+        const matchesSearch =
+          !q ||
+          (a.nome && a.nome.toLowerCase().includes(q)) ||
+          (a.numero && String(a.numero).includes(q)) ||
+          (a.doc && a.doc.toLowerCase().includes(q))
 
-    const matchesFilter =
-      atletaFilter === 'TODOS' ||
-      (atletaFilter === 'PENDENTES' && a.status !== 'ENTREGUE') ||
-      (atletaFilter === 'ENTREGUES' && a.status === 'ENTREGUE')
+        const matchesFilter =
+          atletaFilter === 'TODOS' ||
+          (atletaFilter === 'PENDENTES' && a.status !== 'ENTREGUE') ||
+          (atletaFilter === 'ENTREGUES' && a.status === 'ENTREGUE')
 
-    return matchesSearch && matchesFilter
-  })
+        return matchesSearch && matchesFilter
+      })
+      .sort((a, b) => compareAthleteNumbers(a.numero, b.numero))
+  }, [athletes, atletaSearch, atletaFilter])
 
   // Paginação da grade de atletas (10 por página). O reset para a página 1
   // acontece durante a renderização (padrão oficial do React para "ajustar
@@ -1435,19 +1497,52 @@ export default function OperacaoPage({
     [visibleAthleteTableColumns]
   )
 
-  // Filtered Athletes for Tab 1 (Kit Search)
-  const searchResultsKit = kitSearch.trim()
-    ? athletes.filter((a) => {
-        const q = kitSearch.toLowerCase().trim()
+  // Filtered Athletes for Tab 1 (Kit Search - sempre ordenados por número)
+  const searchResultsKit = useMemo(() => {
+    if (!kitSearch.trim()) return []
+    const q = kitSearch.toLowerCase().trim()
+    return athletes
+      .filter((a) => {
         return a.status !== 'ENTREGUE' && (
           (a.nome && a.nome.toLowerCase().includes(q)) ||
           (a.numero && String(a.numero).includes(q)) ||
           (a.doc && a.doc.toLowerCase().includes(q))
         )
       })
-    : []
+      .sort((a, b) => compareAthleteNumbers(a.numero, b.numero))
+  }, [athletes, kitSearch])
 
-  const hasDeliveries = deliveries.length > 0
+  // Lista de entregas sempre ordenada por número de peito de forma crescente (1, 2, 3...)
+  const sortedDeliveries = useMemo(() => {
+    return [...deliveries].sort((a, b) => compareAthleteNumbers(a.id, b.id))
+  }, [deliveries])
+
+  const hasDeliveries = sortedDeliveries.length > 0
+
+  function handleRefreshDeliveries() {
+    setDeliveries((prev) => {
+      const existingIds = new Set(prev.map((d) => String(d.id)))
+      const merged = [...prev]
+
+      for (const a of athletes) {
+        if (a.status === 'ENTREGUE' && !existingIds.has(String(a.numero))) {
+          merged.push({
+            id: a.numero,
+            name: a.nome,
+            doc: a.doc,
+            category: a.categoria || 'GERAL',
+            size: a.camiseta || 'M',
+            kit: a.kit || 'Kit Padrão',
+            time: a.entregueEm || 'Entregue',
+            dataHora: a.entregueEm || new Date().toLocaleString('pt-BR'),
+          })
+          existingIds.add(String(a.numero))
+        }
+      }
+
+      return merged.sort((a, b) => compareAthleteNumbers(a.id, b.id))
+    })
+  }
 
   return (
     <div className="operacao-layout">
@@ -2114,7 +2209,12 @@ export default function OperacaoPage({
                 <section className="ultimas-entregas-section">
                   <div className="ultimas-entregas-header">
                     <h3 className="section-heading">ÚLTIMAS ENTREGAS</h3>
-                    <button type="button" className="refresh-btn" title="Atualizar">
+                    <button
+                      type="button"
+                      className="refresh-btn"
+                      title="Atualizar lista de entregas"
+                      onClick={handleRefreshDeliveries}
+                    >
                       <RefreshIcon />
                     </button>
                   </div>
@@ -2126,7 +2226,7 @@ export default function OperacaoPage({
                       </div>
                     ) : (
                       <div className="deliveries-list">
-                        {deliveries.map((item, idx) => (
+                        {sortedDeliveries.map((item, idx) => (
                           <div
                             key={`${item.id}-${idx}`}
                             className="delivery-item-row"
