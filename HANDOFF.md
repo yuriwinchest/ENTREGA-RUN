@@ -916,3 +916,13 @@
   - Playwright com Chrome real em viewport 390×844 validou: busca enxuta; desaparecimento do entregue; salvamento mantendo `PENDENTE`; salvar+entregar com uma única auditoria; confirmação de descarte nas abas e no Voltar; colunas padrão/custom/varias vazias; indicador e rolagem mobile. Evidência local ignorada pelo Git: `scratch/operacao-mobile-qa.png`.
   - Busca estática confirmou ausência de prefixo `#` nos identificadores renderizados.
 - **Produção**: nenhuma publicação feita nesta entrada. O push para `main` aciona produção; o veto operacional anterior permanece até condição de exceção válida ou correção do pipeline/auth.
+
+## 2026-09-19 — Decisão do PO: fluxo de deploy automático mantido; correção de auth agendada (decisão)
+
+- **Decisão do Yuri (PO)**: o fluxo de deploy automático (push na `main` → GitHub Actions `deploy.yml` → SSH na VPS → Docker + healthcheck) permanece **100% automático** para o dia a dia de desenvolvimento, sem cerimônia adicional. O PO aceita o risco do ambiente publicado em fase de homologação.
+- **Esclarecimento confirmado no checkout**: o veto do Crowley é regra de governança TONE (regra 7), não trava técnica no pipeline — o workflow `.github/workflows/deploy.yml` roda normalmente a cada push na `main` (valida build do client, atualiza `/opt/entregas-run` via `git reset --hard origin/main`, rebuild Docker com `--no-cache`, healthcheck em `http://127.0.0.1:3050/api/health`). Secrets VPS (`VPS_HOST`, `VPS_USERNAME`, `VPS_PASSWORD`) vivem apenas no GitHub Secrets.
+- **Push efetuado nesta data**: commit `fc5e58d` (feat: zoom view, grade de atletas, busca de entrega + novos utils `athleteDetail.js`/`athleteTable.js`) enviado a `origin/main`; lint 0 erros e build Vite 99 módulos validados antes do push. Deploy disparado pelo workflow automático.
+- **Riscos conhecidos e aceitos pelo PO enquanto o veto vigora**:
+  1. Autorização ADMIN/Operador é somente frontend (`role` no `localStorage` `entregas_run_user`, falsificável via DevTools; `OperacaoPage.jsx` assume `ADMIN` como fallback). Dados de atletas/CPF/contato ficam no `localStorage` do cliente, sem verificação no backend.
+  2. `server/server.js` linha 51: senha admin com fallback em código (`ADMIN_PASSWORD || '...'`) versionado no GitHub — se a VPS não definir a env, a senha padrão pública é a que vale.
+- **Próxima entrega técnica agendada (derruba o veto do Crowley de forma definitiva)**: autenticação real com token/sessão emitida pelo `/api/login`, checagem de permissão (ADMIN/SUPERVISOR/OPERADOR + vínculo de evento) no backend em cada rota, remoção do fallback de senha do código e migração dos dados de atletas/entregas/auditoria do `localStorage` para o backend. Deploy continua automático após a correção.
