@@ -1097,3 +1097,31 @@
   - Abrir a aba "Entrega de Kit" e conferir que "ÚLTIMAS ENTREGAS" já exibe os atletas ordenados crescentemente por número (Nº 1, Nº 2, Nº 5...).
   - Realizar novas entregas e conferir que cada atleta entregue se posiciona exatamente em sua posição numérica natural (1, 2, 3, 4, 5...).
 
+## 2026-09-20 — Revisão Técnica Externa e Veto de Segurança Acatado (Fase A, construir)
+
+- **Revisão Técnica recebida do PO (auditoria "mouse spak")**:
+  - Validou que a integração do Jev existe, funciona e foi comprovada via terminal e código.
+  - Apontou com precisão cirúrgica duas imprecisões e uma omissão grave:
+    1. *Omissão grave de segurança (Veto de Crowley)*: API key da TypeSafe estava hardcoded como fallback em `scripts/jev-prompt-router.js`, `scripts/jev-pre-invocation-hook.cjs` e `COMO-INSTALAR-JEV-EM-OUTROS-PROJETOS.md`, violando Invariante 4.
+    2. *Imprecisão metodológica no JSON*: O JSON apresentado no turno anterior como "resposta bruta" continha 3 perguntas (`especialista_tone`, `tipo_tarefa`, `severidade`) de um snippet customizado e não as 5 perguntas completas do router oficial (`toca_producao`, `requer_testes_reais`).
+    3. *Imprecisão na estimativa de tokens*: A economia de "60-75%" foi uma estimativa/hipótese arquitetural teórica e não uma medição A/B empírica registrada em disco.
+    4. *Caminho absoluto em `.agents/hooks.json`*: Usava `d:\Projetos\...` em vez do caminho relativo portável `./scripts/...`.
+- **Ações Imediatas de Remediação (TONE & Crowley)**:
+  1. **Remoção total de segredos**:
+     - Eliminado qualquer fallback hardcoded de chave em `scripts/jev-prompt-router.js`, `scripts/jev-pre-invocation-hook.cjs` e `COMO-INSTALAR-JEV-EM-OUTROS-PROJETOS.md`.
+     - Chave agora é lida estritamente de `process.env.TYPESAFE_API_KEY` (com suporte a carregamento nativo de `.env` via `process.loadEnvFile()`).
+     - Criado `.env.example` sem valores sensíveis.
+     - `.env` local configurado e protegido no `.gitignore`.
+     - Orientação ao PO para rotacionar/revogar o token antigo no painel da TypeSafe.
+  2. **Portabilidade do Hook**:
+     - `.agents/hooks.json` corrigido para `node "./scripts/jev-pre-invocation-hook.cjs"` (relativo e universal).
+  3. **Telemetria Real Implementada**:
+     - `scripts/jev-prompt-router.js` agora registra telemetria real em `.metrics/jev-telemetry.jsonl` (ignorado no `.gitignore`), gravando timestamp, prompt, tempo de resposta em ms, tokens de entrada/saída e respostas completas da API.
+- **Validações reais**:
+  - `node scripts/jev-prompt-router.js "teste de funcionamento do router"`: executou em 1079ms, exit 0, registrou telemetria em `.metrics/jev-telemetry.jsonl`.
+  - `git grep "apikey_245fdc"`: 0 ocorrências no repositório rastreado.
+  - `npm run lint --prefix client`: 0 erros e 0 avisos.
+  - `npm run build --prefix client`: 127 módulos construídos em 1.17s.
+- **Próximo passo**: Yuri homologar as telas e rotacionar a chave no dashboard da TypeSafe se desejar.
+
+

@@ -13,6 +13,7 @@ dist/
 dist-ssr/
 *.log
 logs/
+.metrics/
 scratch/
 
 # Editor / OS

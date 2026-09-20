@@ -3,11 +3,28 @@
  * scripts/jev-prompt-router.js
  * 
  * Demonstração prática do padrão "Model Routing & Prompt Orchestrator" usando Jev (TypeSafe System One).
- * O Jev avalia em ~150ms o prompt bruto do usuário, classifica intenções, identifica o especialista da
+ * O Jev avalia em ~150ms a 1s o prompt bruto do usuário, classifica intenções, identifica o especialista da
  * Operação TONE necessário e gera as diretivas estruturadas que alimentam o LLM (Gemini/Claude).
  */
 
-const API_KEY = process.env.TYPESAFE_API_KEY || 'apikey_245fdc191a32dd84185941696d4ce97f966_8613e4e612e8e55a46f9ba92c568cc2b5681e75c29ef981c28d47edd1a1fa54f'
+import fs from 'node:fs'
+import path from 'node:path'
+
+// Carrega .env nativamente se disponível no Node
+try {
+  if (typeof process.loadEnvFile === 'function') {
+    process.loadEnvFile()
+  }
+} catch {
+  // .env inexistente ou silencioso
+}
+
+const API_KEY = process.env.TYPESAFE_API_KEY
+if (!API_KEY) {
+  console.error('❌ [JEV ROUTER] Erro: TYPESAFE_API_KEY não configurada no ambiente ou no arquivo .env.')
+  console.error('👉 Defina TYPESAFE_API_KEY no arquivo .env local ou nas variáveis de ambiente do sistema.')
+  process.exit(1)
+}
 
 async function routeWithJev(userPrompt) {
   console.log('\n' + '='.repeat(70))
@@ -91,6 +108,29 @@ async function routeWithJev(userPrompt) {
   console.log(`📊 Severidade Calibrada:       ${answers.severidade.score.toFixed(2)} / 2.00 (Confiança: ${(answers.severidade.confidence * 100).toFixed(1)}%)`)
   console.log(`💰 Tokens consumidos:          Entrada: ${data.usage.input_tokens} | Saída: ${data.usage.output_tokens}`)
   console.log('─'.repeat(70) + '\n')
+
+  // Gravação de telemetria real auditável
+  try {
+    const metricsDir = path.resolve(process.cwd(), '.metrics')
+    if (!fs.existsSync(metricsDir)) {
+      fs.mkdirSync(metricsDir, { recursive: true })
+    }
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      prompt: userPrompt,
+      durationMs,
+      model: data.model,
+      usage: data.usage,
+      answers: data.answers,
+    }
+    fs.appendFileSync(
+      path.join(metricsDir, 'jev-telemetry.jsonl'),
+      JSON.stringify(logEntry) + '\n',
+      'utf8'
+    )
+  } catch {
+    // telemetria silenciosa
+  }
 
   // GERAÇÃO DO PROMPT OTIMIZADO PARA O GEMINI / CLAUDE
   const especialistaNome = {

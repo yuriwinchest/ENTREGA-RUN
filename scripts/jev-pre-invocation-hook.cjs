@@ -11,9 +11,24 @@
 const fs = require('fs');
 const path = require('path');
 
-const API_KEY = process.env.TYPESAFE_API_KEY || 'apikey_245fdc191a32dd84185941696d4ce97f966_8613e4e612e8e55a46f9ba92c568cc2b5681e75c29ef981c28d47edd1a1fa54f';
+// Carrega .env se disponível nativamente no Node
+try {
+  if (typeof process.loadEnvFile === 'function') {
+    process.loadEnvFile();
+  }
+} catch {
+  // ignore
+}
+
+const API_KEY = process.env.TYPESAFE_API_KEY;
 
 async function main() {
+  if (!API_KEY) {
+    // Sem chave configurada no ambiente ou .env, prossegue sem injetar diretiva
+    console.log(JSON.stringify({ injectSteps: [] }));
+    return;
+  }
+
   let stdinData = '';
   process.stdin.setEncoding('utf8');
 

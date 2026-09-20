@@ -15,10 +15,11 @@ O **Jev** é o modelo de **System One da TypeSafe**. Ele avalia o prompt bruto d
 * **Endpoint Oficial**: `https://api.typesafe.ai/v1/systemone`
 * **Modelo Recomendado**: `jev-latest` (ou `jev-1.13.0`)
 * **Chave de API (API Key)**:
+Configurada exclusivamente na variável de ambiente `TYPESAFE_API_KEY` ou no arquivo `.env` do projeto:
+```bash
+TYPESAFE_API_KEY=sua_chave_typesafe_aqui
 ```
-apikey_245fdc191a32dd84185941696d4ce97f966_8613e4e612e8e55a46f9ba92c568cc2b5681e75c29ef981c28d47edd1a1fa54f
-```
-*(Também pode ser configurada na variável de ambiente `TYPESAFE_API_KEY` ou no `.env` do projeto).*
+*(Nunca commite a chave real no repositório).*
 
 ---
 
@@ -59,7 +60,7 @@ Crie o arquivo `scripts/jev-pre-invocation-hook.cjs` na raiz do projeto com o se
 const fs = require('fs');
 const path = require('path');
 
-const API_KEY = process.env.TYPESAFE_API_KEY || 'apikey_245fdc191a32dd84185941696d4ce97f966_8613e4e612e8e55a46f9ba92c568cc2b5681e75c29ef981c28d47edd1a1fa54f';
+const API_KEY = process.env.TYPESAFE_API_KEY;
 
 async function main() {
   let stdinData = '';
@@ -255,7 +256,7 @@ Crie o arquivo `scripts/jev-prompt-router.js` para testar prompts diretamente vi
 
 ```javascript
 #!/usr/bin/env node
-const API_KEY = process.env.TYPESAFE_API_KEY || 'apikey_245fdc191a32dd84185941696d4ce97f966_8613e4e612e8e55a46f9ba92c568cc2b5681e75c29ef981c28d47edd1a1fa54f';
+const API_KEY = process.env.TYPESAFE_API_KEY;
 
 async function routeWithJev(userPrompt) {
   console.log('\n🤖 [JEV ROUTER] Enviando prompt para o modelo Jev da TypeSafe...');
