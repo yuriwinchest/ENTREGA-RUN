@@ -368,8 +368,17 @@ export default function ImportarAtletasModal({
       Object.entries(columnMapping).forEach(([colIdxStr, fieldKey]) => {
         const colIdx = Number(colIdxStr)
         const val = row[colIdx] !== undefined ? String(row[colIdx]).trim() : ''
+        const headerLabel = String(parsedHeaders[colIdx] || '').trim()
 
-        if (fieldKey === 'ignore') return
+        if (fieldKey === 'ignore') {
+          // PO: nenhum campo da planilha anexada pode ser perdido — a coluna
+          // marcada como "Não importar" vira campo personalizado com o nome
+          // original do cabeçalho e aparece na grade da aba Atletas.
+          if (headerLabel && !isReservedAthleteCustomField(headerLabel)) {
+            athlete.customFields[headerLabel] = val
+          }
+          return
+        }
 
         if (fieldKey.startsWith('custom:')) {
           const customKey = fieldKey.replace('custom:', '').trim()

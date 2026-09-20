@@ -19,6 +19,7 @@ import {
   normalizeAthleteDetail,
 } from '../utils/athleteDetail.js'
 import {
+  getAthleteColumnWidth,
   getAthleteTableColumns,
   getAthleteTableValue,
   mergeAthleteColumnSchemas,
@@ -328,6 +329,8 @@ export default function OperacaoPage({
   const [kitSearch, setKitSearch] = useState('')
   const [atletaSearch, setAtletaSearch] = useState('')
   const [atletaFilter, setAtletaFilter] = useState('TODOS')
+  const [atletaPage, setAtletaPage] = useState(1)
+  const ATHLETES_PER_PAGE = 10
 
   // Modal Novo Atleta
   const [showAddAthleteModal, setShowAddAthleteModal] = useState(false)
@@ -1329,6 +1332,22 @@ export default function OperacaoPage({
     return matchesSearch && matchesFilter
   })
 
+  // Paginação da grade de atletas (10 por página). O reset para a página 1
+  // acontece durante a renderização (padrão oficial do React para "ajustar
+  // estado quando uma prop muda"), sem efeito extra em cascata.
+  const [atletaPageResetKey, setAtletaPageResetKey] = useState(`${atletaSearch}|${atletaFilter}`)
+  const atletaListKey = `${atletaSearch}|${atletaFilter}`
+  if (atletaPageResetKey !== atletaListKey) {
+    setAtletaPageResetKey(atletaListKey)
+    setAtletaPage(1)
+  }
+
+  const athleteTotalPages = Math.max(1, Math.ceil(filteredAthletes.length / ATHLETES_PER_PAGE))
+  const currentAthletePage = Math.min(atletaPage, athleteTotalPages)
+  const athletePageStart = (currentAthletePage - 1) * ATHLETES_PER_PAGE
+  const athletePageEnd = Math.min(athletePageStart + ATHLETES_PER_PAGE, filteredAthletes.length)
+  const paginatedAthletes = filteredAthletes.slice(athletePageStart, athletePageEnd)
+
   const athleteTableColumns = useMemo(
     () => getAthleteTableColumns(athletes, athleteColumnSchema),
     [athletes, athleteColumnSchema]
@@ -1340,6 +1359,20 @@ export default function OperacaoPage({
       (column) => column.type === 'standard' && operatorColumns.has(column.key)
     )
   }, [athleteTableColumns, isOperator])
+
+  // minWidth real da grade: soma das larguras estimadas das colunas, para
+  // que a última coluna (ex.: CAMISETA) nunca seja cortada pela borda.
+  const athleteTableMinWidth = useMemo(
+    () =>
+      Math.max(
+        780,
+        visibleAthleteTableColumns.reduce(
+          (total, column) => total + getAthleteColumnWidth(column),
+          0
+        )
+      ),
+    [visibleAthleteTableColumns]
+  )
 
   // Filtered Athletes for Tab 1 (Kit Search)
   const searchResultsKit = kitSearch.trim()
@@ -2117,7 +2150,7 @@ export default function OperacaoPage({
               <div className="table-responsive">
                 <table
                   className="atletas-table"
-                  style={{ minWidth: `${Math.max(780, visibleAthleteTableColumns.length * 145)}px` }}
+                  style={{ minWidth: `${athleteTableMinWidth}px` }}
                 >
                   <thead>
                     <tr>
@@ -2139,7 +2172,7 @@ export default function OperacaoPage({
                         </td>
                       </tr>
                     ) : (
-                      filteredAthletes.map((a) => (
+                      paginatedAthletes.map((a) => (
                         <tr
                           key={a.id || a.numero}
                           onClick={() => handleOpenAthleteDetail(a.numero)}
@@ -2168,8 +2201,34 @@ export default function OperacaoPage({
 
             <div className="atletas-table-footer">
               <span>
-                Mostrando {filteredAthletes.length} de {athletes.length} atletas · {visibleAthleteTableColumns.length} campos exibidos.
+                {filteredAthletes.length === 0
+                  ? `0 de ${athletes.length} atletas · ${visibleAthleteTableColumns.length} campos exibidos.`
+                  : `Mostrando ${athletePageStart + 1}–${athletePageEnd} de ${filteredAthletes.length} atletas (total da base: ${athletes.length}) · ${visibleAthleteTableColumns.length} campos exibidos.`}
               </span>
+
+              {filteredAthletes.length > ATHLETES_PER_PAGE && (
+                <div className="atletas-pagination" role="navigation" aria-label="Paginação da lista de atletas">
+                  <button
+                    type="button"
+                    className="atletas-page-btn"
+                    disabled={currentAthletePage <= 1}
+                    onClick={() => setAtletaPage((p) => Math.max(1, p - 1))}
+                  >
+                    ← ANTERIOR
+                  </button>
+                  <span className="atletas-page-indicator">
+                    Página {currentAthletePage} de {athleteTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="atletas-page-btn"
+                    disabled={currentAthletePage >= athleteTotalPages}
+                    onClick={() => setAtletaPage((p) => Math.min(athleteTotalPages, p + 1))}
+                  >
+                    PRÓXIMA →
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

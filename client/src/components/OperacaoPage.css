@@ -524,7 +524,8 @@
 }
 
 .atletas-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: auto;
@@ -618,11 +619,75 @@
 
 .atletas-table-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   color: #64748b;
   font-size: 12px;
   font-weight: 600;
-  margin-top: 4px;
+  margin-top: 10px;
+}
+
+/* Paginação da grade de atletas (10 por página) */
+.atletas-pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.atletas-page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.atletas-page-btn:hover:not(:disabled) {
+  border-color: #ff5200;
+  color: #ff5200;
+  background: #fff7f2;
+}
+
+.atletas-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.atletas-page-indicator {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #0c142c;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .atletas-table-footer {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  .atletas-pagination {
+    justify-content: center;
+    width: 100%;
+  }
+  .atletas-page-btn {
+    flex: 1;
+    justify-content: center;
+  }
 }
 
 /* TAB 3: Estatísticas */

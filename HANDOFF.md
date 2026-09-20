@@ -968,3 +968,16 @@
   4. Nova faixa intermediária (`1025px–1400px`): botões viram grade 2×2 (`flex: 0 1 560px`), preservando o título em linha única. Abaixo de 1024px o layout empilhado existente e o grid 2×2 mobile continuam valendo.
 - **Validações reais**: `npm run lint --prefix client` 0 erros; `npm run build --prefix client` 127 módulos; `scratch/test_auditoria_responsiveness_and_selects.cjs` 18/18 PASS.
 - **Próximo passo**: Yuri homologar no PC (título em linha única e botões dentro do card em qualquer largura) e no celular (grid 2×2 intacto).
+
+## 2026-09-19 — Aba Atletas: todos os campos da planilha, correção de corte e paginação (Fase A, construir)
+
+- **Demandas do Yuri (PO)** (print da aba Atletas):
+  1. A grade deve exibir **todos os campos do arquivo anexado**, mesmo os que o admin marcou como "Não importar" no mapeamento da importação.
+  2. Responsividade: a coluna CAMISETA estava cortada pela borda direita do card.
+  3. Paginação: lista estava infinita; exibir 10 por página.
+- **Ações**:
+  1. **Importação sem perda** (`ImportarAtletasModal.jsx`): coluna marcada como "Não importar" agora entra como campo personalizado com o nome original do cabeçalho (`customFields`), e `buildImportColumnSchema` (`athleteTable.js`) passa a incluir essas colunas no schema da grade. A Associação de Planilhas já preservava tudo — comportamento unificado. Chaves reservadas/perigosas continuam bloqueadas.
+  2. **Corte da grade** (`OperacaoPage.css/jsx`, `athleteTable.js`): nova `getAthleteColumnWidth()` com largura estimada real por coluna (ex.: NOME 240px, DOCUMENTO 172px, CAMISETA 118px, custom por tamanho do rótulo); o `minWidth` da tabela passa a ser a soma real (antes era 145px/coluna, insuficiente com `white-space: nowrap`), e `.atletas-table` usa `width: max-content; min-width: 100%` — a última coluna nunca mais é esmagada pela borda; o scroll horizontal do card absorve o excedente.
+  3. **Paginação 10/página** (`OperacaoPage.jsx/css`): `ATHLETES_PER_PAGE = 10`, controles "← ANTERIOR / Página X de Y / PRÓXIMA →" no rodapé com contagem "Mostrando 1–10 de N (total da base: M) · C campos"; reset para a página 1 ao buscar/filtrar feito com o padrão oficial de ajuste de estado durante a renderização (sem `setState` em effect — lint react Compiler limpo). Mobile: botões ocupam a largura toda, empilhados.
+- **Validações reais**: `scratch/test_import_all_columns.mjs` (colunas "Não importar" entram como custom com nome original; reservadas/vazias bloqueadas) PASS; regressão `test_athlete_table_columns.mjs` e `test_athlete_detail_flow.mjs` PASS; lint 0 erros/avisos; build 127 módulos.
+- **Próximo passo**: Yuri homologar: importar uma planilha marcando colunas como "Não importar" e confirmar que aparecem na grade; conferir CAMISETA completa com scroll horizontal; navegar pelas páginas de 10 atletas.

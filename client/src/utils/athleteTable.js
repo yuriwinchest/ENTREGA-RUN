@@ -56,7 +56,23 @@ export function buildImportColumnSchema(headers = [], columnMapping = {}) {
 
   headers.forEach((header, columnIndex) => {
     const mappedField = columnMapping[columnIndex]
-    if (!mappedField || mappedField === 'ignore') return
+
+    // Colunas marcadas como "Não importar" entram como campo personalizado
+    // com o nome original — a grade sempre exibe todos os campos do arquivo.
+    if (!mappedField || mappedField === 'ignore') {
+      const cleanHeader = String(header || '').trim()
+      if (!cleanHeader || isReservedAthleteCustomField(cleanHeader)) return
+      const normalizedKey = normalizeColumnKey(`custom:${cleanHeader}`)
+      if (!normalizedKey || seen.has(normalizedKey)) return
+      seen.add(normalizedKey)
+      schema.push({
+        key: `custom:${cleanHeader}`,
+        customKey: cleanHeader,
+        label: cleanHeader.toLocaleUpperCase('pt-BR'),
+        type: 'custom',
+      })
+      return
+    }
 
     const isCustom = mappedField.startsWith('custom:')
     const customKey = isCustom ? mappedField.slice('custom:'.length).trim() : ''
@@ -121,6 +137,40 @@ export function getAthleteTableColumns(athletes = [], savedSchema = []) {
     standard,
     mergeAthleteColumnSchemas(savedSchema, discoveredCustom)
   )
+}
+
+const COLUMN_WIDTHS = {
+  numero: 92,
+  nome: 240,
+  nome_peito: 200,
+  doc: 172,
+  chip: 120,
+  nascimento: 142,
+  sexo: 90,
+  modalidade: 132,
+  categoria: 132,
+  camiseta: 118,
+  equipe: 180,
+  cidade: 160,
+  morador: 176,
+  contato: 160,
+  nacionalidade: 152,
+  kit: 142,
+  status: 112,
+  entregueEm: 176,
+  entreguePor: 176,
+  entreguePara: 176,
+}
+
+// Largura realista por coluna para o minWidth da grade — evita que a
+// última coluna (ex.: CAMISETA) seja cortada pela borda do card.
+export function getAthleteColumnWidth(column) {
+  if (!column) return 150
+  if (column.type === 'custom') {
+    const labelLength = String(column.label || '').length
+    return Math.min(240, Math.max(150, labelLength * 8 + 64))
+  }
+  return COLUMN_WIDTHS[column.key] || 150
 }
 
 export function getAthleteTableValue(athlete, column) {
