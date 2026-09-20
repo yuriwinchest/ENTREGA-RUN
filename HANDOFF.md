@@ -1,5 +1,25 @@
 # Handoff
 
+## Convenção de registro (obrigatória)
+
+- Cada entrada começa com `## AAAA-MM-DD — título` e informa: **Autor** (quem executou), pedido, arquivos alterados, validação real, riscos/pendências e próximo passo.
+- Quem executou é quem assina. Identifique-se pelo nome do agente/pessoa (Cline, Codex/Tony, Gemini, GPT, Yuri...). Nunca assine por outro agente nem registre trabalho que não foi feito.
+- Toda alteração — código, configuração, script, documentação ou esta memória — entra aqui antes de encerrar a tarefa.
+- Só fatos confirmados. Nunca senha, token, conteúdo de `.env`, dado pessoal ou instrução de acesso à produção.
+- Anexos técnicos vão em `docs/`, sempre referenciados pela entrada de memória.
+- Entradas anteriores a 20/09/2026 podem não registrar autor; não presuma autoria.
+
+## 2026-09-20 — Convenção de autoria na memória + validação do monitor pelo PO
+
+- **Autor: Cline** (agente de código executando no terminal/Cline deste projeto).
+- Pedido do PO: (1) confirmar que as mensagens estão chegando ao Jev; (2) instituir a regra de que toda alteração/ajuste seja gravada na memória identificando quem fez, para que outro LLM retome o projeto sabendo a autoria.
+- Validação feita pelo próprio PO no terminal: `npm run jev:watch -- --once --since=300` retornou 13 registros, 0 falhas, última chegada 62s antes e o veredito `OK: mensagens estão chegando ao Jev.`
+- Alterações desta tarefa: bloco "Convenção de registro" no topo desta memória; regra de registro obrigatório no `AGENTS.md`; mesma regra replicada no kit `D:\Projetos\Clientes\.ai-memory-kit` (AGENTS.md e HANDOFF.md) para valer em projetos novos.
+- Esclarecimento operacional registrado: `.metrics/jev-hook-events.jsonl` grava em UTC (`21:06:06Z`) e o `jev:watch` exibe em horário local (`18:06:06`) — é a mesma mensagem em fusos diferentes, não log atrasado.
+- Fato mantido: os registros existentes vêm de envios manuais (`real-check`, `cli-*`); o cliente atual (terminal/Cline) não dispara o hook PreInvocation. Uso garantido: `npm run jev:route -- "pedido"` antes de executar.
+- Próximo passo: rodar `jev:route` no início das tarefas (ou migrar para um cliente que execute hooks) e, depois, medir o efeito no desenvolvimento (com e sem Jev).
+
+
 ## 2026-09-20 — Correções da integração Jev + ponte gRPC (Fase A, construir)
 
 - Autor: Cline; pedido do PO: concluir as correções levantadas no diagnóstico e terminar a integração gRPC iniciada (deps instaladas, sem código).
