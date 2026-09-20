@@ -994,3 +994,30 @@
   5. `handleSaveAndDeliver` continua persistindo antes de entregar (rede de segurança), mas a UI impede o caminho com edição pendente.
 - **Validações reais**: E2E Playwright com Chrome real (viewport 390×844) atualizado e executado contra Vite :5174 — **PASS exit=0**: SALVO desabilitado na abertura; edição habilita SALVAR ALTERAÇÕES e desabilita ENTREGAR KIT; após salvar, botão vira SALVO e entrega reativa; entrega final mantém uma única auditoria; grade mobile e demais asserts intactos. `test_athlete_detail_flow.mjs` atualizado (assert do `deliverBlockedByEdits`) PASS; lint 0 erros/avisos; build 127 módulos.
 - **Próximo passo**: Yuri homologar no PC e no celular: editar nome → ver ENTREGAR bloqueado + aviso âmbar → salvar → entrega liberada → entregar.
+
+## 2026-09-19 — Aba Atletas: rolagem lateral mobile, proteção de clique vs drag e preservação do Desktop (Fase A, construir)
+
+- **Demanda do Yuri (PO)**: na aba "Atletas", no card onde mostra a tabela dos atletas, no celular o usuário não conseguia rolar a tabela para o lado para ver as categorias e os dados dos atletas. Ajustar para que a rolagem funcione no mobile e conferir ambos os modos (mobile e PC), garantindo que funcione direito sem misturar as coisas.
+- **Causa raiz identificada**:
+  1. **Bloqueio visual e tátil por colunas fixas**: No mobile, tanto a Coluna 0 (NÚMERO, 72px) quanto a Coluna 1 (NOME, 180px) estavam como `position: sticky`. Juntas ocupavam 252px de uma tela de ~360px (~75% da largura disponível!). O usuário ao tocar para arrastar tocava no meio da tela (sobre as colunas fixas), que não se moviam horizontalmente, dando a sensação de tabela travada e deixando apenas 100px para o restante de todas as outras colunas.
+  2. **Conflito de toque com clique na linha (`<tr onClick>`)**: Como cada linha possui `onClick` para abrir a ficha de detalhes do atleta, ao deslizar o dedo horizontalmente na tela do celular, o navegador disparava o evento sintético de clique no `touchend/pointerup`, abrindo inadvertidamente a ficha do atleta em vez de rolar a tabela.
+  3. **Propriedades de toque ausentes**: Faltava `touch-action: pan-x pan-y` em `.table-responsive` e nas células da tabela.
+- **Solução implementada**:
+  1. **Mobile (`@media (max-width: 768px)`)**:
+     - Coluna 0 (NÚMERO) permanece `position: sticky` (68px) com sombra de elevação suave (`box-shadow: 4px 0 8px -3px rgba(15, 23, 42, 0.22)`), servindo de âncora fixa para o operador saber de qual atleta é a linha.
+     - Coluna 1 (NOME) passa a `position: static`, rolando livremente junto com as demais colunas (MODALIDADE, CATEGORIA, CAMISETA, EQUIPE, STATUS, custom fields, etc.), liberando quase 300px de área visível e permitindo visualizar todos os dados.
+     - Adicionados botões de navegação rápida (`‹` e `›`) integrados à barra de aviso "↔ Deslize para ver todos os X campos" para permitir saltar colunas com um toque ou deslizando o dedo.
+     - Definido `touch-action: pan-x pan-y` e `-webkit-overflow-scrolling: touch` para rolagem inercial nativa fluida.
+  2. **PC / Desktop (`min-width: 769px`)**:
+     - Ambos NÚMERO (88px) e NOME (220px) permanecem fixos (`position: sticky`) com sombra lateral pronunciada, aproveitando a largura expansiva (1200px+) da tela de computador sem interferência.
+  3. **Guarda de Toque/Arrasto vs Clique**:
+     - Implementado rastreamento de pointer (`tableDragRef` + listeners globais ativos durante o toque). Se houver movimento horizontal/vertical > 6px, a ação é classificada como rolagem e o clique na linha é bloqueado, impedindo que a ficha de detalhes abra por acidente ao arrastar. Um toque estático (sem arrasto) continua abrindo a ficha normalmente.
+     - Ao fechar a ficha do atleta ("VOLTAR À LISTA"), o sistema restaura a aba de origem (`detailSourceTab`), mantendo o operador na aba "Atletas".
+- **Validações reais**:
+  - `scratch/test_athlete_table_scroll_mobile_and_pc.cjs` (Chrome real Playwright dual-mode):
+    - Mobile (390×844): Coluna 0 sticky (68px); Coluna 1 estática fluida; botões `›` e `‹` rolam com sucesso; gesto de arrasto horizontal rola a tabela e NÃO abre a ficha; toque estático abre a ficha; botão VOLTAR fecha e retorna à lista de atletas. **PASS**.
+    - Desktop (1440×900): Coluna 0 (88px) e Coluna 1 (220px) sticky; rolagem horizontal até 500px fluida; clique na linha abre a ficha; layout expansivo intacto. **PASS**.
+  - Regressão completa: `test_operacao_mobile_e2e.cjs`, `test_athlete_detail_flow.mjs`, `test_athlete_table_columns.mjs`, `test_import_all_columns.mjs`, `test_auditoria_responsiveness_and_selects.cjs` — **todos 100% PASS**.
+  - `npm run lint --prefix client`: oxlint 0 erros e 0 avisos em 24 arquivos.
+  - `npm run build --prefix client`: 127 módulos construídos em 1.17s.
+- **Próximo passo**: Yuri homologar no celular (arrastar para os lados para ver modalidades, categorias e dados; tocar nos botões `‹` e `›`; tocar na linha para abrir a ficha) e no PC (colunas fixas NÚMERO e NOME preservadas na tela grande).

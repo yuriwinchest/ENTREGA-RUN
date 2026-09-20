@@ -341,12 +341,62 @@ export default function OperacaoPage({
 
   // Selected athlete for detailed kit delivery view (Photo reference)
   const [selectedAthlete, setSelectedAthlete] = useState(null)
+  const [detailSourceTab, setDetailSourceTab] = useState(null)
   const [detailForm, setDetailForm] = useState(null)
   const [detailInitialForm, setDetailInitialForm] = useState(null)
   const [detailFeedback, setDetailFeedback] = useState('')
   const [detailActionInProgress, setDetailActionInProgress] = useState(false)
   const detailActionLockRef = useRef(false)
   const deliveryLocksRef = useRef(new Set())
+  const tableResponsiveRef = useRef(null)
+  const tableDragRef = useRef({ x: 0, y: 0, moved: false, time: 0 })
+
+  function handleTablePointerDown(e) {
+    const startX = e.clientX ?? e.touches?.[0]?.clientX ?? 0
+    const startY = e.clientY ?? e.touches?.[0]?.clientY ?? 0
+    tableDragRef.current = {
+      x: startX,
+      y: startY,
+      moved: false,
+      time: Date.now(),
+    }
+
+    function onMove(moveEvt) {
+      const curX = moveEvt.clientX ?? moveEvt.touches?.[0]?.clientX ?? 0
+      const curY = moveEvt.clientY ?? moveEvt.touches?.[0]?.clientY ?? 0
+      if (Math.abs(curX - startX) > 6 || Math.abs(curY - startY) > 6) {
+        tableDragRef.current.moved = true
+      }
+    }
+
+    function onUp() {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('touchend', onUp)
+      if (tableDragRef.current.moved) {
+        window.setTimeout(() => {
+          tableDragRef.current = { x: 0, y: 0, moved: false, time: 0 }
+        }, 300)
+      } else {
+        tableDragRef.current.time = 0
+      }
+    }
+
+    window.addEventListener('pointermove', onMove, { passive: true })
+    window.addEventListener('touchmove', onMove, { passive: true })
+    window.addEventListener('pointerup', onUp, { passive: true })
+    window.addEventListener('touchend', onUp, { passive: true })
+  }
+
+  function handleRowClick(e, athleteNumero) {
+    if (tableDragRef.current.moved) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
+    handleOpenAthleteDetail(athleteNumero)
+  }
 
   const detailHasChanges = useMemo(
     () => hasAthleteDetailChanges(detailInitialForm, detailForm),
@@ -904,6 +954,7 @@ export default function OperacaoPage({
       setDetailInitialForm(buildAthleteDetailDraft(fallbackAthlete))
     }
     setDetailFeedback('')
+    setDetailSourceTab(activeTab)
     setActiveTab('entrega')
     publishEspelho('ATENDENDO', selectedAthlete)
   }
@@ -916,10 +967,15 @@ export default function OperacaoPage({
       if (!shouldDiscard) return false
     }
 
+    const returnTab = detailSourceTab
     setSelectedAthlete(null)
     setDetailForm(null)
     setDetailInitialForm(null)
     setDetailFeedback('')
+    setDetailSourceTab(null)
+    if (returnTab && returnTab !== 'entrega') {
+      setActiveTab(returnTab)
+    }
     publishEspelho('LIVRE')
     return true
   }
@@ -2152,10 +2208,33 @@ export default function OperacaoPage({
 
             <div className="atletas-table-card">
               <div className="atletas-table-scroll-hint">
-                <span aria-hidden="true">↔</span>
-                Deslize para ver todos os {visibleAthleteTableColumns.length} campos
+                <button
+                  type="button"
+                  className="atletas-scroll-btn"
+                  onClick={() => tableResponsiveRef.current?.scrollBy({ left: -240, behavior: 'smooth' })}
+                  aria-label="Rolar tabela para a esquerda"
+                  title="Rolar para a esquerda"
+                >
+                  ‹
+                </button>
+                <span className="atletas-scroll-hint-label">
+                  <span aria-hidden="true">↔</span> Deslize para ver todos os {visibleAthleteTableColumns.length} campos
+                </span>
+                <button
+                  type="button"
+                  className="atletas-scroll-btn"
+                  onClick={() => tableResponsiveRef.current?.scrollBy({ left: 240, behavior: 'smooth' })}
+                  aria-label="Rolar tabela para a direita"
+                  title="Rolar para a direita"
+                >
+                  ›
+                </button>
               </div>
-              <div className="table-responsive">
+              <div
+                ref={tableResponsiveRef}
+                className="table-responsive"
+                onPointerDown={handleTablePointerDown}
+              >
                 <table
                   className="atletas-table"
                   style={{ minWidth: `${athleteTableMinWidth}px` }}
@@ -2183,7 +2262,7 @@ export default function OperacaoPage({
                       paginatedAthletes.map((a) => (
                         <tr
                           key={a.id || a.numero}
-                          onClick={() => handleOpenAthleteDetail(a.numero)}
+                          onClick={(e) => handleRowClick(e, a.numero)}
                           style={{ cursor: 'pointer' }}
                           title="Clique para abrir detalhes do atleta"
                         >

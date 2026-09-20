@@ -499,15 +499,22 @@
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(12, 20, 44, 0.03);
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .table-responsive {
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
   scrollbar-color: #94a3b8 #f1f5f9;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
 }
 
 .table-responsive::-webkit-scrollbar {
@@ -516,6 +523,7 @@
 
 .table-responsive::-webkit-scrollbar-track {
   background: #f1f5f9;
+  border-radius: 999px;
 }
 
 .table-responsive::-webkit-scrollbar-thumb {
@@ -531,6 +539,7 @@
   table-layout: auto;
   text-align: left;
   font-size: 12.5px;
+  touch-action: pan-x pan-y;
 }
 
 .atletas-table thead tr {
@@ -548,6 +557,7 @@
   color: #64748b;
   text-transform: uppercase;
   white-space: nowrap;
+  touch-action: pan-x pan-y;
 }
 
 .atletas-table td {
@@ -559,6 +569,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  touch-action: pan-x pan-y;
 }
 
 .atletas-table .athlete-name-cell {
@@ -598,15 +609,50 @@
 .atletas-table-scroll-hint {
   display: none;
   align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 9px 12px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
   border-bottom: 1px solid #e2e8f0;
   background: #f8fafc;
   color: #64748b;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.2px;
+}
+
+.atletas-scroll-hint-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  user-select: none;
+}
+
+.atletas-scroll-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.atletas-scroll-btn:active {
+  background: #f1f5f9;
+  transform: scale(0.95);
 }
 
 .empty-table-cell {
@@ -3366,6 +3412,10 @@
     width: 100% !important;
   }
 
+  .atletas-table-card {
+    border-radius: 14px !important;
+  }
+
   .atletas-table-scroll-hint {
     display: flex !important;
   }
@@ -3373,19 +3423,36 @@
   .atletas-table th,
   .atletas-table td {
     padding: 12px 14px !important;
+    touch-action: pan-x pan-y !important;
+  }
+
+  .table-responsive {
+    touch-action: pan-x pan-y !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .atletas-table .sticky-athlete-column-0 {
-    width: 72px !important;
-    min-width: 72px !important;
-    max-width: 72px !important;
+    position: sticky !important;
+    left: 0 !important;
+    width: 68px !important;
+    min-width: 68px !important;
+    max-width: 68px !important;
+    box-shadow: 4px 0 8px -3px rgba(15, 23, 42, 0.22) !important;
+    z-index: 3 !important;
+  }
+
+  .atletas-table th.sticky-athlete-column-0 {
+    z-index: 5 !important;
   }
 
   .atletas-table .sticky-athlete-column-1 {
-    left: 72px !important;
-    width: 180px !important;
-    min-width: 180px !important;
-    max-width: 180px !important;
+    position: static !important;
+    left: auto !important;
+    width: auto !important;
+    min-width: 170px !important;
+    max-width: none !important;
+    box-shadow: none !important;
+    z-index: auto !important;
   }
 
   .operacao-main {
