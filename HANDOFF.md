@@ -943,3 +943,16 @@
   - `npm run lint --prefix client`: 0 erros/avisos. `npm run build --prefix client`: 127 módulos, 0 erros.
 - **Limitação conhecida**: estado do espelho vive em memória do processo — restart do container zera o quadro (espelho volta a "GUICHÊ DISPONÍVEL" até a próxima publicação). Aparência configurada em outro PC só se propaga após o Admin abrir o modal/salvar novamente.
 - **Próximo passo**: Yuri homologar em dois aparelhos reais (PC do guichê + celular lendo o QR): abrir ficha → conferir ficha no espelho; entregar → banner verde; fechar → volta ao LIVRE; cores/logo aplicadas remotamente.
+
+## 2026-09-19 — Modal do Espelho cortando na tela (Fase A, construir)
+
+- **Demanda do Yuri (PO)** (print): com o QR Code adicionado, o card do Espelho estourou a altura da viewport e o botão "Copiar link" ficou cortado embaixo. Pedido de ajuste com responsividade.
+- **Causa raiz**: `.espelho-modal-card` não tinha `max-height`; o conteúdo da aba ACESSO cresceu (QR de 188px + textos) além da altura disponível, e o card tem `overflow: hidden` sem rolagem interna.
+- **Ajustes em `EspelhoModal.css`**:
+  1. Card com `max-height: calc(100dvh - 32px)` (fallback `100vh`) e corpo do modal com `overflow-y: auto` + scrollbar estilizada — nada mais fica cortado, em qualquer altura.
+  2. Aba ACESSO compactada: gaps e paddings reduzidos, ícone do monitor 60→52px.
+  3. QR Code fluido: `clamp(140px, 24vh, 188px)` — encolhe em telas baixas em vez de estourar o card.
+  4. Mobile (`≤520px`): card ocupa a largura toda com margem de 12px, paddings/gaps menores, ícone 44px, QR `clamp(132px, 26vh, 168px)`.
+  5. Telas baixas (`max-height: 700px`, notebooks): compactação extra do ícone, QR e espaçamentos.
+- **Validações reais**: `npm run lint --prefix client` 0 erros/avisos; `npm run build --prefix client` 127 módulos, 0 erros.
+- **Próximo passo**: Yuri homologar o modal no desktop e no celular (todas as ações visíveis sem corte; rolagem interna suave quando a tela for muito baixa).
