@@ -1596,7 +1596,7 @@ export default function OperacaoPage({
                       {!isOperator && (
                         <button
                           type="button"
-                          className="btn-detail-save"
+                          className={`btn-detail-save ${detailHasChanges ? 'btn-detail-save-active' : ''}`}
                           onClick={handleSaveDetail}
                           disabled={!detailHasChanges || detailActionInProgress}
                           title={detailHasChanges
@@ -1609,7 +1609,7 @@ export default function OperacaoPage({
                       )}
                       <button
                         type="button"
-                        className="btn-detail-entregar"
+                        className={`btn-detail-entregar ${deliverBlockedByEdits ? 'btn-detail-blocked' : ''}`}
                         onClick={() => handleSaveAndDeliver()}
                         disabled={detailActionInProgress || deliverBlockedByEdits}
                         title={deliverBlockedByEdits
@@ -1621,7 +1621,7 @@ export default function OperacaoPage({
                       </button>
                       <button
                         type="button"
-                        className="btn-detail-entregar-print"
+                        className={`btn-detail-entregar-print ${deliverBlockedByEdits ? 'btn-detail-blocked' : ''}`}
                         onClick={() => handleSaveAndDeliver({ print: true })}
                         disabled={detailActionInProgress || deliverBlockedByEdits}
                         title={deliverBlockedByEdits

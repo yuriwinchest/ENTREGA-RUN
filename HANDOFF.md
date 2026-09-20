@@ -1021,3 +1021,31 @@
   - `npm run lint --prefix client`: oxlint 0 erros e 0 avisos em 24 arquivos.
   - `npm run build --prefix client`: 127 módulos construídos em 1.17s.
 - **Próximo passo**: Yuri homologar no celular (arrastar para os lados para ver modalidades, categorias e dados; tocar nos botões `‹` e `›`; tocar na linha para abrir a ficha) e no PC (colunas fixas NÚMERO e NOME preservadas na tela grande).
+
+## 2026-09-19 — Ficha de entrega: botão SALVAR ALTERAÇÕES verde vibrante e botões de entrega cinzas quando há edições (Fase A, construir)
+
+- **Demanda do Yuri (PO)** (print anexado): o botão "Salvar Alterações" não ficou verde ao alterar campos; ele deveria ficar verde (habilitado) e os outros botões de entrega deveriam ficar cinza (desabilitados) ao alterar qualquer campo.
+- **Causa raiz**:
+  1. `.btn-detail-save` estava estilizado como botão neutro/ghost branco (`background: #ffffff; border: 1.5px solid #e2e8f0; color: #475569;`), sem feedback cromático de ação prioritária quando havia alterações pendentes.
+  2. Os botões de entrega desabilitados (`.btn-detail-entregar:disabled` e `.btn-detail-entregar-print:disabled`) usavam apenas `opacity: 0.48;` sobre seus fundos originais verde e laranja, resultando em verde e laranja pastéis desbotados em vez de cinza desabilitado real.
+- **Solução implementada**:
+  1. `OperacaoPage.jsx`:
+     - Adicionada classe dinâmica `btn-detail-save-active` ao botão quando `detailHasChanges === true`.
+     - Adicionada classe dinâmica `btn-detail-blocked` aos botões de entrega quando `deliverBlockedByEdits === true`.
+  2. `OperacaoPage.css`:
+     - Quando **HÁ alterações pendentes** (`detailHasChanges`):
+       - `btn-detail-save` vira **VERDE vibrante** (`background: #10b981 !important; border: 1.5px solid #059669 !important; color: #ffffff !important; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;`) com ícone e texto brancos — destaque visual imediato como ação exigida.
+       - Ambos os botões de entrega (`ENTREGAR KIT` e `ENTREGAR & IMPRIMIR`) viram **CINZA real desabilitado** (`background: #f1f5f9 !important; border: 1.5px solid #cbd5e1 !important; color: #94a3b8 !important; opacity: 1 !important; box-shadow: none !important; cursor: not-allowed !important;`).
+     - Quando **NÃO há alterações** (cadastro salvo):
+       - Botão de salvar exibe `SALVO` em **cinza neutro discreto** desabilitado (`background: #f8fafc; border: 1.5px solid #e2e8f0; color: #94a3b8;`).
+       - `ENTREGAR KIT` é liberado em **VERDE** (`#10b981`).
+       - `ENTREGAR & IMPRIMIR` é liberado em **LARANJA** (`#ff5200`).
+- **Validações reais**:
+  - `scratch/test_save_button_colors.cjs` (Chrome real Playwright):
+    - Estado inicial (sem edições): `SALVO` cinza desabilitado; `ENTREGAR KIT` verde (`rgb(16, 185, 129)`) habilitado; `ENTREGAR & IMPRIMIR` laranja (`rgb(255, 82, 0)`) habilitado.
+    - Estado editado (ao alterar campo): `SALVAR ALTERAÇÕES` verde vibrante (`rgb(16, 185, 129)`) habilitado com texto branco; `ENTREGAR KIT` cinza (`rgb(241, 245, 249)`, texto `rgb(148, 163, 184)`) desabilitado; `ENTREGAR & IMPRIMIR` cinza (`rgb(241, 245, 249)`, texto `rgb(148, 163, 184)`) desabilitado.
+    - Estado salvo (após clicar em Salvar): `SALVO` volta a cinza desabilitado; `ENTREGAR KIT` e `ENTREGAR & IMPRIMIR` reativam com suas cores originais verde e laranja. **PASS (100%)**.
+  - Regressão completa: `test_athlete_table_scroll_mobile_and_pc.cjs`, `test_operacao_mobile_e2e.cjs`, `test_athlete_detail_flow.mjs`, `test_athlete_table_columns.mjs`, `test_import_all_columns.mjs`, `test_auditoria_responsiveness_and_selects.cjs` — **todos PASS**.
+  - `npm run lint --prefix client`: oxlint 0 erros e 0 avisos em 24 arquivos.
+  - `npm run build --prefix client`: 127 módulos construídos em 1.59s.
+- **Próximo passo**: Yuri homologar: abrir ficha → alterar campo → ver botão "Salvar Alterações" verdezinho vibrante e botões de entrega cinzas → salvar → entrega liberada em verde/laranja.

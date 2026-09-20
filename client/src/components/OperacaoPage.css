@@ -1580,7 +1580,6 @@
   transform: translateY(-1px);
 }
 
-.btn-detail-save,
 .btn-detail-cancel {
   display: inline-flex;
   align-items: center;
@@ -1600,20 +1599,84 @@
   transition: all 0.15s ease;
 }
 
-.btn-detail-save:hover,
 .btn-detail-cancel:hover {
   background: #f8fafc;
   border-color: #cbd5e1;
   color: #0c142c;
 }
 
-.btn-detail-save:disabled,
+/* Botão SALVAR ALTERAÇÕES / SALVO */
+.btn-detail-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 10px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+/* Quando HÁ alterações: SALVAR ALTERAÇÕES fica verde vibrante habilitado */
+.btn-detail-save:not(:disabled),
+.btn-detail-save.btn-detail-save-active {
+  background: #10b981 !important;
+  border: 1.5px solid #059669 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
+  cursor: pointer !important;
+}
+
+.btn-detail-save:not(:disabled):hover,
+.btn-detail-save.btn-detail-save-active:hover {
+  background: #059669 !important;
+  border-color: #047857 !important;
+  transform: translateY(-1px);
+}
+
+.btn-detail-save:not(:disabled) svg,
+.btn-detail-save.btn-detail-save-active svg {
+  color: #ffffff !important;
+}
+
+/* Quando NÃO há alterações (SALVO): desabilitado, cinza neutro e discreto */
+.btn-detail-save:disabled {
+  background: #f8fafc !important;
+  border: 1.5px solid #e2e8f0 !important;
+  color: #94a3b8 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+.btn-detail-save:disabled svg {
+  color: #94a3b8 !important;
+}
+
+/* Quando a entrega está bloqueada por alterações pendentes (ou desabilitada): botões de entrega ficam CINZA */
 .btn-detail-entregar:disabled,
-.btn-detail-entregar-print:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-  box-shadow: none;
-  transform: none;
+.btn-detail-entregar.btn-detail-blocked,
+.btn-detail-entregar-print:disabled,
+.btn-detail-entregar-print.btn-detail-blocked {
+  background: #f1f5f9 !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #94a3b8 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+.btn-detail-entregar:disabled svg,
+.btn-detail-entregar.btn-detail-blocked svg,
+.btn-detail-entregar-print:disabled svg,
+.btn-detail-entregar-print.btn-detail-blocked svg {
+  color: #94a3b8 !important;
 }
 
 .athlete-detail-action-hint {
