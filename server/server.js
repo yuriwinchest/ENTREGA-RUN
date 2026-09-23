@@ -145,7 +145,13 @@ const loginLimiter = rateLimit({
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'entregas-run-server' })
+  res.json({
+    ok: true,
+    service: 'entregas-run-server',
+    eventsCount: typeof inMemoryEvents !== 'undefined' ? inMemoryEvents.length : 0,
+    diskWriteError,
+    dataDir: DATA_DIR,
+  })
 })
 
 app.get('/api/municipios', (_req, res) => {
@@ -167,29 +173,44 @@ const MOCK_EVENT_IDS = [
   '33c3fb52-9b9d-4f50-ad9a-3bffa67b00c8',
 ]
 
+let diskWriteError = null
+
 function readEventsFromDisk() {
-  try {
-    if (!fs.existsSync(EVENTS_FILE)) {
-      return []
+  const candidates = [
+    EVENTS_FILE,
+    '/tmp/entregas-run-data/events.json',
+  ]
+
+  for (const filePath of candidates) {
+    try {
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, 'utf-8')
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(
+            (e) =>
+              e &&
+              !MOCK_EVENT_IDS.includes(e.id) &&
+              !String(e.name || '').includes('GALINHA') &&
+              !String(e.name || '').includes('SURUBIM') &&
+              !String(e.name || '').includes('YURI2TESTE')
+          )
+        }
+      }
+    } catch (err) {
+      console.error(`[server] Erro ao ler ${filePath}:`, err)
     }
-    const raw = fs.readFileSync(EVENTS_FILE, 'utf-8')
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(
-      (e) =>
-        e &&
-        !MOCK_EVENT_IDS.includes(e.id) &&
-        !String(e.name || '').includes('GALINHA') &&
-        !String(e.name || '').includes('SURUBIM') &&
-        !String(e.name || '').includes('YURI2TESTE')
-    )
-  } catch (err) {
-    console.error('[server] Erro ao ler events.json:', err)
-    return []
   }
+  return []
 }
 
+// Estado em memória síncrono e ultra-rápido: qualquer requisição de qualquer
+// aparelho recebe o estado mais atual imediatamente em 0ms.
+let inMemoryEvents = readEventsFromDisk()
+
 function writeEventsToDisk(events) {
+  let saved = false
+
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true })
@@ -197,11 +218,29 @@ function writeEventsToDisk(events) {
     const tempFile = `${EVENTS_FILE}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`
     fs.writeFileSync(tempFile, JSON.stringify(events, null, 2), 'utf-8')
     fs.renameSync(tempFile, EVENTS_FILE)
-    return true
+    diskWriteError = null
+    saved = true
   } catch (err) {
-    console.error('[server] Erro ao salvar events.json:', err)
-    return false
+    diskWriteError = err.message || String(err)
+    console.error('[server] Erro ao salvar events.json em DATA_DIR:', err)
   }
+
+  // Fallback secundário em /tmp para resguardo de dados
+  try {
+    const fallbackDir = '/tmp/entregas-run-data'
+    if (!fs.existsSync(fallbackDir)) {
+      fs.mkdirSync(fallbackDir, { recursive: true })
+    }
+    const tempFb = path.join(fallbackDir, `events.${Date.now()}.tmp`)
+    const targetFb = path.join(fallbackDir, 'events.json')
+    fs.writeFileSync(tempFb, JSON.stringify(events, null, 2), 'utf-8')
+    fs.renameSync(tempFb, targetFb)
+    saved = true
+  } catch (fbErr) {
+    console.error('[server] Erro ao salvar no diretório de contingência:', fbErr)
+  }
+
+  return saved
 }
 
 function sanitizeEventPayload(raw, isUpdate = false) {
@@ -237,10 +276,9 @@ function sanitizeEventPayload(raw, isUpdate = false) {
   }
 }
 
-// GET /api/events — Retorna todos os eventos persistidos
+// GET /api/events — Retorna todos os eventos persistidos em memória central
 app.get('/api/events', (_req, res) => {
-  const events = readEventsFromDisk()
-  res.json({ ok: true, events })
+  res.json({ ok: true, events: inMemoryEvents })
 })
 
 // POST /api/events — Cria novo evento
@@ -250,7 +288,6 @@ app.post('/api/events', (req, res) => {
     return res.status(400).json({ ok: false, message: 'Dados inválidos para criação do evento.' })
   }
 
-  const events = readEventsFromDisk()
   const eventId = typeof req.body.id === 'string' && req.body.id.trim()
     ? req.body.id.trim().slice(0, 64)
     : `event-${Date.now()}`
@@ -261,28 +298,27 @@ app.post('/api/events', (req, res) => {
     updatedAt: Date.now(),
   }
 
-  const existingIdx = events.findIndex((e) => e.id === eventId)
+  const existingIdx = inMemoryEvents.findIndex((e) => e.id === eventId)
   if (existingIdx >= 0) {
-    events[existingIdx] = { ...events[existingIdx], ...newEvent }
+    inMemoryEvents[existingIdx] = { ...inMemoryEvents[existingIdx], ...newEvent }
   } else {
-    events.unshift(newEvent)
+    inMemoryEvents.unshift(newEvent)
   }
 
-  writeEventsToDisk(events)
+  writeEventsToDisk(inMemoryEvents)
   res.status(201).json({ ok: true, event: newEvent })
 })
 
 // PUT /api/events/:eventId — Atualiza dados e status do evento
 app.put('/api/events/:eventId', (req, res) => {
   const eventId = String(req.params.eventId || '').trim().slice(0, 64)
-  const events = readEventsFromDisk()
-  const index = events.findIndex((e) => e.id === eventId)
+  const index = inMemoryEvents.findIndex((e) => e.id === eventId)
 
   if (index === -1) {
     return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
   }
 
-  const current = events[index]
+  const current = inMemoryEvents[index]
   const body = req.body || {}
   const validStatuses = ['PLANEJADO', 'EM OPERAÇÃO', 'FINALIZADO']
 
@@ -301,29 +337,28 @@ app.put('/api/events/:eventId', (req, res) => {
     updatedAt: Date.now(),
   }
 
-  events[index] = updated
-  writeEventsToDisk(events)
+  inMemoryEvents[index] = updated
+  writeEventsToDisk(inMemoryEvents)
   res.json({ ok: true, event: updated })
 })
 
 // DELETE /api/events/:eventId — Remove evento
 app.delete('/api/events/:eventId', (req, res) => {
   const eventId = String(req.params.eventId || '').trim().slice(0, 64)
-  const events = readEventsFromDisk()
-  const filtered = events.filter((e) => e.id !== eventId)
+  const initialLength = inMemoryEvents.length
+  inMemoryEvents = inMemoryEvents.filter((e) => e.id !== eventId)
 
-  if (filtered.length === events.length) {
+  if (inMemoryEvents.length === initialLength) {
     return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
   }
 
-  writeEventsToDisk(filtered)
+  writeEventsToDisk(inMemoryEvents)
   res.json({ ok: true })
 })
 
 // POST /api/events/sync — Sincronização em lote (dispositivo móvel -> servidor)
 app.post('/api/events/sync', (req, res) => {
   const incoming = Array.isArray(req.body?.events) ? req.body.events : []
-  let events = readEventsFromDisk()
   let changed = false
 
   for (const raw of incoming) {
@@ -332,17 +367,17 @@ app.post('/api/events/sync', (req, res) => {
     const sanitized = sanitizeEventPayload(raw, false)
     if (!sanitized) continue
     const id = String(raw.id).trim().slice(0, 64)
-    const existingIdx = events.findIndex((e) => e.id === id)
+    const existingIdx = inMemoryEvents.findIndex((e) => e.id === id)
     if (existingIdx === -1) {
-      events.push({ ...sanitized, id, updatedAt: Date.now() })
+      inMemoryEvents.push({ ...sanitized, id, updatedAt: Date.now() })
       changed = true
     }
   }
 
   if (changed) {
-    writeEventsToDisk(events)
+    writeEventsToDisk(inMemoryEvents)
   }
-  res.json({ ok: true, events })
+  res.json({ ok: true, events: inMemoryEvents })
 })
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'pacetime@entregas.com').toLowerCase().trim()

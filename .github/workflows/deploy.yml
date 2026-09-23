@@ -33,8 +33,9 @@ jobs:
           port: 22
           script: |
             set -e
-            echo "=== INICIANDO DEPLOY AUTOMÁTICO ENTREGAS-RUN NA VPS ==="
-            mkdir -p /opt/entregas-run
+            mkdir -p /opt/entregas-run/data
+            chmod -R 777 /opt/entregas-run/data || true
+            chown -R 1000:1000 /opt/entregas-run/data || true
             cd /opt/entregas-run
 
             # Atualizar repositório local na VPS
@@ -42,6 +43,10 @@ jobs:
               git fetch origin main
               git reset --hard origin/main
             fi
+
+            mkdir -p /opt/entregas-run/data
+            chmod -R 777 /opt/entregas-run/data || true
+            chown -R 1000:1000 /opt/entregas-run/data || true
 
             # Build e Reinicialização Isolada no Docker (porta 3050 -> 3001)
             docker compose down --remove-orphans || true
