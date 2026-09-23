@@ -173,6 +173,30 @@ const MOCK_EVENT_IDS = [
   '33c3fb52-9b9d-4f50-ad9a-3bffa67b00c8',
 ]
 
+const DELETED_EVENTS_FILE = path.join(DATA_DIR, 'deleted_events.json')
+
+function readDeletedIds() {
+  const set = new Set(['event-1790199601392'])
+  try {
+    if (fs.existsSync(DELETED_EVENTS_FILE)) {
+      const arr = JSON.parse(fs.readFileSync(DELETED_EVENTS_FILE, 'utf-8'))
+      if (Array.isArray(arr)) arr.forEach((id) => set.add(id))
+    }
+  } catch {}
+  return set
+}
+
+const deletedEventIds = readDeletedIds()
+
+function markEventDeleted(id) {
+  if (!id) return
+  deletedEventIds.add(id)
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+    fs.writeFileSync(DELETED_EVENTS_FILE, JSON.stringify([...deletedEventIds]), 'utf-8')
+  } catch {}
+}
+
 let diskWriteError = null
 
 function readEventsFromDisk() {
@@ -191,6 +215,7 @@ function readEventsFromDisk() {
             (e) =>
               e &&
               !MOCK_EVENT_IDS.includes(e.id) &&
+              !deletedEventIds.has(e.id) &&
               !String(e.name || '').includes('GALINHA') &&
               !String(e.name || '').includes('SURUBIM') &&
               !String(e.name || '').includes('YURI2TESTE')
@@ -348,6 +373,8 @@ app.delete('/api/events/:eventId', (req, res) => {
   const initialLength = inMemoryEvents.length
   inMemoryEvents = inMemoryEvents.filter((e) => e.id !== eventId)
 
+  markEventDeleted(eventId)
+
   if (inMemoryEvents.length === initialLength) {
     return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
   }
@@ -364,6 +391,7 @@ app.post('/api/events/sync', (req, res) => {
   for (const raw of incoming) {
     if (!raw || typeof raw !== 'object' || !raw.id) continue
     if (MOCK_EVENT_IDS.includes(raw.id)) continue
+    if (deletedEventIds.has(raw.id)) continue
     const sanitized = sanitizeEventPayload(raw, false)
     if (!sanitized) continue
     const id = String(raw.id).trim().slice(0, 64)

@@ -54,24 +54,38 @@ export default function App() {
       const serverEvents = await apiFetchEvents()
       if (!isMounted || !Array.isArray(serverEvents)) return
 
-      setEvents((currentLocal) => {
-        const serverIds = new Set(serverEvents.map((e) => e.id))
-        const localOnly = currentLocal.filter(
-          (e) => e && e.id && !serverIds.has(e.id) && !MOCK_EVENT_IDS.includes(e.id)
-        )
+      const alreadyMigrated = localStorage.getItem('entregas_run_events_migrated')
 
-        // Se houver eventos criados localmente antes da conexão, envia para o servidor
-        if (localOnly.length > 0) {
-          apiSyncEvents(localOnly).then((synced) => {
-            if (isMounted && Array.isArray(synced) && synced.length > 0) {
-              setEvents(synced)
-            }
-          })
-          return [...localOnly, ...serverEvents]
-        }
+      if (!alreadyMigrated) {
+        // Primeira carga da nova versão no dispositivo: resgata eventos legados locais
+        setEvents((currentLocal) => {
+          const serverIds = new Set(serverEvents.map((e) => e.id))
+          const localOnly = currentLocal.filter(
+            (e) => e && e.id && !serverIds.has(e.id) && !MOCK_EVENT_IDS.includes(e.id)
+          )
 
-        return serverEvents
-      })
+          try {
+            localStorage.setItem('entregas_run_events_migrated', 'true')
+          } catch {
+            // ignore
+          }
+
+          if (localOnly.length > 0) {
+            apiSyncEvents(localOnly).then((synced) => {
+              if (isMounted && Array.isArray(synced) && synced.length > 0) {
+                setEvents(synced)
+              }
+            })
+            return [...localOnly, ...serverEvents]
+          }
+
+          return serverEvents
+        })
+        return
+      }
+
+      // Servidor é a fonte oficial da verdade
+      setEvents(serverEvents)
     }
 
     syncEventsWithServer()
