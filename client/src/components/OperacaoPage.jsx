@@ -25,6 +25,7 @@ import {
   getAthleteTableValue,
   mergeAthleteColumnSchemas,
 } from '../utils/athleteTable.js'
+import { publishEspelhoState } from '../utils/espelhoSync.js'
 import AthleteQrModal from './AthleteQrModal.jsx'
 import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
 import './OperacaoPage.css'

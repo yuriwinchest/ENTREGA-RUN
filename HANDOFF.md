@@ -36,6 +36,7 @@
   - `npm run build --prefix client`: Vite build concluído em 1.08s com 0 erros (132 módulos, assets gerados com sucesso).
 - **Riscos/pendências**:
   - Nenhum risco de regressão detectado. Persistência de atletas integrada com volume Docker persistente da VPS.
+  - Correção imediata: restaurado o import de `publishEspelhoState` em `OperacaoPage.jsx` que havia sido acidentalmente omitido no topo durante a inserção de `AthleteQrModal`, eliminando o `ReferenceError: publishEspelhoState is not defined` que bloqueava a execução dos cliques no painel.
 - **Próximo passo**:
   - Yuri realizar os testes de aceitação e homologação (Fase B): criar novo atleta com planilha associada conferindo as colunas dinâmicas e o próximo número sequencial sugerido (301), e escanear o QR Code de um atleta no celular para verificar a página de validação com status da entrega.
 
