@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Sidebar from './Sidebar.jsx'
 import CidadeAutocomplete from './CidadeAutocomplete.jsx'
 import DataPickerInput from './DataPickerInput.jsx'
+import { apiCreateEvent, apiUpdateEvent, apiDeleteEvent } from '../utils/eventsApi.js'
 import './EventosPage.css'
 
 function SearchIcon() {
@@ -196,6 +197,10 @@ export default function EventosPage({
         return ev
       })
     )
+    apiUpdateEvent(eventId, {
+      status: newStatus,
+      active: newStatus === 'EM OPERAÇÃO',
+    }).catch(() => {})
     setOpenDropdownId(null)
   }
 
@@ -203,26 +208,33 @@ export default function EventosPage({
     e.preventDefault()
     if (!editingEvent) return
 
+    const patch = {
+      name: editingEvent.name.trim().toUpperCase(),
+      location: editingEvent.location.trim().toUpperCase(),
+      dateInput: editingEvent.dateInput.trim(),
+      date: editingEvent.dateInput.trim(),
+    }
+
     setEvents((prev) =>
       prev.map((ev) => {
         if (ev.id === editingEvent.id) {
           return {
             ...ev,
-            name: editingEvent.name.trim().toUpperCase(),
-            location: editingEvent.location.trim().toUpperCase(),
-            dateInput: editingEvent.dateInput.trim(),
-            date: editingEvent.dateInput.trim(),
+            ...patch,
           }
         }
         return ev
       })
     )
+    apiUpdateEvent(editingEvent.id, patch).catch(() => {})
     setEditingEvent(null)
   }
 
   function handleConfirmDelete() {
     if (!deletingEvent) return
-    setEvents((prev) => prev.filter((ev) => ev.id !== deletingEvent.id))
+    const idToDelete = deletingEvent.id
+    setEvents((prev) => prev.filter((ev) => ev.id !== idToDelete))
+    apiDeleteEvent(idToDelete).catch(() => {})
     setDeletingEvent(null)
   }
 
@@ -247,6 +259,7 @@ export default function EventosPage({
     }
 
     setEvents((prev) => [newEv, ...prev])
+    apiCreateEvent(newEv).catch(() => {})
     setNewEventForm({ name: '', date: '', location: '' })
     setShowCreateModal(false)
   }

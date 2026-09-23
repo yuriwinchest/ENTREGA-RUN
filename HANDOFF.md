@@ -8,6 +8,34 @@
 - Só fatos confirmados. Nunca senha, token, conteúdo de `.env`, dado pessoal ou instrução de acesso à produção.
 - Anexos técnicos vão em `docs/`, sempre referenciados pela entrada de memória.
 - Entradas anteriores a 20/09/2026 podem não registrar autor; não presuma autoria.
+## 2026-09-23 — Sincronização centralizada de eventos (API REST + volume Docker) (Fase A, construir)
+
+- **Autor**: Antigravity/Gemini (agente de código na IDE Antigravity).
+- **Pedido do Yuri (PO via áudio)**:
+  - "Analisa a estrutura do sistema e entenda o que já foi feito e vamos continuar nas correções."
+  - "Quando eu crio um evento no celular e acesso pelo computador, não tá aparecendo... Veja o porquê que isso tá acontecendo."
+  - Escolha confirmada pelo PO via áudio: Opção 1 (API REST no Express + persistência com volume Docker na VPS).
+- **Roteamento de IA**:
+  - Classificado via Jev (TypeSafe System One): Liderança Kastiel (Dev Lead Fullstack, 98% / 87% de confiança).
+- **Causa raiz confirmada**:
+  - Os eventos estavam salvos exclusivamente no `localStorage` do navegador do dispositivo (`entregas_run_events`).
+  - O backend não possuía rotas `/api/events` nem arquivo/banco persistente.
+- **Ajustes implementados**:
+  1. `server/server.js`: implementadas funções de persistência atômica `readEventsFromDisk` e `writeEventsToDisk`, salvando em `DATA_DIR/events.json`; criados endpoints `GET /api/events`, `POST /api/events`, `PUT /api/events/:eventId`, `DELETE /api/events/:eventId` e `POST /api/events/sync` com sanitização e validação completa.
+  2. `docker-compose.yml` & `Dockerfile`: volume persistente `./data:/app/data` e `DATA_DIR=/app/data` adicionados, com criação da pasta `/app/data` e `chown -R node:node` preservando execução não-root.
+  3. `client/src/utils/eventsApi.js`: módulo cliente com chamadas assíncronas para a API de eventos.
+  4. `client/src/App.jsx`: sincronização inicial com a API central, auto-sync de eventos legados locais não cadastrados, listeners de `visibilitychange` e `focus` para atualização transparente em segundo plano, e persistência em `onUpdateEvent`.
+  5. `client/src/components/EventosPage.jsx`: integração das ações de criação, edição, alteração de status e exclusão com a API centralizada.
+  6. `.gitignore` & `data/.gitkeep`: ignorado `data/events.json` e `data/*.tmp`, preservando o diretório.
+- **Validações reais**:
+  - `scratch/test_events_backend.mjs`: GET, POST, PUT, SYNC, DELETE e integridade física em disco (100% aprovado).
+  - `scratch/test_multi_device_sync.mjs`: simulação multi-dispositivo ponta a ponta (celular cria evento -> computador carrega na hora -> computador altera status -> celular reflete em tempo real -> exclusão sincronizada) — 100% aprovado (exit code 0).
+  - Regressões do sistema: `test_espelho_routes.mjs` (8/8 PASS), `test_athlete_detail_flow.mjs` (PASS), `test_athlete_table_columns.mjs` (PASS), `test_import_all_columns.mjs` (PASS), `test_audit_filters_exports.mjs` (PASS).
+  - `npm run lint --prefix client`: 0 erros e 0 avisos (oxlint em 25 arquivos).
+  - `npm run build --prefix client`: Vite build concluído em 721ms (128 módulos).
+- **Riscos/pendências**:
+  - Deploy em produção na VPS ocorrerá após o push para a branch `main` do GitHub conforme fluxo aprovado pelo PO.
+  - Próximo passo: Yuri homologar no celular e no computador criando eventos e confirmando que aparecem sincronizados em ambos os aparelhos.
 
 ## 2026-09-20 — Convenção de autoria na memória + validação do monitor pelo PO
 

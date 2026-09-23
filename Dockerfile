@@ -17,10 +17,14 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
+ENV DATA_DIR=/app/data
 
 # Instala dependências do servidor (somente produção)
 COPY server/package*.json ./server/
 RUN cd server && npm ci --omit=dev
+
+# Cria diretório de dados persistentes com permissão para usuário node (Vitor & Crowley)
+RUN mkdir -p /app/data && chown -R node:node /app/data
 
 # Copia código do servidor
 COPY server/server.js ./server/

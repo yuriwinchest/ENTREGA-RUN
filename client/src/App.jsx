@@ -7,6 +7,7 @@ import OperacaoPage from './components/OperacaoPage.jsx'
 import EspelhoPage from './components/EspelhoPage.jsx'
 import TutorialModal from './components/TutorialModal.jsx'
 import UsuariosPage from './components/UsuariosPage.jsx'
+import { apiFetchEvents, apiSyncEvents, apiUpdateEvent } from './utils/eventsApi.js'
 
 const MOCK_EVENT_IDS = [
   '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6',
@@ -44,6 +45,53 @@ export default function App() {
       return []
     }
   })
+
+  // Sincroniza eventos locais com o servidor central e puxa atualizações
+  useEffect(() => {
+    let isMounted = true
+
+    async function syncEventsWithServer() {
+      const serverEvents = await apiFetchEvents()
+      if (!isMounted || !Array.isArray(serverEvents)) return
+
+      setEvents((currentLocal) => {
+        const serverIds = new Set(serverEvents.map((e) => e.id))
+        const localOnly = currentLocal.filter(
+          (e) => e && e.id && !serverIds.has(e.id) && !MOCK_EVENT_IDS.includes(e.id)
+        )
+
+        // Se houver eventos criados localmente antes da conexão, envia para o servidor
+        if (localOnly.length > 0) {
+          apiSyncEvents(localOnly).then((synced) => {
+            if (isMounted && Array.isArray(synced) && synced.length > 0) {
+              setEvents(synced)
+            }
+          })
+          return [...localOnly, ...serverEvents]
+        }
+
+        return serverEvents
+      })
+    }
+
+    syncEventsWithServer()
+
+    // Sincroniza automaticamente quando o usuário voltar para a aba ou desbloquear a tela
+    function handleVisibilityOrFocus() {
+      if (document.visibilityState === 'visible') {
+        syncEventsWithServer()
+      }
+    }
+
+    window.addEventListener('visibilitychange', handleVisibilityOrFocus)
+    window.addEventListener('focus', handleVisibilityOrFocus)
+
+    return () => {
+      isMounted = false
+      window.removeEventListener('visibilitychange', handleVisibilityOrFocus)
+      window.removeEventListener('focus', handleVisibilityOrFocus)
+    }
+  }, [])
 
   // Limpa resíduos de dados mockados do navegador
   useEffect(() => {
@@ -257,6 +305,9 @@ export default function App() {
             setEvents((prev) =>
               prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e))
             )
+            if (updatedEvent && updatedEvent.id) {
+              apiUpdateEvent(updatedEvent.id, updatedEvent).catch(() => {})
+            }
           }}
           onNavigate={navigateTo}
           onLogout={handleLogout}
