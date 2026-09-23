@@ -1459,6 +1459,160 @@
   transform: translateY(-1px);
 }
 
+/* Modal Dinâmico: Espelho da Tabela Associada */
+.modal-card-athlete.modal-card-athlete-dynamic {
+  max-width: 680px;
+}
+
+.modal-athlete-header-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.athlete-seq-badge {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #ff5200;
+  background: rgba(255, 82, 0, 0.08);
+  border: 1px solid rgba(255, 82, 0, 0.2);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.athlete-seq-source {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.modal-athlete-body-dynamic {
+  max-height: calc(88vh - 140px);
+}
+
+.athlete-dynamic-grid-2 {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 14px;
+}
+
+.athlete-dynamic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.athlete-number-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.athlete-form-input.highlight-number {
+  font-size: 15px;
+  font-weight: 900;
+  color: #ff5200;
+  border-color: #fdba74;
+  background: #fffaf5;
+  padding-right: 76px;
+}
+
+.athlete-input-badge-seq {
+  position: absolute;
+  right: 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  background: #ffedd5;
+  color: #c2410c;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.athlete-dynamic-custom-section {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.athlete-custom-section-header {
+  display: flex;
+  align-items: center;
+}
+
+.badge-custom-cols {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #0284c7;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+/* Botão de QR Code na Tabela de Atletas */
+.btn-table-qr-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-table-qr-badge:hover {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+  transform: scale(1.04);
+}
+
+/* Botão de QR Code na Barra de Ações dos Detalhes */
+.btn-detail-qr-action {
+  height: 40px;
+  padding: 0 16px;
+  background: #f1f5f9;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #1e293b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-detail-qr-action:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
 /* =========================================================
    ATHLETE DETAIL VIEW (TELA DE ENTREGA / DETALHES DO ATLETA)
    ========================================================= */

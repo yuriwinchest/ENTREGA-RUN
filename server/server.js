@@ -408,6 +408,193 @@ app.post('/api/events/sync', (req, res) => {
   res.json({ ok: true, events: inMemoryEvents })
 })
 
+// ============================================================
+// PERSISTÊNCIA CENTRALIZADA DE ATLETAS POR EVENTO
+// Salva a lista de atletas e schema em athletes_{eventId}.json.
+// Permite consulta pública instantânea via QR Code e sincronização.
+// ============================================================
+const athletesJsonParser = express.json({ limit: '20mb' })
+
+function getAthletesFilePath(eventId) {
+  const safeId = String(eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  return path.join(DATA_DIR, `athletes_${safeId}.json`)
+}
+
+const athletesCache = new Map()
+
+function loadAthletesForEvent(eventId) {
+  const safeId = String(eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  if (!safeId) return null
+  if (athletesCache.has(safeId)) return athletesCache.get(safeId)
+
+  const filePath = getAthletesFilePath(safeId)
+  try {
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, 'utf-8')
+      const data = JSON.parse(raw)
+      athletesCache.set(safeId, data)
+      return data
+    }
+  } catch (err) {
+    console.error(`[server] Erro ao carregar atletas do evento ${safeId}:`, err)
+  }
+  return null
+}
+
+function saveAthletesForEvent(eventId, athletes, schema = []) {
+  const safeId = String(eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  if (!safeId) return false
+
+  const data = {
+    eventId: safeId,
+    athletes: Array.isArray(athletes) ? athletes : [],
+    schema: Array.isArray(schema) ? schema : [],
+    updatedAt: Date.now(),
+  }
+
+  athletesCache.set(safeId, data)
+
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true })
+    }
+    const filePath = getAthletesFilePath(safeId)
+    const tempPath = `${filePath}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`
+    fs.writeFileSync(tempPath, JSON.stringify(data), 'utf-8')
+    fs.renameSync(tempPath, filePath)
+    return true
+  } catch (err) {
+    console.error(`[server] Erro ao salvar atletas de ${safeId} no disco:`, err)
+    return false
+  }
+}
+
+// GET /api/events/:eventId/athletes — Recupera lista de atletas e schema
+app.get('/api/events/:eventId/athletes', (req, res) => {
+  const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const data = loadAthletesForEvent(safeEventId)
+  if (!data) {
+    return res.json({ ok: true, athletes: [], schema: [] })
+  }
+  res.json({ ok: true, athletes: data.athletes || [], schema: data.schema || [] })
+})
+
+// POST /api/events/:eventId/athletes — Sincroniza/persiste lista de atletas
+app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
+  const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const { athletes, schema } = req.body || {}
+
+  if (!Array.isArray(athletes)) {
+    return res.status(400).json({ ok: false, message: 'Lista de atletas inválida.' })
+  }
+
+  const success = saveAthletesForEvent(safeEventId, athletes, schema)
+  if (!success) {
+    return res.status(500).json({ ok: false, message: 'Erro ao persistir atletas.' })
+  }
+
+  res.json({ ok: true, count: athletes.length })
+})
+
+// PUT /api/events/:eventId/athletes/:numero/status — Atualiza status da entrega
+app.put('/api/events/:eventId/athletes/:numero/status', express.json(), (req, res) => {
+  const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const safeNumero = String(req.params.numero || '').trim().slice(0, 50)
+  const { status, entregueEm, entreguePor, entreguePara } = req.body || {}
+
+  const data = loadAthletesForEvent(safeEventId)
+  if (!data || !Array.isArray(data.athletes)) {
+    return res.status(404).json({ ok: false, message: 'Atletas não encontrados.' })
+  }
+
+  const idx = data.athletes.findIndex((a) => String(a.numero || '').trim() === safeNumero)
+  if (idx === -1) {
+    return res.status(404).json({ ok: false, message: 'Atleta não encontrado.' })
+  }
+
+  data.athletes[idx] = {
+    ...data.athletes[idx],
+    status: status || data.athletes[idx].status,
+    entregueEm: entregueEm !== undefined ? entregueEm : data.athletes[idx].entregueEm,
+    entreguePor: entreguePor !== undefined ? entreguePor : data.athletes[idx].entreguePor,
+    entreguePara: entreguePara !== undefined ? entreguePara : data.athletes[idx].entreguePara,
+  }
+
+  saveAthletesForEvent(safeEventId, data.athletes, data.schema)
+  res.json({ ok: true, athlete: data.athletes[idx] })
+})
+
+// ============================================================
+// CONSULTA PÚBLICA DE VALIDAÇÃO DE QR CODE
+// Qualquer smartphone/leitor externo pode consultar os dados
+// do atleta e seu status de entrega em tempo real.
+// ============================================================
+const publicValidateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 200,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { ok: false, message: 'Muitas consultas. Aguarde um instante.' },
+})
+
+app.get('/api/public/events/:eventId/athletes/:numero', publicValidateLimiter, (req, res) => {
+  const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const safeNumero = String(req.params.numero || '').trim().slice(0, 50)
+
+  const event = inMemoryEvents.find((e) => e.id === safeEventId)
+  const data = loadAthletesForEvent(safeEventId)
+
+  if (!data || !Array.isArray(data.athletes) || data.athletes.length === 0) {
+    return res.status(404).json({
+      ok: false,
+      message: 'Base de atletas não sincronizada no servidor para este evento.',
+      eventName: event?.name || 'Evento Esportivo',
+    })
+  }
+
+  const athlete = data.athletes.find(
+    (a) => String(a.numero || '').trim() === safeNumero || String(a.id || '').trim() === safeNumero
+  )
+
+  if (!athlete) {
+    return res.status(404).json({
+      ok: false,
+      message: `Atleta com número #${safeNumero} não localizado na lista oficial do evento.`,
+      eventName: event?.name || 'Evento Esportivo',
+    })
+  }
+
+  let docDisplay = athlete.doc || '—'
+  if (docDisplay && docDisplay.length > 5 && !docDisplay.includes('*')) {
+    docDisplay = docDisplay.replace(/^(\d{3})\.?(\d{3})\.?(\d{3})-?(\d{2})$/, '$1.***.***-$4')
+  }
+
+  res.json({
+    ok: true,
+    eventName: event?.name || 'Evento Esportivo',
+    eventDate: event?.date || '',
+    eventLocation: event?.location || '',
+    athlete: {
+      numero: athlete.numero,
+      nome: athlete.nome,
+      doc: docDisplay,
+      nascimento: athlete.nascimento || '',
+      sexo: athlete.sexo || '',
+      modalidade: athlete.modalidade || '',
+      categoria: athlete.categoria || '',
+      camiseta: athlete.camiseta || '',
+      kit: athlete.kit || '',
+      chip: athlete.chip || '',
+      equipe: athlete.equipe || '',
+      status: athlete.status || 'PENDENTE',
+      entregueEm: athlete.entregueEm || null,
+      entreguePor: athlete.entreguePor || null,
+      entreguePara: athlete.entreguePara || null,
+      customFields: athlete.customFields || {},
+    },
+  })
+})
+
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'pacetime@entregas.com').toLowerCase().trim()
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'WgP2ZhkCXQ!7'
 

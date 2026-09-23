@@ -8,7 +8,36 @@
 - Só fatos confirmados. Nunca senha, token, conteúdo de `.env`, dado pessoal ou instrução de acesso à produção.
 - Anexos técnicos vão em `docs/`, sempre referenciados pela entrada de memória.
 - Entradas anteriores a 20/09/2026 podem não registrar autor; não presuma autoria.
-## 2026-09-23 — Sincronização centralizada de eventos (API REST + volume Docker) (Fase A, construir)
+
+## 2026-09-23 — Modal Dinâmico de Novo Atleta & QR Code Individual com Validação Pública (Fase A, construir)
+
+- **Autor**: Antigravity/Gemini (agente de código na IDE Antigravity).
+- **Pedido do Yuri (PO via áudio/vídeo)**:
+  1. *Modal Novo Atleta Dinâmico*: Substituir os campos estáticos/aleatórios do modal de adicionar atleta manualmente por campos que espelham exatamente as colunas da tabela importada/associada ao evento. O campo NÚMERO deve sugerir automaticamente o próximo número sequencial da lista (`maxNumber + 1`, ex: se há 300 atletas, sugere 301) e, ao salvar, o novo atleta é adicionado no final da tabela.
+  2. *QR Code Individual por Atleta com Consulta/Validação Pública*: Gerar um QR Code único para cada atleta na lista associado ao seu número de peito. Ao escanear o QR Code em qualquer smartphone ou leitor, abrir a página oficial de validação em tempo real (`/validar/:eventId/:numero`), exibindo o status da entrega (**ENTREGUE** com data/hora/operador ou **PENDENTE DE RETIRADA**) e os dados completos do atleta.
+- **Roteamento de IA**:
+  - Operação TONE (Fase A - Construir). Especialistas: TONE (Arquitetura), Ulisses (Elevação e foco na experiência humana), Ana (UI/UX autêntica sem estética genérica), Kastiel (Implementação Fullstack), Crowley (Segurança e sanitização de dados públicos), Teclide (Qualidade e performance on-demand) e Vitor (Infraestrutura e persistência em volume Docker).
+- **Arquivos alterados e criados**:
+  1. `server/server.js`: implementada persistência de atletas por evento em `DATA_DIR/athletes_${eventId}.json`; endpoints `POST /api/events/:eventId/athletes`, `GET /api/events/:eventId/athletes`, `PUT /api/events/:eventId/athletes/:numero/status` e rota pública `GET /api/public/events/:eventId/athletes/:numero` com rate limit e mascaramento seguro de documento (Crowley).
+  2. `client/src/utils/eventsApi.js`: implementadas funções `apiFetchAthletes`, `apiSaveAthletes` e `apiPublicValidateAthlete`.
+  3. `client/src/components/ValidarAtletaPage.jsx` & `ValidarAtletaPage.css`: nova página pública de validação em tempo real para quem escaneia o QR Code, exibindo badge dinâmico de status (**KIT ENTREGUE** em esmeralda ou **PENDENTE DE RETIRADA** em âmbar), número de peito em destaque, ficha técnica e botão para atualizar status em tempo real.
+  4. `client/src/components/AthleteQrModal.jsx` & `AthleteQrModal.css`: modal de QR Code individual do atleta, gerando QR Code em alta resolução (`qrcode`), com botões para copiar link, abrir validação e imprimir filipeta/etiqueta com suporte nativo a impressoras térmicas via `@media print`.
+  5. `client/src/App.jsx`: roteamento da tela pública `/validar/:eventId/:numero` acessível sem autenticação externa.
+  6. `client/src/components/OperacaoPage.jsx`:
+     - Cálculo atômico do próximo número sequencial via `getNextAthleteNumber(athletes)` (`maxNumber + 1`).
+     - Detecção dinâmica de colunas a partir de `athleteTableColumns` (`availableStandardColumns` e `availableCustomColumns`), com auto-preenchimento dos tamanhos reais de camiseta da base (`shirtOptions`).
+     - Modal `NOVO ATLETA` reconstruído dinamicamente em grid com badge do próximo sequencial sugerido, campos da planilha e campos personalizados.
+     - `handleCreateAthlete`: mapeamento dinâmico de campos padrão e `customFields`, inserção no final da lista (`[...athletes, newAthlete]`), incremento de totais do evento e sincronização atômica com o backend (`apiSaveAthletes`).
+     - Coluna interativa e botão `QR` adicionados em cada linha da tabela de atletas (aba Atletas) e botão `QR CODE` na barra de ações da ficha de entrega.
+  7. `client/src/components/OperacaoPage.css`: estilização do modal dinâmico, badges de numeração sequencial, seção de campos extras da planilha e botões de QR Code.
+- **Validações reais**:
+  - `scratch/test-endpoints.mjs`: teste funcional ponta a ponta via HTTP dos novos endpoints de atletas e validação pública de QR Code (100% de sucesso).
+  - `npm run lint --prefix client`: oxlint concluído em 492ms com 0 erros e 0 warnings em 27 arquivos.
+  - `npm run build --prefix client`: Vite build concluído em 1.08s com 0 erros (132 módulos, assets gerados com sucesso).
+- **Riscos/pendências**:
+  - Nenhum risco de regressão detectado. Persistência de atletas integrada com volume Docker persistente da VPS.
+- **Próximo passo**:
+  - Yuri realizar os testes de aceitação e homologação (Fase B): criar novo atleta com planilha associada conferindo as colunas dinâmicas e o próximo número sequencial sugerido (301), e escanear o QR Code de um atleta no celular para verificar a página de validação com status da entrega.
 
 - **Autor**: Antigravity/Gemini (agente de código na IDE Antigravity).
 - **Pedido do Yuri (PO via áudio)**:

@@ -1,0 +1,415 @@
+.validar-page-wrapper {
+  min-height: 100vh;
+  width: 100%;
+  background: radial-gradient(circle at 50% 0%, #172554 0%, #0c142c 50%, #050914 100%);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 16px 48px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #f8fafc;
+  box-sizing: border-box;
+}
+
+.validar-page-container {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Header */
+.validar-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.validar-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.validar-brand-badge {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: #ffffff;
+  font-weight: 900;
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.4);
+}
+
+.validar-brand-sub {
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.validar-event-title {
+  margin: 6px 0 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  line-height: 1.3;
+}
+
+/* Loading Card */
+.validar-card-loading,
+.validar-card-error {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  border-radius: 20px;
+  padding: 40px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+}
+
+.validar-spinner {
+  width: 44px;
+  height: 44px;
+  border: 4px solid rgba(249, 115, 22, 0.2);
+  border-top-color: #f97316;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.validar-error-icon {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  padding: 14px;
+  border-radius: 50%;
+}
+
+.validar-card-error h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #f87171;
+}
+
+.validar-card-error p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #cbd5e1;
+  max-width: 400px;
+}
+
+.validar-error-tip {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 14px;
+  border-radius: 8px;
+}
+
+.validar-retry-btn {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #334155;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.validar-retry-btn:hover {
+  background: #475569;
+}
+
+/* Card Principal */
+.validar-card-main {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Status Banner */
+.validar-status-banner {
+  padding: 22px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.validar-status-banner.status-entregue {
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.95) 0%, rgba(16, 185, 129, 0.9) 100%);
+  color: #ffffff;
+  border-bottom: 2px solid #34d399;
+}
+
+.validar-status-banner.status-pendente {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.95) 0%, rgba(245, 158, 11, 0.9) 100%);
+  color: #ffffff;
+  border-bottom: 2px solid #fbbf24;
+}
+
+.validar-status-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+}
+
+.validar-status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.validar-status-label {
+  font-size: 0.7rem;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+  opacity: 0.9;
+  text-transform: uppercase;
+}
+
+.validar-status-text {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  line-height: 1.15;
+}
+
+.validar-status-details {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  opacity: 0.95;
+  line-height: 1.35;
+}
+
+/* Atleta Hero */
+.validar-athlete-hero {
+  padding: 20px 22px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.validar-number-box {
+  background: #0284c7;
+  padding: 10px 16px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 90px;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+}
+
+.validar-number-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #bae6fd;
+}
+
+.validar-number-value {
+  font-size: 1.85rem;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.validar-name-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.validar-name-label {
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.validar-name-value {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #f8fafc;
+  word-break: break-word;
+  line-height: 1.25;
+}
+
+/* Grade de Detalhes */
+.validar-details-grid {
+  padding: 18px 22px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px 16px;
+}
+
+.validar-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(30, 41, 59, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.detail-item-label {
+  font-size: 0.66rem;
+  letter-spacing: 0.8px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.detail-item-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  word-break: break-word;
+}
+
+.detail-item-value.highlight {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.detail-item-value.highlight-shirt {
+  color: #f59e0b;
+  font-weight: 800;
+}
+
+.chip-badge {
+  display: inline-block;
+  background: #1e293b;
+  border: 1px solid #475569;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 0.88rem;
+  color: #38bdf8;
+}
+
+/* Botões do Rodapé */
+.validar-footer-actions {
+  padding: 14px 22px 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.validar-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: #1e293b;
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.validar-refresh-btn:hover:not(:disabled) {
+  background: #334155;
+  color: #ffffff;
+}
+
+.validar-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* Footer de Segurança */
+.validar-security-footer {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+}
+
+.validar-security-seal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #10b981;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.validar-security-text {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+/* Responsivo */
+@media (max-width: 480px) {
+  .validar-page-wrapper {
+    padding: 16px 12px 36px;
+  }
+
+  .validar-details-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .validar-athlete-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .validar-number-box {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+    box-sizing: border-box;
+  }
+}

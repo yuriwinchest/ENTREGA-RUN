@@ -25,8 +25,41 @@ import {
   getAthleteTableValue,
   mergeAthleteColumnSchemas,
 } from '../utils/athleteTable.js'
-import { publishEspelhoState } from '../utils/espelhoSync.js'
+import AthleteQrModal from './AthleteQrModal.jsx'
+import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
 import './OperacaoPage.css'
+
+function QrCodeIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect width="5" height="5" x="3" y="3" rx="1" />
+      <rect width="5" height="5" x="16" y="3" rx="1" />
+      <rect width="5" height="5" x="3" y="16" rx="1" />
+      <path d="M21 16h-3a2 2 0 0 0-2 2v3" />
+      <path d="M21 21v.01" />
+      <path d="M12 7v3a2 2 0 0 1-2 2H7" />
+      <path d="M3 12h.01" />
+      <path d="M12 3h.01" />
+      <path d="M12 16v.01" />
+      <path d="M16 12h1" />
+      <path d="M21 12v.01" />
+      <path d="M12 21v-1" />
+    </svg>
+  )
+}
+
+function getNextAthleteNumber(athleteList) {
+  if (!Array.isArray(athleteList) || athleteList.length === 0) return '1'
+  let max = 0
+  for (const a of athleteList) {
+    const raw = String(a?.numero || '').trim()
+    const num = parseInt(raw.replace(/\D/g, ''), 10)
+    if (!Number.isNaN(num) && num > max) {
+      max = num
+    }
+  }
+  return String(max + 1)
+}
 
 function HelpCircleIcon() {
   return (
@@ -336,6 +369,7 @@ export default function OperacaoPage({
   // Modal Novo Atleta
   const [showAddAthleteModal, setShowAddAthleteModal] = useState(false)
   const [athleteForm, setAthleteForm] = useState(INITIAL_ATHLETE_FORM)
+  const [qrModalAthlete, setQrModalAthlete] = useState(null)
 
   // Modal Espelho (Acesso e Aparência)
   const [showEspelhoModal, setShowEspelhoModal] = useState(false)
@@ -438,7 +472,7 @@ export default function OperacaoPage({
     }
   })
 
-  // Save athletes to localStorage
+  // Save athletes to localStorage e sincroniza com o servidor central
   useEffect(() => {
     try {
       if (currentEvent.id) {
@@ -450,7 +484,14 @@ export default function OperacaoPage({
     } catch {
       // ignore
     }
-  }, [athletes, currentEvent.id])
+
+    if (currentEvent.id && Array.isArray(athletes) && athletes.length > 0) {
+      const timer = setTimeout(() => {
+        apiSaveAthletes(currentEvent.id, athletes, athleteColumnSchema).catch(() => {})
+      }, 600)
+      return () => clearTimeout(timer)
+    }
+  }, [athletes, athleteColumnSchema, currentEvent.id])
 
   useEffect(() => {
     try {
@@ -464,6 +505,95 @@ export default function OperacaoPage({
       // ignore
     }
   }, [athleteColumnSchema, currentEvent.id])
+
+  // Se este navegador ainda não tem os atletas deste evento salvos localmente, busca da API central
+  useEffect(() => {
+    let isMounted = true
+    if (currentEvent.id && athletes.length === 0) {
+      apiFetchAthletes(currentEvent.id).then((result) => {
+        if (isMounted && result && Array.isArray(result.athletes) && result.athletes.length > 0) {
+          setAthletes(result.athletes)
+          if (Array.isArray(result.schema) && result.schema.length > 0) {
+            setAthleteColumnSchema(result.schema)
+          }
+        }
+      })
+    }
+    return () => {
+      isMounted = false
+    }
+  }, [currentEvent.id, athletes.length])
+
+  const athleteTableColumns = useMemo(
+    () => getAthleteTableColumns(athletes, athleteColumnSchema),
+    [athletes, athleteColumnSchema]
+  )
+
+  const shirtOptions = useMemo(() => {
+    const unique = new Set()
+    athletes.forEach((a) => {
+      if (a.camiseta && String(a.camiseta).trim() !== '' && a.camiseta !== '—') {
+        unique.add(String(a.camiseta).trim().toUpperCase())
+      }
+    })
+    if (unique.size === 0) {
+      return ['PP', 'P', 'M', 'G', 'GG', 'XG', 'INFANTIL', 'BABY LOOK M']
+    }
+    return Array.from(unique)
+  }, [athletes])
+
+  const availableStandardColumns = useMemo(() => {
+    const ignored = new Set(['status', 'entregueEm', 'entreguePor', 'entreguePara'])
+    const standard = athleteTableColumns.filter(
+      (col) => col.type === 'standard' && !ignored.has(col.key)
+    )
+    if (standard.length === 0) {
+      return [
+        { key: 'numero', label: 'NÚMERO', required: true, type: 'standard' },
+        { key: 'nome', label: 'NOME COMPLETO', required: true, type: 'standard' },
+        { key: 'doc', label: 'DOCUMENTO / CPF', type: 'standard' },
+        { key: 'modalidade', label: 'MODALIDADE', type: 'standard' },
+        { key: 'categoria', label: 'CATEGORIA', type: 'standard' },
+        { key: 'camiseta', label: 'CAMISETA', type: 'standard' },
+        { key: 'kit', label: 'KIT', type: 'standard' },
+        { key: 'chip', label: 'CHIP', type: 'standard' },
+      ]
+    }
+    return standard
+  }, [athleteTableColumns])
+
+  const availableCustomColumns = useMemo(() => {
+    return athleteTableColumns.filter((col) => col.type === 'custom' && col.customKey)
+  }, [athleteTableColumns])
+
+  function handleOpenAddAthleteModal() {
+    if (isOperator) return
+    const nextNum = getNextAthleteNumber(athletes)
+    const initialCustom = {}
+    availableCustomColumns.forEach((c) => {
+      initialCustom[c.customKey] = ''
+    })
+
+    setAthleteForm({
+      numero: nextNum,
+      nome: '',
+      doc: '',
+      chip: '',
+      nascimento: '',
+      sexo: 'Masculino',
+      modalidade: athletes[0]?.modalidade || '5 KM',
+      categoria: athletes[0]?.categoria || 'GERAL',
+      camiseta: shirtOptions[0] || 'M',
+      kit: athletes[0]?.kit || 'Kit Padrão',
+      equipe: '',
+      cidade: '',
+      morador: 'Morador',
+      contato: '',
+      nome_peito: '',
+      customFields: initialCustom,
+    })
+    setShowAddAthleteModal(true)
+  }
 
   // Deliveries list: sempre ordenado de forma crescente por número de peito (1, 2, 3...)
   const [deliveries, setDeliveries] = useState(() => {
@@ -1205,30 +1335,50 @@ export default function OperacaoPage({
     publishEspelho('LIVRE')
   }
 
-  // Handle Add Athlete Submission
+  // Handle Add Athlete Submission (Dinâmico para Tabela Importada / Associada)
   function handleCreateAthlete(e) {
     e.preventDefault()
     if (isOperator) return
-    if (!athleteForm.nome.trim() || !athleteForm.numero.trim()) return
+    const num = String(athleteForm.numero || '').trim()
+    const nome = String(athleteForm.nome || '').trim().toUpperCase()
+
+    if (!num || !nome) {
+      alert('Por favor, informe ao menos o Número e o Nome do atleta.')
+      return
+    }
 
     const newAthlete = {
       id: `ath-${Date.now()}`,
-      numero: athleteForm.numero.trim(),
-      nome: athleteForm.nome.trim().toUpperCase(),
-      doc: athleteForm.cpf.trim() || '—',
-      nascimento: athleteForm.nascimento.trim(),
-      sexo: athleteForm.sexo,
-      modalidade: athleteForm.modalidade.trim() || '5 KM',
-      categoria: athleteForm.categoria.trim() || 'GERAL',
-      equipe: athleteForm.equipe.trim() ? athleteForm.equipe.trim().toUpperCase() : 'SEM EQUIPE',
-      camiseta: athleteForm.camiseta,
-      kit: athleteForm.kit.trim() || 'Kit Padrão',
-      chip: athleteForm.chip.trim(),
+      numero: num,
+      nome,
+      doc: (athleteForm.doc || athleteForm.cpf || '—').trim(),
+      nascimento: (athleteForm.nascimento || '').trim(),
+      sexo: athleteForm.sexo || 'Masculino',
+      modalidade: (athleteForm.modalidade || '5 KM').trim(),
+      categoria: (athleteForm.categoria || 'GERAL').trim(),
+      equipe: athleteForm.equipe?.trim() ? athleteForm.equipe.trim().toUpperCase() : 'SEM EQUIPE',
+      camiseta: athleteForm.camiseta || 'M',
+      kit: (athleteForm.kit || 'Kit Padrão').trim(),
+      chip: (athleteForm.chip || '').trim(),
+      cidade: (athleteForm.cidade || '').trim(),
+      morador: (athleteForm.morador || 'Morador').trim(),
+      contato: (athleteForm.contato || '').trim(),
+      nome_peito: (athleteForm.nome_peito || '').trim(),
+      customFields: { ...(athleteForm.customFields || {}) },
       status: 'PENDENTE',
       createdAt: new Date().toISOString(),
     }
 
-    const updatedAthletes = [newAthlete, ...athletes]
+    if (athleteForm.customFields) {
+      Object.entries(athleteForm.customFields).forEach(([k, v]) => {
+        if (k.toUpperCase().includes('PCD')) {
+          newAthlete.pcd = v
+        }
+      })
+    }
+
+    // Inserção no final da lista (vai para o último da tabela existente, ex: 301)
+    const updatedAthletes = [...athletes, newAthlete]
     setAthletes(updatedAthletes)
 
     // Update event totals
@@ -1247,7 +1397,11 @@ export default function OperacaoPage({
       })
     }
 
-    setAthleteForm(INITIAL_ATHLETE_FORM)
+    // Sincroniza atômica com o servidor central
+    if (currentEvent?.id) {
+      apiSaveAthletes(currentEvent.id, updatedAthletes, athleteColumnSchema).catch(() => {})
+    }
+
     setShowAddAthleteModal(false)
   }
 
@@ -1471,10 +1625,6 @@ export default function OperacaoPage({
   const athletePageEnd = Math.min(athletePageStart + ATHLETES_PER_PAGE, filteredAthletes.length)
   const paginatedAthletes = filteredAthletes.slice(athletePageStart, athletePageEnd)
 
-  const athleteTableColumns = useMemo(
-    () => getAthleteTableColumns(athletes, athleteColumnSchema),
-    [athletes, athleteColumnSchema]
-  )
   const visibleAthleteTableColumns = useMemo(() => {
     if (!isOperator) return athleteTableColumns
     const operatorColumns = new Set(['numero', 'nome', 'doc', 'chip', 'status'])
@@ -1728,6 +1878,16 @@ export default function OperacaoPage({
                       </button>
                     </>
                   )}
+
+                  <button
+                    type="button"
+                    className="btn-detail-qr-action"
+                    onClick={() => setQrModalAthlete(selectedAthlete || detailForm)}
+                    title="Visualizar e Imprimir QR Code deste atleta"
+                  >
+                    <QrCodeIcon size={16} />
+                    <span>QR CODE</span>
+                  </button>
 
                   <button
                     type="button"
@@ -2297,7 +2457,7 @@ export default function OperacaoPage({
                   <button
                     type="button"
                     className="btn-add-atleta"
-                    onClick={() => setShowAddAthleteModal(true)}
+                    onClick={handleOpenAddAthleteModal}
                   >
                     <UserPlusIcon />
                     <span>NOVO</span>
@@ -2337,10 +2497,11 @@ export default function OperacaoPage({
               >
                 <table
                   className="atletas-table"
-                  style={{ minWidth: `${athleteTableMinWidth}px` }}
+                  style={{ minWidth: `${athleteTableMinWidth + 84}px` }}
                 >
                   <thead>
                     <tr>
+                      <th style={{ width: '84px', textAlign: 'center' }}>QR CODE</th>
                       {visibleAthleteTableColumns.map((column, columnIndex) => (
                         <th
                           key={column.key}
@@ -2354,7 +2515,7 @@ export default function OperacaoPage({
                   <tbody>
                     {filteredAthletes.length === 0 ? (
                       <tr>
-                        <td colSpan={visibleAthleteTableColumns.length} className="empty-table-cell">
+                        <td colSpan={visibleAthleteTableColumns.length + 1} className="empty-table-cell">
                           Nenhum atleta encontrado.
                         </td>
                       </tr>
@@ -2366,6 +2527,26 @@ export default function OperacaoPage({
                           style={{ cursor: 'pointer' }}
                           title="Clique para abrir detalhes do atleta"
                         >
+                          <td
+                            style={{ textAlign: 'center', width: '84px' }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setQrModalAthlete(a)
+                            }}
+                          >
+                            <button
+                              type="button"
+                              className="btn-table-qr-badge"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setQrModalAthlete(a)
+                              }}
+                              title={`Ver / Imprimir QR Code do atleta #${a.numero}`}
+                            >
+                              <QrCodeIcon size={14} />
+                              <span>QR</span>
+                            </button>
+                          </td>
                           {visibleAthleteTableColumns.map((column, columnIndex) => {
                             const cellValue = getAthleteTableValue(a, column)
                             return (
@@ -3061,12 +3242,22 @@ export default function OperacaoPage({
           </div>
         )}
 
-        {/* MODAL: NOVO ATLETA */}
+        {/* MODAL: NOVO ATLETA (DINÂMICO CONFORME TABELA ASSOCIADA) */}
         {showAddAthleteModal && (
           <div className="modal-backdrop">
-            <div className="modal-card-athlete">
+            <div className="modal-card-athlete modal-card-athlete-dynamic">
               <div className="modal-athlete-header">
-                <h2 className="modal-athlete-title">NOVO ATLETA</h2>
+                <div>
+                  <div className="modal-athlete-header-tags">
+                    <span className="athlete-seq-badge">
+                      PRÓXIMO SEQUENCIAL: #{athleteForm.numero || ''}
+                    </span>
+                    <span className="athlete-seq-source">
+                      {athleteTableColumns.length > 0 ? 'Colunas da Tabela Oficial' : 'Cadastro Manual'}
+                    </span>
+                  </div>
+                  <h2 className="modal-athlete-title">NOVO ATLETA</h2>
+                </div>
                 <button
                   type="button"
                   className="modal-athlete-close-btn"
@@ -3077,197 +3268,184 @@ export default function OperacaoPage({
                 </button>
               </div>
 
-              <form className="modal-athlete-body" onSubmit={handleCreateAthlete}>
-                {/* NOME COMPLETO * */}
-                <div className="athlete-form-group">
-                  <label className="athlete-form-label">
-                    NOME COMPLETO <span className="required-star">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="athlete-form-input highlight-first"
-                    value={athleteForm.nome}
-                    onChange={(e) =>
-                      setAthleteForm({ ...athleteForm, nome: e.target.value })
-                    }
-                    autoFocus
-                    required
-                  />
-                </div>
-
-                {/* CPF & NASCIMENTO */}
-                <div className="athlete-row-2">
-                  <div className="athlete-form-group">
-                    <label className="athlete-form-label">CPF</label>
-                    <input
-                      type="text"
-                      className="athlete-form-input"
-                      placeholder="000.000.000-00"
-                      value={athleteForm.cpf}
-                      onChange={(e) =>
-                        setAthleteForm({ ...athleteForm, cpf: e.target.value })
-                      }
-                    />
-                  </div>
-
-                  <div className="athlete-form-group">
-                    <label className="athlete-form-label">NASCIMENTO</label>
-                    <div className="athlete-input-icon-wrap">
-                      <input
-                        type="text"
-                        className="athlete-form-input"
-                        placeholder="dd/mm/aaaa"
-                        value={athleteForm.nascimento}
-                        onChange={(e) =>
-                          setAthleteForm({
-                            ...athleteForm,
-                            nascimento: e.target.value,
-                          })
-                        }
-                      />
-                      <span className="input-end-icon">
-                        <CalendarIcon />
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* SEXO & MODALIDADE */}
-                <div className="athlete-row-2">
-                  <div className="athlete-form-group">
-                    <label className="athlete-form-label">SEXO</label>
-                    <select
-                      className="athlete-form-select"
-                      value={athleteForm.sexo}
-                      onChange={(e) =>
-                        setAthleteForm({ ...athleteForm, sexo: e.target.value })
-                      }
-                    >
-                      <option value="Masculino">Masculino</option>
-                      <option value="Feminino">Feminino</option>
-                    </select>
-                  </div>
-
-                  <div className="athlete-form-group">
-                    <label className="athlete-form-label">MODALIDADE</label>
-                    <input
-                      type="text"
-                      className="athlete-form-input"
-                      value={athleteForm.modalidade}
-                      onChange={(e) =>
-                        setAthleteForm({
-                          ...athleteForm,
-                          modalidade: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-
-                {/* 4. CATEGORIA & EQUIPE */}
-                <div className="athlete-row-2">
-                  <div className="athlete-form-group">
-                    <label className="athlete-form-label">CATEGORIA</label>
-                    <input
-                      type="text"
-                      className="athlete-form-input"
-                      value={athleteForm.categoria}
-                      onChange={(e) =>
-                        setAthleteForm({
-                          ...athleteForm,
-                          categoria: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div className="athlete-form-group">
-                    <label className="athlete-form-label">EQUIPE</label>
-                    <input
-                      type="text"
-                      className="athlete-form-input"
-                      placeholder="Opcional"
-                      value={athleteForm.equipe}
-                      onChange={(e) =>
-                        setAthleteForm({
-                          ...athleteForm,
-                          equipe: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-
-                {/* 5. CAMISETA, KIT & NÚMERO */}
-                <div className="athlete-row-3">
-                  <div className="athlete-form-group">
-                    <label className="athlete-form-label">CAMISETA</label>
-                    <select
-                      className="athlete-form-select"
-                      value={athleteForm.camiseta}
-                      onChange={(e) =>
-                        setAthleteForm({
-                          ...athleteForm,
-                          camiseta: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="P">P</option>
-                      <option value="M">M</option>
-                      <option value="G">G</option>
-                      <option value="GG">GG</option>
-                      <option value="XG">XG</option>
-                    </select>
-                  </div>
-
-                  <div className="athlete-form-group">
-                    <label className="athlete-form-label">KIT</label>
-                    <input
-                      type="text"
-                      className="athlete-form-input"
-                      value={athleteForm.kit}
-                      onChange={(e) =>
-                        setAthleteForm({
-                          ...athleteForm,
-                          kit: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-
+              <form className="modal-athlete-body modal-athlete-body-dynamic" onSubmit={handleCreateAthlete}>
+                {/* 1. CAMPOS PRINCIPAIS: NÚMERO & NOME COMPLETO */}
+                <div className="athlete-dynamic-grid-2">
                   <div className="athlete-form-group">
                     <label className="athlete-form-label">
                       NÚMERO <span className="required-star">*</span>
                     </label>
+                    <div className="athlete-number-input-wrap">
+                      <input
+                        type="text"
+                        required
+                        className="athlete-form-input highlight-number"
+                        placeholder="Ex.: 301"
+                        value={athleteForm.numero || ''}
+                        onChange={(e) =>
+                          setAthleteForm((prev) => ({ ...prev, numero: e.target.value }))
+                        }
+                      />
+                      <span className="athlete-input-badge-seq">Sequencial</span>
+                    </div>
+                  </div>
+
+                  <div className="athlete-form-group">
+                    <label className="athlete-form-label">
+                      NOME COMPLETO <span className="required-star">*</span>
+                    </label>
                     <input
                       type="text"
-                      required
-                      className="athlete-form-input"
-                      placeholder="Ex.: 350"
-                      value={athleteForm.numero}
+                      className="athlete-form-input highlight-first"
+                      placeholder="Nome completo do atleta"
+                      value={athleteForm.nome || ''}
                       onChange={(e) =>
-                        setAthleteForm({
-                          ...athleteForm,
-                          numero: e.target.value,
-                        })
+                        setAthleteForm((prev) => ({ ...prev, nome: e.target.value }))
                       }
+                      autoFocus
+                      required
                     />
                   </div>
                 </div>
 
-                {/* 6. CHIP */}
-                <div className="athlete-form-group">
-                  <label className="athlete-form-label">CHIP</label>
-                  <input
-                    type="text"
-                    className="athlete-form-input"
-                    placeholder="Opcional"
-                    value={athleteForm.chip}
-                    onChange={(e) =>
-                      setAthleteForm({ ...athleteForm, chip: e.target.value })
-                    }
-                  />
-                </div>
+                {/* 2. DEMAIS COLUNAS PADRÃO DA TABELA ASSOCIADA */}
+                {availableStandardColumns.length > 0 && (
+                  <div className="athlete-dynamic-grid">
+                    {availableStandardColumns.map((col) => {
+                      if (col.key === 'numero' || col.key === 'nome') return null
+
+                      // Seletor de Camiseta com tamanhos detectados da base
+                      if (col.key === 'camiseta') {
+                        return (
+                          <div key={col.key} className="athlete-form-group">
+                            <label className="athlete-form-label">{col.label}</label>
+                            <select
+                              className="athlete-form-select"
+                              value={athleteForm.camiseta || shirtOptions[0] || 'M'}
+                              onChange={(e) =>
+                                setAthleteForm((prev) => ({ ...prev, camiseta: e.target.value }))
+                              }
+                            >
+                              {shirtOptions.map((opt) => (
+                                <option key={opt} value={opt}>
+                                  {opt}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )
+                      }
+
+                      // Seletor de Sexo
+                      if (col.key === 'sexo') {
+                        return (
+                          <div key={col.key} className="athlete-form-group">
+                            <label className="athlete-form-label">{col.label}</label>
+                            <select
+                              className="athlete-form-select"
+                              value={athleteForm.sexo || 'Masculino'}
+                              onChange={(e) =>
+                                setAthleteForm((prev) => ({ ...prev, sexo: e.target.value }))
+                              }
+                            >
+                              <option value="Masculino">Masculino</option>
+                              <option value="Feminino">Feminino</option>
+                            </select>
+                          </div>
+                        )
+                      }
+
+                      // Seletor Morador/Visitante
+                      if (col.key === 'morador') {
+                        return (
+                          <div key={col.key} className="athlete-form-group">
+                            <label className="athlete-form-label">{col.label}</label>
+                            <select
+                              className="athlete-form-select"
+                              value={athleteForm.morador || 'Morador'}
+                              onChange={(e) =>
+                                setAthleteForm((prev) => ({ ...prev, morador: e.target.value }))
+                              }
+                            >
+                              <option value="Morador">Morador</option>
+                              <option value="Visitante">Visitante</option>
+                            </select>
+                          </div>
+                        )
+                      }
+
+                      // Campo de Nascimento com calendário
+                      if (col.key === 'nascimento') {
+                        return (
+                          <div key={col.key} className="athlete-form-group">
+                            <label className="athlete-form-label">{col.label}</label>
+                            <div className="athlete-input-icon-wrap">
+                              <input
+                                type="text"
+                                className="athlete-form-input"
+                                placeholder="dd/mm/aaaa"
+                                value={athleteForm.nascimento || ''}
+                                onChange={(e) =>
+                                  setAthleteForm((prev) => ({ ...prev, nascimento: e.target.value }))
+                                }
+                              />
+                              <span className="input-end-icon">
+                                <CalendarIcon />
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      // Campo genérico padrão (doc, chip, modalidade, categoria, kit, equipe, cidade, contato, nome_peito)
+                      return (
+                        <div key={col.key} className="athlete-form-group">
+                          <label className="athlete-form-label">{col.label}</label>
+                          <input
+                            type="text"
+                            className="athlete-form-input"
+                            placeholder={col.key === 'doc' ? '000.000.000-00 ou RG' : `Preencher ${col.label.toLowerCase()}`}
+                            value={athleteForm[col.key] || ''}
+                            onChange={(e) =>
+                              setAthleteForm((prev) => ({ ...prev, [col.key]: e.target.value }))
+                            }
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* 3. CAMPOS EXTRAS E PERSONALIZADOS DA TABELA ASSOCIADA (PCD, TAMANHO TÊNIS, ETC.) */}
+                {availableCustomColumns.length > 0 && (
+                  <div className="athlete-dynamic-custom-section">
+                    <div className="athlete-custom-section-header">
+                      <span className="badge-custom-cols">CAMPOS EXTRAS DA PLANILHA IMPORTADA</span>
+                    </div>
+                    <div className="athlete-dynamic-grid">
+                      {availableCustomColumns.map((col) => (
+                        <div key={col.key} className="athlete-form-group">
+                          <label className="athlete-form-label">{col.label}</label>
+                          <input
+                            type="text"
+                            className="athlete-form-input"
+                            placeholder={`Preencher ${col.label.toLowerCase()}`}
+                            value={athleteForm.customFields?.[col.customKey] || ''}
+                            onChange={(e) =>
+                              setAthleteForm((prev) => ({
+                                ...prev,
+                                customFields: {
+                                  ...(prev.customFields || {}),
+                                  [col.customKey]: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* AÇÕES: CANCELAR & CADASTRAR ATLETA */}
                 <div className="modal-athlete-actions">
@@ -3286,6 +3464,17 @@ export default function OperacaoPage({
               </form>
             </div>
           </div>
+        )}
+
+        {/* MODAL: QR CODE INDIVIDUAL DO ATLETA */}
+        {qrModalAthlete && (
+          <AthleteQrModal
+            key={qrModalAthlete.id || qrModalAthlete.numero}
+            isOpen={Boolean(qrModalAthlete)}
+            onClose={() => setQrModalAthlete(null)}
+            athlete={qrModalAthlete}
+            event={currentEvent}
+          />
         )}
 
         {/* MODAL: ESPELHO (ACESSO E APARÊNCIA) */}

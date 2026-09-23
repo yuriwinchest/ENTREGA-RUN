@@ -1,0 +1,294 @@
+.athlete-qr-backdrop {
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(4, 9, 20, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.modal-card-athlete-qr {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalPop 0.22s ease-out;
+}
+
+@keyframes modalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal-athlete-qr-header {
+  padding: 18px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.athlete-qr-header-badge {
+  font-size: 0.68rem;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+  color: #38bdf8;
+  text-transform: uppercase;
+}
+
+.modal-athlete-qr-title {
+  margin: 2px 0 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.modal-athlete-qr-body {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.athlete-qr-hero-card {
+  width: 100%;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 16px;
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-sizing: border-box;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.athlete-qr-info-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.athlete-qr-event-tag {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #475569;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+
+.athlete-qr-status-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.athlete-qr-status-tag.status-entregue {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.athlete-qr-status-tag.status-pendente {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.athlete-qr-number-display {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.athlete-qr-num-prefix {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.athlete-qr-num-val {
+  font-size: 2.8rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #0f172a;
+}
+
+.athlete-qr-name-display {
+  margin: 6px 0 10px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #1e293b;
+  text-transform: uppercase;
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.athlete-qr-subdetails {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 14px;
+  font-size: 0.78rem;
+  color: #475569;
+  background: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 14px;
+}
+
+.athlete-qr-subdetails strong {
+  color: #0f172a;
+}
+
+.athlete-qr-code-wrapper {
+  background: #ffffff;
+  padding: 8px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e2e8f0;
+}
+
+.athlete-qr-image {
+  width: 200px;
+  height: 200px;
+  display: block;
+}
+
+.athlete-qr-placeholder {
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.athlete-qr-scan-instruction {
+  margin: 12px 0 0;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 500;
+  max-width: 260px;
+}
+
+/* Ações */
+.modal-athlete-qr-actions {
+  padding: 16px 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.btn-athlete-qr-action {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  white-space: nowrap;
+}
+
+.btn-athlete-qr-action.secondary {
+  background: #1e293b;
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-athlete-qr-action.secondary:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.btn-athlete-qr-action.primary {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+}
+
+.btn-athlete-qr-action.primary:hover {
+  filter: brightness(1.08);
+}
+
+/* Modo de Impressão */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area-athlete-qr,
+  .print-area-athlete-qr * {
+    visibility: visible;
+  }
+
+  .athlete-qr-backdrop {
+    position: static;
+    background: transparent;
+    padding: 0;
+  }
+
+  .modal-card-athlete-qr {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .modal-athlete-qr-body {
+    padding: 0;
+  }
+
+  .athlete-qr-hero-card {
+    box-shadow: none;
+    border: 1px solid #000000;
+    page-break-inside: avoid;
+    max-width: 320px;
+    margin: 0 auto;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

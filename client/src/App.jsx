@@ -5,6 +5,7 @@ import EventosPage from './components/EventosPage.jsx'
 import LoginPage from './components/LoginPage.jsx'
 import OperacaoPage from './components/OperacaoPage.jsx'
 import EspelhoPage from './components/EspelhoPage.jsx'
+import ValidarAtletaPage from './components/ValidarAtletaPage.jsx'
 import TutorialModal from './components/TutorialModal.jsx'
 import UsuariosPage from './components/UsuariosPage.jsx'
 import { apiFetchEvents, apiSyncEvents, apiUpdateEvent } from './utils/eventsApi.js'
@@ -145,6 +146,7 @@ export default function App() {
 
   const [currentPage, setCurrentPage] = useState(() => {
     const path = window.location.pathname
+    if (path.startsWith('/validar')) return 'validar'
     if (path.startsWith('/espelho')) return 'espelho'
     if (path.startsWith('/operacao')) return 'operacao'
     if (path.startsWith('/eventos')) return 'eventos'
@@ -161,7 +163,9 @@ export default function App() {
   useEffect(() => {
     function handlePopState() {
       const path = window.location.pathname
-      if (path.startsWith('/espelho')) {
+      if (path.startsWith('/validar')) {
+        setCurrentPage('validar')
+      } else if (path.startsWith('/espelho')) {
         const parts = path.split('/')
         if (parts[2]) setSelectedEventId(parts[2])
         setCurrentPage('espelho')
@@ -258,6 +262,19 @@ export default function App() {
         navigateTo('operacao')
       }
     }
+  }
+
+  // Tela de Validação Pública (acesso via QR Code individual do atleta)
+  if (currentPage === 'validar' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/validar'))) {
+    const parts = window.location.pathname.split('/')
+    const valEventId = parts[2] || effectiveEventId
+    const valNumero = decodeURIComponent(parts[3] || '')
+    return (
+      <ValidarAtletaPage
+        eventId={valEventId}
+        numero={valNumero}
+      />
+    )
   }
 
   // Tela de Espelho (acesso público para atletas via QR Code ou monitor secundário)
