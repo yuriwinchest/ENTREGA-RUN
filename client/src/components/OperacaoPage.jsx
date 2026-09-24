@@ -2843,10 +2843,10 @@ export default function OperacaoPage({
                   type="button"
                   className="btn-import-planilha"
                   onClick={() => setShowImportModal(true)}
-                  title="Abrir assistente de importação de atletas sem associação"
+                  title="Abrir assistente de importação de atletas já associados"
                 >
                   <UploadIcon />
-                  <span>IMPORTAR SEM ASSOCIAÇÃO</span>
+                  <span>IMPORTAR JÁ ASSOCIADO</span>
                 </button>
                 <button
                   type="button"

@@ -1,5 +1,14 @@
 # Handoff
 
+## 2026-09-23 — Ajuste de Nomenclatura: IMPORTAR JÁ ASSOCIADO (Fase A)
+
+- **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
+- **Pedido do Yuri (PO via áudio):** Alterar o nome do botão `IMPORTAR SEM ASSOCIAÇÃO` para `IMPORTAR JÁ ASSOCIADO` na aba Auditoria.
+- **Arquivos alterados:** `client/src/components/OperacaoPage.jsx` e este `HANDOFF.md`.
+- **Validação real:** `npm run lint --prefix client` com 0 erros e 0 avisos; `npm run build --prefix client` gerando bundle Vite em 343ms (`index-DXU-PKO_.js`).
+- **Riscos e pendências:** Nenhuma regressão.
+- **Próximo passo:** Subir via `git push origin main` para acionamento do deploy na VPS.
+
 ## 2026-09-23 — Leitor QR Universal com jsQR, Busca Alfabética Inteligente e Simplificação da Aba Auditoria (Fase A)
 
 - **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
