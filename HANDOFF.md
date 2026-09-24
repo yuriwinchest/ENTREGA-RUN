@@ -8,7 +8,7 @@
 - **Validação real:** `npm run lint --prefix client` sem avisos; `npm run build --prefix client` concluído; `node --check server/server.js` e `git diff --check` sem erros. Estes comandos validam compilação e análise estática, não a câmera física nem o fluxo completo no navegador.
 - **Riscos e pendências:** leitura automática depende de `BarcodeDetector`, câmera e permissão do navegador; digitação manual é alternativa na mesma tela. Associação ainda usa a sincronização de lista inteira existente, sem transação de reserva entre dois operadores simultâneos. Não houve homologação do Yuri, teste com planilhas reais nem deploy.
 - **Próximo passo:** validar em navegador móvel com as duas planilhas reais: atleta começa sem número/chip, leitura ou digitação encontra kit, confirmação atribui ambos, código repetido é recusado e a entrega só é registrada após associação.
-- **GitHub:** envio preparado na branch `codex/associacao-kit-leitura`; `main` dispara deploy automático e não foi usada nesta entrega.
+- **GitHub:** primeiro envio na branch `codex/associacao-kit-leitura`; após o PO mostrar que a tela publicada continuava antiga, o commit foi encaminhado para `main` conforme a decisão de deploy automático registrada neste handoff. A conclusão do workflow e a tela publicada devem ser verificadas separadamente.
 
 ## Convenção de registro (obrigatória)
 
