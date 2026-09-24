@@ -19,7 +19,8 @@
   - `npm run lint --prefix client`: 0 warnings, 0 errors em 29 arquivos.
   - `npm run build --prefix client`: compilação concluída com sucesso em 663ms (`index-DOJK-6n7.js`).
   - **Deploy em Produção (VPS):** Executado com sucesso via GitHub Actions (Run ID `35958459706`, commit `150ff59`).
-  - **Healthcheck Live:** `https://app.entregasrun.com.br/api/health` retornando `ok: true`.
+  - **Healthcheck Live:** `https://app.entregasrun.com.br/api/health` retornando `ok: true`, `appwriteEnabled: true`.
+  - **Status do Banco Appwrite em Produção:** `https://app.entregasrun.com.br/api/appwrite/status` retornando `enabled: true`, `connected: true` com as 4 coleções (`events`, `athletes`, `user_profiles`, `audit_logs`) ativas e comunicando com o cluster `db.largadabrasil.com`.
   - **Bundle Live:** `index-DOJK-6n7.js` servido ativamente na raiz do domínio.
 - **Próximo passo:** Yuri (PO) testar a importação na tela de Operação em produção.
 
