@@ -25,7 +25,12 @@
   - `oxlint`: 0 warnings, 0 errors em 29 arquivos.
   - `npm run build`: bundle compilado com sucesso (`index-Cc5RsoG3.js`, `index-BhGlw0Xt.css`).
   - `node --check server/server.js`: sintaxe validada com sucesso.
-- **Próximo passo:** Subir via `git push origin main` para deploy automático na VPS e homologação com o Yuri.
+  - **Docker Build:** imagem construída com sucesso via Docker engine local e no runner CI/CD.
+  - **Deploy em Produção (VPS):** Executado com sucesso via GitHub Actions (Run ID `35963521908`, commit `deb1541`).
+  - **Bundle Live:** `index-Cc5RsoG3.js` servido ativamente na raiz de `https://app.entregasrun.com.br/`.
+  - **Healthcheck & Appwrite Live:** `https://app.entregasrun.com.br/api/health` retornando `ok: true`, `appwriteEnabled: true`. `api/appwrite/status` conectado com as 4 coleções ativas.
+  - **Teste de Carga de Payload:** POST de 500 atletas (85 KB) testado contra o endpoint `/api/events/teste-payload/athletes` respondendo com HTTP 200 `{ ok: true, count: 500 }` e persistindo no GET, confirmando eliminação definitiva do erro 413.
+- **Próximo passo:** Yuri (PO) homologar a importação da planilha no evento `TESTE 2` e a entrega com retirada por terceiro em `app.entregasrun.com.br`.
 
 ## 2026-09-24 — Alinhamento Estrito com a Planilha: Opções de PCD (SIM/NÃO) e Ocultação do Painel de KITS (Fase A)
 
