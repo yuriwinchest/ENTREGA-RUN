@@ -16,7 +16,9 @@
 - **Validação real executada:**
   - `oxlint`: 0 warnings, 0 errors em 29 arquivos.
   - `npm run build`: bundle compilado com sucesso (`index-Xokgz7yB.js`, `index-BhGlw0Xt.css`).
-- **Próximo passo:** Subir alterações via GitHub Actions e verificar produção.
+  - **Deploy em Produção (VPS):** Executado com sucesso via GitHub Actions (Run ID `35960505409`, commit `afb1abc`).
+  - **Bundle Live:** `index-Xokgz7yB.js` ativo e respondendo na raiz de `app.entregasrun.com.br`.
+- **Próximo passo:** Yuri (PO) homologar a tela de Operação em produção.
 
 ## 2026-09-24 — Correção do Botão Avançar para Pré-Visualização no Modal Importar Atletas e Kits (Fase A)
 
