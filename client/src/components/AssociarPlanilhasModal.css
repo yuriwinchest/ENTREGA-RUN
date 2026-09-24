@@ -342,6 +342,17 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.file-loaded-box::-webkit-scrollbar {
+  width: 5px;
+}
+.file-loaded-box::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
 }
 
 .file-loaded-info {
@@ -480,6 +491,34 @@
   font-size: 10.5px;
   color: #94a3b8;
   font-weight: 600;
+}
+
+.detected-columns-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+  margin-top: 6px;
+}
+
+.detected-columns-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.detected-col-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  padding: 2px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
 }
 
 /* SETTINGS CARD */

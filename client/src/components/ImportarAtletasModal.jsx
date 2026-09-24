@@ -282,6 +282,7 @@ export default function ImportarAtletasModal({
             const detected = extractDetectedCustomFields(headers)
             setCustomFields((prev) => Array.from(new Set([...prev, ...detected])))
             setColumnMapping(autoGuessMapping(headers, detected))
+            setStep(2)
           } else {
             alert('A planilha selecionada está vazia.')
           }
@@ -304,6 +305,9 @@ export default function ImportarAtletasModal({
         const detected = extractDetectedCustomFields(headers)
         setCustomFields((prev) => Array.from(new Set([...prev, ...detected])))
         setColumnMapping(autoGuessMapping(headers, detected))
+        if (rows.length > 0) {
+          setStep(2)
+        }
       }
       reader.readAsText(file)
     }
@@ -392,8 +396,6 @@ export default function ImportarAtletasModal({
           athlete.nome = val.toUpperCase()
         } else if (val && fieldKey === 'nome_peito') {
           athlete.nome_peito = val.toUpperCase()
-        } else if (fieldKey === 'numero' || fieldKey === 'chip') {
-          // A numeração e o chip só são atribuídos após ler o QR Code do kit.
         } else if (val) {
           athlete[fieldKey] = val
         }
@@ -654,6 +656,42 @@ export default function ImportarAtletasModal({
                 )
               })}
             </div>
+
+            {/* PRÉVIA DOS DADOS DA PLANILHA */}
+            {parsedRows.length > 0 && (
+              <div className="importar-live-preview-wrap">
+                <div className="live-preview-title-row">
+                  <span className="live-preview-title">
+                    PRÉ-VISUALIZAÇÃO DOS DADOS ({parsedRows.length} atletas detectados)
+                  </span>
+                  <span className="live-preview-sub">
+                    Exibindo os primeiros registros com todas as colunas da planilha:
+                  </span>
+                </div>
+                <div className="importar-table-responsive">
+                  <table className="importar-preview-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '45px' }}>#</th>
+                        {parsedHeaders.map((header, idx) => (
+                          <th key={idx}>{header || `Coluna ${idx + 1}`}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parsedRows.slice(0, 5).map((row, rowIdx) => (
+                        <tr key={rowIdx}>
+                          <td style={{ fontWeight: 800, color: '#64748b' }}>{rowIdx + 1}</td>
+                          {parsedHeaders.map((_, colIdx) => (
+                            <td key={colIdx}>{row[colIdx] !== undefined && String(row[colIdx]).trim() !== '' ? String(row[colIdx]) : '—'}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Rodapé da Etapa 2 */}
             <div className="importar-modal-actions">

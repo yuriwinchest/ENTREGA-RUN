@@ -1,5 +1,20 @@
 # Handoff
 
+## 2026-09-23 — Exibição Completa de Colunas em Importações, Limpeza da Busca e Desfazer Total (Fase A)
+
+- **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
+- **Pedido do Yuri (PO via áudio/vídeo):**
+  1. *Exibição Completa de Dados ao Anexar Tabelas*: Em ambas as importações (associada e já associada), exibir todas as colunas da planilha (Nome, Doc/CPF, Modalidade, Categoria, Camiseta, Sexo, Equipe, Número, Nascimento, Cidade e colunas extras). Na pré-visualização de ambas, listar a tabela completa com todos os campos detectados.
+  2. *Correção de Importação Já Associada*: Permitir que número e chip sejam importados diretamente sem serem descartados.
+  3. *Busca Rápida na Entrega de Kit*: Remover botão "ENTREGAR KIT" da listagem de busca. Remover número de chip e número de peito da listagem rápida (deixar apenas Nome, CPF e status). Quando o atleta já foi entregue, exibir o badge `KIT ENTREGUE`; quando não foi entregue, não exibir nada no lugar do botão. O clique na linha abre a ficha do atleta.
+  4. *Desfazer Associação Completo*: Ao clicar em "DESFAZER" na ficha do atleta (inclusive a partir da aba Atletas), desfazer completamente a associação, limpando chip, QR Code, número de peito atribuído, dados de entrega e restaurando o status para PENDENTE, com persistência imediata no backend.
+- **Arquivos alterados:** `client/src/components/AssociarPlanilhasModal.jsx`, `client/src/components/AssociarPlanilhasModal.css`, `client/src/components/ImportarAtletasModal.jsx`, `client/src/components/ImportarAtletasModal.css`, `client/src/components/OperacaoPage.jsx`, `client/src/components/OperacaoPage.css` e este `HANDOFF.md`.
+- **Validação real:**
+  - `npm run lint --prefix client`: 0 warnings, 0 errors em 28 arquivos.
+  - `npm run build --prefix client`: build do Vite concluído com sucesso em 596ms (`index-Dfa0DRGy.js` e `index-4l4NPCcr.css`).
+- **Riscos e pendências:** Nenhuma regressão detectada.
+- **Próximo passo:** Subir via `git push origin main` para acionamento do deploy na VPS e homologação com o Yuri.
+
 ## 2026-09-23 — Ajuste de Nomenclatura: IMPORTAR JÁ ASSOCIADO (Fase A)
 
 - **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).

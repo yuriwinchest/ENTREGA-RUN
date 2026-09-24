@@ -1303,53 +1303,81 @@ export default function OperacaoPage({
   const detailHasPendingEdits = detailHasChanges
   const deliverBlockedByEdits = !isOperator && detailHasPendingEdits
 
-  // Revert / Undo Delivery
-  function handleUndoDelivery() {
-    if (isOperator) return
-    if (!selectedAthlete) return
+  // Desfazer Associação / Entrega: limpa completamente chip, qrCode, entrega e status
+  function handleUndoAssociation() {
+    if (isOperator || !selectedAthlete) return
 
-    // Mark athlete as PENDENTE
-    setAthletes((prev) =>
-      prev.map((a) => {
-        if (String(a.numero) === String(selectedAthlete.numero) || String(a.id) === String(selectedAthlete.id)) {
-          return { ...a, status: 'PENDENTE' }
-        }
-        return a
-      })
-    )
+    const athleteRef = selectedAthlete
 
-    // Remove from deliveries
-    setDeliveries((prev) =>
-      prev.filter((d) => String(d.id) !== String(selectedAthlete.numero))
-    )
+    const wasEntregue =
+      String(athleteRef.status || '').toUpperCase() === 'ENTREGUE' ||
+      Boolean(athleteRef.entregueEm)
 
-    // Remove do histórico de Auditoria
-    setAudits((prev) =>
-      prev.filter((item) => String(item.atletaNumero) !== String(selectedAthlete.numero))
-    )
-
-    // Recalculate metrics
-    const newEntregues = Math.max(0, (currentEvent.entregues || 0) - 1)
-    const newPendentes = (currentEvent.pendentes || 0) + 1
-    const totalCount = currentEvent.total || athletes.length
-    const conclRate = totalCount > 0
-      ? ((newEntregues / totalCount) * 100).toFixed(1) + '%'
-      : '0.0%'
-
-    if (onUpdateEvent) {
-      onUpdateEvent({
-        ...currentEvent,
-        entregues: newEntregues,
-        pendentes: newPendentes,
-        concl: conclRate,
-      })
+    const updatedAthlete = {
+      ...athleteRef,
+      status: 'PENDENTE',
+      chip: '',
+      qrCode: '',
+      entregueEm: '',
+      entreguePor: '',
+      entreguePara: '',
     }
 
-    setSelectedAthlete(null)
-    setDetailForm(null)
-    setDetailInitialForm(null)
-    setDetailFeedback('')
-    publishEspelho('LIVRE')
+    // Se o número de peito foi associado via kit de leitura ou importação sem número fixo,
+    // ou se o kit associado corresponde a este número, limpa o número também
+    if (athleteRef._origNumero === '' || athleteRef._wasUnassignedNumber || athleteRef.id?.startsWith('import-')) {
+      if (Array.isArray(kits) && kits.some((k) => String(k.numero).trim() === String(athleteRef.numero).trim())) {
+        updatedAthlete.numero = ''
+      }
+    }
+
+    const nextAthletes = athletes.map((a) =>
+      matchesAthleteReference(a, athleteRef) ? updatedAthlete : a
+    )
+
+    setAthletes(nextAthletes)
+
+    // Remove das entregas ativas se estava entregue
+    if (wasEntregue) {
+      setDeliveries((prev) =>
+        prev.filter((d) => String(d.id) !== String(athleteRef.numero) && String(d.id) !== String(athleteRef.id))
+      )
+      setAudits((prev) =>
+        prev.filter(
+          (item) =>
+            String(item.atletaNumero) !== String(athleteRef.numero) &&
+            String(item.atletaId || '') !== String(athleteRef.id)
+        )
+      )
+
+      const newEntregues = Math.max(0, (currentEvent.entregues || 0) - 1)
+      const newPendentes = (currentEvent.pendentes || 0) + 1
+      const totalCount = currentEvent.total || athletes.length
+      const conclRate = totalCount > 0
+        ? ((newEntregues / totalCount) * 100).toFixed(1) + '%'
+        : '0.0%'
+
+      if (onUpdateEvent) {
+        onUpdateEvent({
+          ...currentEvent,
+          entregues: newEntregues,
+          pendentes: newPendentes,
+          concl: conclRate,
+        })
+      }
+    }
+
+    // Persistência no backend / volume
+    if (currentEvent?.id) {
+      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined).catch(() => {})
+    }
+
+    const nextDraft = buildAthleteDetailDraft(updatedAthlete)
+    setSelectedAthlete(updatedAthlete)
+    setDetailForm(nextDraft)
+    setDetailInitialForm(nextDraft)
+    setDetailFeedback('Associação desfeita com sucesso! Chip, QR Code e status foram limpos.')
+    publishEspelho('ATENDENDO', updatedAthlete)
   }
 
   // Handle Add Athlete Submission (Dinâmico para Tabela Importada / Associada)
@@ -1904,8 +1932,8 @@ export default function OperacaoPage({
                         <button
                           type="button"
                           className="btn-detail-undo"
-                          onClick={handleUndoDelivery}
-                          title="Desfazer entrega do kit"
+                          onClick={handleUndoAssociation}
+                          title="Desfazer entrega do kit e limpar associação"
                         >
                           <UndoIcon />
                           <span>DESFAZER</span>
@@ -1940,6 +1968,17 @@ export default function OperacaoPage({
                         <CheckCircleIcon />
                         <span>ENTREGAR KIT</span>
                       </button>
+                      {!isOperator && (Boolean(detailForm.chip) || Boolean(detailForm.qrCode) || (Boolean(detailForm.numero) && detailForm.numero !== '—')) && (
+                        <button
+                          type="button"
+                          className="btn-detail-undo"
+                          onClick={handleUndoAssociation}
+                          title="Desfazer associação do kit (limpa chip, QR Code e número)"
+                        >
+                          <UndoIcon />
+                          <span>DESFAZER</span>
+                        </button>
+                      )}
                     </>
                   )}
 
@@ -2379,29 +2418,33 @@ export default function OperacaoPage({
                       </div>
                     ) : (
                       <div className="kit-results-list">
-                        {searchResultsKit.map((athlete) => (
-                          <div
-                            key={athlete.id || athlete.numero}
-                            className="kit-result-item"
-                          >
+                        {searchResultsKit.map((athlete) => {
+                          const isEntregue =
+                            String(athlete.status || '').toUpperCase() === 'ENTREGUE' ||
+                            Boolean(athlete.entregueEm)
+
+                          return (
                             <div
-                              className="kit-result-identification clickable-athlete"
+                              key={athlete.id || athlete.numero}
+                              className={`kit-result-item ${isEntregue ? 'item-entregue' : ''}`}
                               onClick={() => handleOpenAthleteDetail(athlete.id || athlete.numero)}
-                              title="Ver detalhes do atleta"
+                              title="Clique para abrir detalhes do atleta"
+                              style={{ cursor: 'pointer' }}
                             >
-                              <span className="kit-result-name">{athlete.nome || '—'}</span>
-                              <span className="kit-result-number">Nº {athlete.numero || '—'}</span>
-                              <span className="kit-result-document">CPF {athlete.doc || '—'}</span>
+                              <div className="kit-result-identification clickable-athlete">
+                                <span className="kit-result-name">{athlete.nome || '—'}</span>
+                                <span className="kit-result-document">
+                                  {athlete.doc ? `CPF ${athlete.doc}` : '—'}
+                                </span>
+                              </div>
+                              {isEntregue && (
+                                <span className="badge-kit-status-entregue">
+                                  ✓ KIT ENTREGUE
+                                </span>
+                              )}
                             </div>
-                            <button
-                              type="button"
-                              className="btn-entregar-inline"
-                              onClick={() => handleDeliverKit(athlete)}
-                            >
-                              ENTREGAR KIT
-                            </button>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
                   </div>

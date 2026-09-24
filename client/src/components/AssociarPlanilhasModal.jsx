@@ -148,6 +148,8 @@ export default function AssociarPlanilhasModal({
     camiseta: '',
     equipe: '',
     numero: '',
+    nascimento: '',
+    cidade: '',
   })
 
   // Planilha 2: Chips
@@ -185,6 +187,8 @@ export default function AssociarPlanilhasModal({
       camiseta: '',
       equipe: '',
       numero: '',
+      nascimento: '',
+      cidade: '',
     }
 
     headers.forEach((h, idx) => {
@@ -203,6 +207,10 @@ export default function AssociarPlanilhasModal({
         mapping.camiseta = String(idx)
       } else if (!mapping.equipe && (lower.includes('equipe') || lower.includes('time') || lower.includes('assessoria'))) {
         mapping.equipe = String(idx)
+      } else if (!mapping.nascimento && (lower.includes('nasc') || lower.includes('data') || lower.includes('nascimento') || lower.includes('dt'))) {
+        mapping.nascimento = String(idx)
+      } else if (!mapping.cidade && (lower.includes('cidade') || lower.includes('municipio') || lower.includes('localidade'))) {
+        mapping.cidade = String(idx)
       } else if (!mapping.numero && (lower.includes('peito') || lower.includes('numero') || lower.includes('número') || lower === 'num')) {
         mapping.numero = String(idx)
       }
@@ -326,6 +334,8 @@ export default function AssociarPlanilhasModal({
     const camCol = atletasMapping.camiseta !== '' ? Number(atletasMapping.camiseta) : -1
     const eqCol = atletasMapping.equipe !== '' ? Number(atletasMapping.equipe) : -1
     const numCol = atletasMapping.numero !== '' ? Number(atletasMapping.numero) : -1
+    const nascCol = atletasMapping.nascimento !== '' ? Number(atletasMapping.nascimento) : -1
+    const cidCol = atletasMapping.cidade !== '' ? Number(atletasMapping.cidade) : -1
     const importId = `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const existingIds = new Set(existingAthletes.map((a) => String(a.id)))
     const pairedAthletes = []
@@ -337,15 +347,15 @@ export default function AssociarPlanilhasModal({
       const id = `${importId}-${idx + 1}`
       const athleteObj = {
         id,
-        numero: '',
+        numero: numCol >= 0 && row[numCol] ? String(row[numCol]).trim() : '',
         chip: '',
         nome: nomeVal,
         doc: docCol >= 0 && row[docCol] ? String(row[docCol]).trim() : '',
         sexo: sexCol >= 0 && row[sexCol] ? String(row[sexCol]).trim() : 'Masculino',
         camiseta: camCol >= 0 && row[camCol] ? String(row[camCol]).trim() : 'M',
         equipe: eqCol >= 0 && row[eqCol] ? String(row[eqCol]).trim() : '—',
-        cidade: '',
-        nascimento: '',
+        cidade: cidCol >= 0 && row[cidCol] ? String(row[cidCol]).trim() : '',
+        nascimento: nascCol >= 0 && row[nascCol] ? String(row[nascCol]).trim() : '',
         modalidade: modCol >= 0 && row[modCol] ? String(row[modCol]).trim() : '5 KM',
         categoria: catCol >= 0 && row[catCol] ? String(row[catCol]).trim() : 'GERAL',
         morador: 'Visitante',
@@ -368,7 +378,9 @@ export default function AssociarPlanilhasModal({
           colI !== sexCol &&
           colI !== camCol &&
           colI !== eqCol &&
-          colI !== numCol
+          colI !== numCol &&
+          colI !== nascCol &&
+          colI !== cidCol
         ) {
           const val = row[colI] !== undefined ? String(row[colI]).trim() : ''
           if (h) {
@@ -414,6 +426,8 @@ export default function AssociarPlanilhasModal({
         camiseta: 'camiseta',
         equipe: 'equipe',
         numero: 'numero',
+        nascimento: 'nascimento',
+        cidade: 'cidade',
       }
       Object.entries(standardMappings).forEach(([mappingKey, fieldKey]) => {
         const columnIndex = atletasMapping[mappingKey]
@@ -565,7 +579,7 @@ export default function AssociarPlanilhasModal({
                         Trocar arquivo
                       </button>
 
-                      {/* Mapeamento de colunas principais de atletas */}
+                      {/* Mapeamento de todas as colunas de atletas */}
                       <div className="inline-mapping-area">
                         <div className="mapping-field-item">
                           <label>Coluna do Nome (Obrigatória):</label>
@@ -613,7 +627,67 @@ export default function AssociarPlanilhasModal({
                         </div>
 
                         <div className="mapping-field-item">
-                          <label>Coluna de Nº de Peito (não será atribuída):</label>
+                          <label>Coluna de Categoria / Faixa (Opcional):</label>
+                          <CustomSelect
+                            value={atletasMapping.categoria}
+                            onChange={(val) => setAtletasMapping({ ...atletasMapping, categoria: val })}
+                            options={[
+                              { value: '', label: '-- Não mapear Categoria --' },
+                              ...atletasHeaders.map((h, idx) => ({
+                                value: String(idx),
+                                label: `Coluna ${idx + 1}: ${h || '(Sem título)'}`,
+                              })),
+                            ]}
+                          />
+                        </div>
+
+                        <div className="mapping-field-item">
+                          <label>Coluna de Camiseta / Tamanho (Opcional):</label>
+                          <CustomSelect
+                            value={atletasMapping.camiseta}
+                            onChange={(val) => setAtletasMapping({ ...atletasMapping, camiseta: val })}
+                            options={[
+                              { value: '', label: '-- Não mapear Camiseta --' },
+                              ...atletasHeaders.map((h, idx) => ({
+                                value: String(idx),
+                                label: `Coluna ${idx + 1}: ${h || '(Sem título)'}`,
+                              })),
+                            ]}
+                          />
+                        </div>
+
+                        <div className="mapping-field-item">
+                          <label>Coluna de Sexo / Gênero (Opcional):</label>
+                          <CustomSelect
+                            value={atletasMapping.sexo}
+                            onChange={(val) => setAtletasMapping({ ...atletasMapping, sexo: val })}
+                            options={[
+                              { value: '', label: '-- Não mapear Sexo --' },
+                              ...atletasHeaders.map((h, idx) => ({
+                                value: String(idx),
+                                label: `Coluna ${idx + 1}: ${h || '(Sem título)'}`,
+                              })),
+                            ]}
+                          />
+                        </div>
+
+                        <div className="mapping-field-item">
+                          <label>Coluna de Equipe / Assessoria (Opcional):</label>
+                          <CustomSelect
+                            value={atletasMapping.equipe}
+                            onChange={(val) => setAtletasMapping({ ...atletasMapping, equipe: val })}
+                            options={[
+                              { value: '', label: '-- Não mapear Equipe --' },
+                              ...atletasHeaders.map((h, idx) => ({
+                                value: String(idx),
+                                label: `Coluna ${idx + 1}: ${h || '(Sem título)'}`,
+                              })),
+                            ]}
+                          />
+                        </div>
+
+                        <div className="mapping-field-item">
+                          <label>Coluna de Nº de Peito (Opcional):</label>
                           <CustomSelect
                             value={atletasMapping.numero}
                             onChange={(val) => setAtletasMapping({ ...atletasMapping, numero: val })}
@@ -626,6 +700,49 @@ export default function AssociarPlanilhasModal({
                             ]}
                           />
                         </div>
+
+                        <div className="mapping-field-item">
+                          <label>Coluna de Data de Nascimento (Opcional):</label>
+                          <CustomSelect
+                            value={atletasMapping.nascimento}
+                            onChange={(val) => setAtletasMapping({ ...atletasMapping, nascimento: val })}
+                            options={[
+                              { value: '', label: '-- Não mapear Nascimento --' },
+                              ...atletasHeaders.map((h, idx) => ({
+                                value: String(idx),
+                                label: `Coluna ${idx + 1}: ${h || '(Sem título)'}`,
+                              })),
+                            ]}
+                          />
+                        </div>
+
+                        <div className="mapping-field-item">
+                          <label>Coluna de Cidade (Opcional):</label>
+                          <CustomSelect
+                            value={atletasMapping.cidade}
+                            onChange={(val) => setAtletasMapping({ ...atletasMapping, cidade: val })}
+                            options={[
+                              { value: '', label: '-- Não mapear Cidade --' },
+                              ...atletasHeaders.map((h, idx) => ({
+                                value: String(idx),
+                                label: `Coluna ${idx + 1}: ${h || '(Sem título)'}`,
+                              })),
+                            ]}
+                          />
+                        </div>
+
+                        {atletasHeaders.length > 0 && (
+                          <div className="detected-columns-summary">
+                            <span className="sample-label">Todas as colunas da planilha ({atletasHeaders.length}):</span>
+                            <div className="detected-columns-tags">
+                              {atletasHeaders.map((h, idx) => (
+                                <span key={idx} className="detected-col-tag" title={`Coluna ${idx + 1}: ${h}`}>
+                                  {h || `Coluna ${idx + 1}`}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -805,10 +922,14 @@ export default function AssociarPlanilhasModal({
                 <table className="associar-preview-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '65px' }}>Nº</th>
+                      <th style={{ width: '45px' }}>#</th>
                       <th>ATLETA</th>
                       <th>DOCUMENTO / CPF</th>
                       <th>MODALIDADE</th>
+                      <th>CATEGORIA</th>
+                      <th>CAMISETA</th>
+                      <th>SEXO</th>
+                      <th>EQUIPE</th>
                       <th>Nº PEITO</th>
                       <th>CHIP VINCULADO</th>
                       <th>STATUS</th>
@@ -825,8 +946,12 @@ export default function AssociarPlanilhasModal({
                           </td>
                           <td>{item.doc || '—'}</td>
                           <td>
-                            <span className="mod-pill">{item.modalidade}</span>
+                            <span className="mod-pill">{item.modalidade || '—'}</span>
                           </td>
+                          <td>{item.categoria || '—'}</td>
+                          <td>{item.camiseta || '—'}</td>
+                          <td>{item.sexo || '—'}</td>
+                          <td>{item.equipe || '—'}</td>
                           <td>
                             <span className="peito-pill">{item.numero || '—'}</span>
                           </td>

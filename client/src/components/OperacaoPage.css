@@ -986,10 +986,9 @@
 }
 
 .kit-result-identification {
-  display: grid;
-  grid-template-columns: minmax(220px, 1.6fr) minmax(90px, 0.45fr) minmax(170px, 0.8fr);
+  display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 32px;
   min-width: 0;
   flex: 1;
   margin-right: 20px;
@@ -1001,6 +1000,7 @@
   font-size: 13px;
   font-weight: 900;
   line-height: 1.35;
+  min-width: 240px;
 }
 
 .kit-result-number,
@@ -1011,24 +1011,21 @@
   line-height: 1.35;
 }
 
-.btn-entregar-inline {
-  height: 32px;
-  padding: 0 16px;
-  background: #10b981;
-  border: none;
-  border-radius: 8px;
+.badge-kit-status-entregue {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
   font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.5px;
-  color: #ffffff;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-entregar-inline:hover {
-  background: #059669;
-  transform: translateY(-1px);
+  text-transform: uppercase;
+  flex-shrink: 0;
 }
 
 /* Stat Tags Summary & Breakdown Cards in Estatísticas */
