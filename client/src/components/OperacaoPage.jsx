@@ -48,18 +48,6 @@ function QrCodeIcon({ size = 16 }) {
   )
 }
 
-function getNextAthleteNumber(athleteList) {
-  if (!Array.isArray(athleteList) || athleteList.length === 0) return '1'
-  let max = 0
-  for (const a of athleteList) {
-    const raw = String(a?.numero || '').trim()
-    const num = parseInt(raw.replace(/\D/g, ''), 10)
-    if (!Number.isNaN(num) && num > max) {
-      max = num
-    }
-  }
-  return String(max + 1)
-}
 
 function formatDateInput(raw) {
   if (!raw) return ''
@@ -566,6 +554,45 @@ export default function OperacaoPage({
     return Array.from(unique)
   }, [athletes])
 
+  const modalidadeOptions = useMemo(() => {
+    const unique = new Set()
+    athletes.forEach((a) => {
+      const val = String(a.modalidade || '').trim()
+      if (val && val !== '—') unique.add(val)
+    })
+    if (unique.size === 0) return ['5 KM', '10 KM', '21 KM', '42 KM', 'KIDS']
+    return Array.from(unique)
+  }, [athletes])
+
+  const categoriaOptions = useMemo(() => {
+    const unique = new Set()
+    athletes.forEach((a) => {
+      const val = String(a.categoria || '').trim()
+      if (val && val !== '—') unique.add(val)
+    })
+    if (unique.size === 0) return ['GERAL']
+    return Array.from(unique)
+  }, [athletes])
+
+  const kitOptions = useMemo(() => {
+    const unique = new Set()
+    athletes.forEach((a) => {
+      const val = String(a.kit || '').trim()
+      if (val && val !== '—') unique.add(val)
+    })
+    if (unique.size === 0) return ['Kit Padrão', 'KIT ATLETA', 'KIT ELITE']
+    return Array.from(unique)
+  }, [athletes])
+
+  const equipeOptions = useMemo(() => {
+    const unique = new Set()
+    athletes.forEach((a) => {
+      const val = String(a.equipe || '').trim()
+      if (val && val !== '—' && val !== 'SEM EQUIPE') unique.add(val)
+    })
+    return Array.from(unique)
+  }, [athletes])
+
   const availableStandardColumns = useMemo(() => {
     // Número, Nome e Chip são campos fixos de destaque no bloco principal do modal NOVO ATLETA
     const ignored = new Set(['numero', 'nome', 'chip', 'status', 'entregueEm', 'entreguePor', 'entreguePara'])
@@ -577,6 +604,20 @@ export default function OperacaoPage({
   const availableCustomColumns = useMemo(() => {
     return athleteTableColumns.filter((col) => col.type === 'custom' && col.customKey)
   }, [athleteTableColumns])
+
+  const customColumnOptionsMap = useMemo(() => {
+    const map = {}
+    availableCustomColumns.forEach((col) => {
+      const k = col.customKey
+      const unique = new Set()
+      athletes.forEach((a) => {
+        const val = String(a.customFields?.[k] || a[k] || '').trim()
+        if (val && val !== '—') unique.add(val)
+      })
+      map[k] = Array.from(unique)
+    })
+    return map
+  }, [availableCustomColumns, athletes])
 
   // Validação em tempo real de colisão de chip para o modal NOVO ATLETA
   const addAthleteChipCollision = useMemo(() => {
@@ -597,17 +638,16 @@ export default function OperacaoPage({
 
   function handleOpenAddAthleteModal() {
     if (isOperator) return
-    const nextNum = getNextAthleteNumber(athletes)
     const initialCustom = {}
     availableCustomColumns.forEach((c) => {
       initialCustom[c.customKey] = ''
     })
 
     setAthleteForm({
-      numero: nextNum,
+      numero: '', // Vem sempre limpo para preenchimento manual
       nome: '',
       doc: '',
-      chip: '', // Vem SEMPRE limpo!
+      chip: '', // Vem sempre limpo para preenchimento manual
       nascimento: '',
       sexo: 'Masculino',
       modalidade: athletes[0]?.modalidade || '5 KM',
@@ -2203,7 +2243,7 @@ export default function OperacaoPage({
                             })
                           }
                         >
-                          {Array.from(new Set(['5 KM', '10 KM', '21 KM', ...modalidadeStats.map((m) => m.name), detailForm.modalidade].filter(Boolean))).map((m) => (
+                          {Array.from(new Set([...modalidadeOptions, detailForm.modalidade].filter(Boolean))).map((m) => (
                             <option key={m} value={m}>{m}</option>
                           ))}
                         </select>
@@ -2223,11 +2263,9 @@ export default function OperacaoPage({
                             })
                           }
                         >
-                          <option value="GERAL">GERAL</option>
-                          <option value="8 - ALTO DO MOURA">8 - ALTO DO MOURA</option>
-                          <option value="79 - DEMAIS ATLETAS">79 - DEMAIS ATLETAS</option>
-                          <option value="14 - MORRO DO BOM JESUS">14 - MORRO DO BOM JESUS</option>
-                          <option value="2 - ATLETAS LOCAIS">2 - ATLETAS LOCAIS</option>
+                          {Array.from(new Set([...categoriaOptions, detailForm.categoria].filter(Boolean))).map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
                         </select>
                       </div>
                     )}
@@ -2244,19 +2282,11 @@ export default function OperacaoPage({
                             }
                           >
                             <option value="—">—</option>
-                            <option value="BORA PRO CORRE">BORA PRO CORRE</option>
-                            <option value="BORAPROCORRE">BORAPROCORRE</option>
-                            <option value="FORMOSO PACE CLUBE">FORMOSO PACE CLUBE</option>
-                            <option value="BROCARUN">BROCARUN</option>
                             <option value="SEM EQUIPE">SEM EQUIPE</option>
+                            {Array.from(new Set([...equipeOptions, detailForm.equipe].filter((eq) => eq && eq !== '—' && eq !== 'SEM EQUIPE'))).map((eq) => (
+                              <option key={eq} value={eq}>{eq}</option>
+                            ))}
                           </select>
-                          <button
-                            type="button"
-                            className="btn-inline-plus"
-                            title="Nova Equipe"
-                          >
-                            +
-                          </button>
                         </div>
                       </div>
                     )}
@@ -2293,9 +2323,9 @@ export default function OperacaoPage({
                             setDetailForm({ ...detailForm, kit: e.target.value })
                           }
                         >
-                          <option value="KIT ELITE">KIT ELITE</option>
-                          <option value="Kit Padrão">Kit Padrão</option>
-                          <option value="KIT ATLETA">KIT ATLETA</option>
+                          {Array.from(new Set([...kitOptions, detailForm.kit].filter(Boolean))).map((k) => (
+                            <option key={k} value={k}>{k}</option>
+                          ))}
                         </select>
                       </div>
                     )}
@@ -2313,11 +2343,9 @@ export default function OperacaoPage({
                             })
                           }
                         >
-                          <option value="P">P</option>
-                          <option value="M">M</option>
-                          <option value="G">G</option>
-                          <option value="GG">GG</option>
-                          <option value="XG">XG</option>
+                          {Array.from(new Set([...shirtOptions, detailForm.camiseta].filter(Boolean))).map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
                         </select>
                       </div>
                     )}
@@ -2408,28 +2436,60 @@ export default function OperacaoPage({
                   {/* Linha de Campos Personalizados / PCD (integrados sem badge de destaque) */}
                   {detailForm.customFields && Object.keys(detailForm.customFields).length > 0 && (
                     <div className="detail-form-row-4" style={{ marginTop: '8px' }}>
-                      {Object.entries(detailForm.customFields).map(([k, v]) => (
-                        <div key={k} className="athlete-form-group">
-                          <label className="athlete-form-label">{k.toLocaleUpperCase('pt-BR')}</label>
-                          <input
-                            type="text"
-                            className="athlete-form-input"
-                            disabled={isOperator}
-                            value={v || ''}
-                            onChange={(e) => {
-                              const newVal = e.target.value
-                              setDetailForm({
-                                ...detailForm,
-                                customFields: {
-                                  ...detailForm.customFields,
-                                  [k]: newVal,
-                                },
-                                ...(k.toUpperCase().includes('PCD') ? { pcd: newVal } : {}),
-                              })
-                            }}
-                          />
-                        </div>
-                      ))}
+                      {Object.entries(detailForm.customFields).map(([k, v]) => {
+                        const detectedOpts = customColumnOptionsMap[k] || []
+                        const isPcd = k.toUpperCase().includes('PCD')
+                        const finalOpts = isPcd
+                          ? Array.from(new Set([...detectedOpts, 'NÃO', 'SIM', 'MEMBROS INFERIORES', 'MEMBROS SUPERIORES', 'VISUAL', 'AUDITIVO', 'INTELECTUAL'].filter(Boolean)))
+                          : detectedOpts
+
+                        return (
+                          <div key={k} className="athlete-form-group">
+                            <label className="athlete-form-label">{k.toLocaleUpperCase('pt-BR')}</label>
+                            {finalOpts.length > 0 ? (
+                              <select
+                                className="athlete-form-select"
+                                disabled={isOperator}
+                                value={v || ''}
+                                onChange={(e) => {
+                                  const newVal = e.target.value
+                                  setDetailForm({
+                                    ...detailForm,
+                                    customFields: {
+                                      ...detailForm.customFields,
+                                      [k]: newVal,
+                                    },
+                                    ...(isPcd ? { pcd: newVal } : {}),
+                                  })
+                                }}
+                              >
+                                <option value="">— Selecione —</option>
+                                {Array.from(new Set([...finalOpts, v].filter(Boolean))).map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                className="athlete-form-input"
+                                disabled={isOperator}
+                                value={v || ''}
+                                onChange={(e) => {
+                                  const newVal = e.target.value
+                                  setDetailForm({
+                                    ...detailForm,
+                                    customFields: {
+                                      ...detailForm.customFields,
+                                      [k]: newVal,
+                                    },
+                                    ...(isPcd ? { pcd: newVal } : {}),
+                                  })
+                                }}
+                              />
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                   </fieldset>
@@ -3227,9 +3287,6 @@ export default function OperacaoPage({
               <div className="modal-athlete-header">
                 <div>
                   <div className="modal-athlete-header-tags">
-                    <span className="athlete-seq-badge">
-                      PRÓXIMO SEQUENCIAL: #{athleteForm.numero || ''}
-                    </span>
                     <span className="athlete-seq-source">
                       {athleteTableColumns.length > 0 ? 'Colunas da Tabela Oficial' : 'Cadastro Manual'}
                     </span>
@@ -3253,19 +3310,16 @@ export default function OperacaoPage({
                     <label className="athlete-form-label">
                       NÚMERO <span className="required-star">*</span>
                     </label>
-                    <div className="athlete-number-input-wrap">
-                      <input
-                        type="text"
-                        required
-                        className="athlete-form-input highlight-number"
-                        placeholder="Ex.: 301"
-                        value={athleteForm.numero || ''}
-                        onChange={(e) =>
-                          setAthleteForm((prev) => ({ ...prev, numero: e.target.value }))
-                        }
-                      />
-                      <span className="athlete-input-badge-seq">Sequencial</span>
-                    </div>
+                    <input
+                      type="text"
+                      required
+                      className="athlete-form-input highlight-number"
+                      placeholder="Ex.: 1050"
+                      value={athleteForm.numero || ''}
+                      onChange={(e) =>
+                        setAthleteForm((prev) => ({ ...prev, numero: e.target.value }))
+                      }
+                    />
                   </div>
 
                   <div className="athlete-form-group">
@@ -3370,6 +3424,99 @@ export default function OperacaoPage({
                         )
                       }
 
+                      // Seletor de Modalidade com opções da tabela anexada
+                      if (col.key === 'modalidade') {
+                        return (
+                          <div key={col.key} className="athlete-form-group">
+                            <label className="athlete-form-label">{col.label}</label>
+                            <select
+                              className="athlete-form-select"
+                              value={athleteForm.modalidade || modalidadeOptions[0] || '5 KM'}
+                              onChange={(e) =>
+                                setAthleteForm((prev) => ({ ...prev, modalidade: e.target.value }))
+                              }
+                            >
+                              {modalidadeOptions.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )
+                      }
+
+                      // Seletor de Categoria com opções da tabela anexada
+                      if (col.key === 'categoria') {
+                        return (
+                          <div key={col.key} className="athlete-form-group">
+                            <label className="athlete-form-label">{col.label}</label>
+                            <select
+                              className="athlete-form-select"
+                              value={athleteForm.categoria || categoriaOptions[0] || 'GERAL'}
+                              onChange={(e) =>
+                                setAthleteForm((prev) => ({ ...prev, categoria: e.target.value }))
+                              }
+                            >
+                              {categoriaOptions.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )
+                      }
+
+                      // Seletor de Kit com opções da tabela anexada
+                      if (col.key === 'kit') {
+                        return (
+                          <div key={col.key} className="athlete-form-group">
+                            <label className="athlete-form-label">{col.label}</label>
+                            <select
+                              className="athlete-form-select"
+                              value={athleteForm.kit || kitOptions[0] || 'Kit Padrão'}
+                              onChange={(e) =>
+                                setAthleteForm((prev) => ({ ...prev, kit: e.target.value }))
+                              }
+                            >
+                              {kitOptions.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )
+                      }
+
+                      // Seletor de Equipe com opções da tabela anexada
+                      if (col.key === 'equipe') {
+                        return (
+                          <div key={col.key} className="athlete-form-group">
+                            <label className="athlete-form-label">{col.label}</label>
+                            {equipeOptions.length > 0 ? (
+                              <select
+                                className="athlete-form-select"
+                                value={athleteForm.equipe || ''}
+                                onChange={(e) =>
+                                  setAthleteForm((prev) => ({ ...prev, equipe: e.target.value }))
+                                }
+                              >
+                                <option value="">Sem Equipe</option>
+                                {equipeOptions.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                className="athlete-form-input"
+                                placeholder="Preencher equipe"
+                                value={athleteForm.equipe || ''}
+                                onChange={(e) =>
+                                  setAthleteForm((prev) => ({ ...prev, equipe: e.target.value }))
+                                }
+                              />
+                            )}
+                          </div>
+                        )
+                      }
+
                       // Campo de Nascimento com auto-formatação
                       if (col.key === 'nascimento') {
                         return (
@@ -3396,7 +3543,7 @@ export default function OperacaoPage({
                         )
                       }
 
-                      // Campo genérico padrão (doc, modalidade, categoria, kit, equipe, cidade, contato, nome_peito)
+                      // Campo genérico padrão (doc, cidade, contato, nome_peito)
                       return (
                         <div key={col.key} className="athlete-form-group">
                           <label className="athlete-form-label">{col.label}</label>
@@ -3415,29 +3562,59 @@ export default function OperacaoPage({
                   </div>
                 )}
 
-                {/* 3. CAMPOS EXTRAS E PERSONALIZADOS DA TABELA ASSOCIADA (PCD, TAMANHO TÊNIS, ETC.) */}
+                {/* 3. CAMPOS EXTRAS E PERSONALIZADOS DA TABELA ASSOCIADA (PCD, TAMANHO TÊNIS, PAÍS, ETC.) */}
                 {availableCustomColumns.length > 0 && (
                   <div className="athlete-dynamic-grid" style={{ marginTop: '14px' }}>
-                    {availableCustomColumns.map((col) => (
-                      <div key={col.key} className="athlete-form-group">
-                        <label className="athlete-form-label">{col.label}</label>
-                        <input
-                          type="text"
-                          className="athlete-form-input"
-                          placeholder={`Preencher ${col.label.toLowerCase()}`}
-                          value={athleteForm.customFields?.[col.customKey] || ''}
-                          onChange={(e) =>
-                            setAthleteForm((prev) => ({
-                              ...prev,
-                              customFields: {
-                                ...(prev.customFields || {}),
-                                [col.customKey]: e.target.value,
-                              },
-                            }))
-                          }
-                        />
-                      </div>
-                    ))}
+                    {availableCustomColumns.map((col) => {
+                      const detectedOpts = customColumnOptionsMap[col.customKey] || []
+                      const isPcd = col.customKey.toUpperCase().includes('PCD') || col.label.toUpperCase().includes('PCD')
+                      const finalOpts = isPcd
+                        ? Array.from(new Set([...detectedOpts, 'NÃO', 'SIM', 'MEMBROS INFERIORES', 'MEMBROS SUPERIORES', 'VISUAL', 'AUDITIVO', 'INTELECTUAL'].filter(Boolean)))
+                        : detectedOpts
+
+                      return (
+                        <div key={col.key} className="athlete-form-group">
+                          <label className="athlete-form-label">{col.label}</label>
+                          {finalOpts.length > 0 ? (
+                            <select
+                              className="athlete-form-select"
+                              value={athleteForm.customFields?.[col.customKey] || ''}
+                              onChange={(e) =>
+                                setAthleteForm((prev) => ({
+                                  ...prev,
+                                  customFields: {
+                                    ...(prev.customFields || {}),
+                                    [col.customKey]: e.target.value,
+                                  },
+                                  ...(isPcd ? { pcd: e.target.value } : {}),
+                                }))
+                              }
+                            >
+                              <option value="">— Selecione {col.label} —</option>
+                              {finalOpts.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              className="athlete-form-input"
+                              placeholder={`Preencher ${col.label.toLowerCase()}`}
+                              value={athleteForm.customFields?.[col.customKey] || ''}
+                              onChange={(e) =>
+                                setAthleteForm((prev) => ({
+                                  ...prev,
+                                  customFields: {
+                                    ...(prev.customFields || {}),
+                                    [col.customKey]: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
 

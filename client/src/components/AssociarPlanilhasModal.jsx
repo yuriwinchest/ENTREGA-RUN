@@ -163,9 +163,6 @@ export default function AssociarPlanilhasModal({
 
   // Dados pareados e prévia
   const [associatedList, setAssociatedList] = useState([])
-  const [previewFilter, setPreviewFilter] = useState('')
-  const [previewPage, setPreviewPage] = useState(1)
-  const previewPerPage = 15
 
   // Drag states
   const [isDraggingAtletas, setIsDraggingAtletas] = useState(false)
@@ -446,21 +443,6 @@ export default function AssociarPlanilhasModal({
 
     setStep(3)
   }
-
-  // Filtragem de prévia
-  const filteredPreview = associatedList.filter((item) => {
-    if (!previewFilter.trim()) return true
-    const q = previewFilter.trim().toLowerCase()
-    return (
-      item.nome.toLowerCase().includes(q) ||
-      item.chip.toLowerCase().includes(q) ||
-      String(item.numero).toLowerCase().includes(q) ||
-      item.doc.toLowerCase().includes(q)
-    )
-  })
-
-  const totalPages = Math.ceil(filteredPreview.length / previewPerPage) || 1
-  const currentPageItems = filteredPreview.slice((previewPage - 1) * previewPerPage, previewPage * previewPerPage)
 
   const countAtletas = atletasRows.length
   const countChips = chipsRows.length
@@ -874,11 +856,11 @@ export default function AssociarPlanilhasModal({
           )}
 
           {/* ======================================================== */}
-          {/* ETAPA 2: PRÉ-VISUALIZAÇÃO & VALIDAÇÃO                    */}
+          {/* ETAPA 2: PRÉ-VISUALIZAÇÃO COMPLETA DOS DADOS (LAYOUT AMPLO) */}
           {/* ======================================================== */}
           {step === 2 && (
             <div className="associar-step-container">
-              {/* STATS CARDS */}
+              {/* STATS CARDS RESUMIDOS */}
               <div className="preview-metrics-grid">
                 <div className="preview-metric-card">
                   <span className="metric-label">ATLETAS NA PLANILHA</span>
@@ -890,124 +872,84 @@ export default function AssociarPlanilhasModal({
                 </div>
                 <div className="preview-metric-card highlight">
                   <span className="metric-label">ASSOCIAÇÕES NESTA IMPORTAÇÃO</span>
-                  <span className="metric-value">0</span>
+                  <span className="metric-value">0 (Leitura no Guichê)</span>
                 </div>
               </div>
 
-              <div className="preview-alert-info">
-                <div className="info-icon-badge">ℹ</div>
-                <div><strong>Importação sem associação</strong><p>Os kits permanecem disponíveis para leitura do QR Code na entrega.</p></div>
-              </div>
-
-              {/* BARRA DE BUSCA NA PRÉVIA */}
-              <div className="preview-table-header-bar">
-                <div className="preview-search-wrap">
-                  <input
-                    type="text"
-                    placeholder="Filtrar atletas na pré-visualização (nome, documento)..."
-                    value={previewFilter}
-                    onChange={(e) => {
-                      setPreviewFilter(e.target.value)
-                      setPreviewPage(1)
-                    }}
-                  />
+              {/* CABEÇALHO DA PRÉ-VISUALIZAÇÃO */}
+              <div className="importar-full-preview-header" style={{ marginBottom: '10px' }}>
+                <div className="live-preview-title-row">
+                  <span className="live-preview-title" style={{ fontSize: '13.5px' }}>
+                    PRÉ-VISUALIZAÇÃO COMPLETA DOS DADOS ({countAtletas} atletas detectados · {countChips} kits)
+                  </span>
+                  <span className="live-preview-sub">
+                    Confira como todas as colunas da planilha de atletas serão importadas antes de confirmar:
+                  </span>
                 </div>
-                <span className="preview-count-label">
-                  Exibindo {currentPageItems.length} de {filteredPreview.length} registros
-                </span>
               </div>
 
-              {/* TABELA DE PRÉ-VISUALIZAÇÃO */}
+              {/* TABELA DE PRÉ-VISUALIZAÇÃO COMPLETA */}
               <div className="preview-table-wrap">
                 <table className="associar-preview-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '45px' }}>#</th>
-                      <th>ATLETA</th>
-                      <th>DOCUMENTO / CPF</th>
-                      <th>MODALIDADE</th>
-                      <th>CATEGORIA</th>
-                      <th>CAMISETA</th>
-                      <th>SEXO</th>
-                      <th>EQUIPE</th>
-                      <th>Nº PEITO</th>
-                      <th>CHIP VINCULADO</th>
-                      <th>STATUS</th>
+                      <th style={{ width: '45px', position: 'sticky', top: 0, zIndex: 2 }}>#</th>
+                      {atletasHeaders.map((header, idx) => {
+                        const targetLabel = (() => {
+                          const standardMap = {
+                            nome: 'NOME COMPLETO',
+                            doc: 'DOCUMENTO / CPF',
+                            modalidade: 'MODALIDADE',
+                            categoria: 'CATEGORIA',
+                            sexo: 'SEXO',
+                            camiseta: 'CAMISETA',
+                            equipe: 'EQUIPE',
+                            numero: 'Nº PEITO',
+                            nascimento: 'NASCIMENTO',
+                            cidade: 'CIDADE',
+                          }
+                          for (const [key, label] of Object.entries(standardMap)) {
+                            if (atletasMapping[key] === String(idx)) return label
+                          }
+                          return 'CAMPO ADICIONAL'
+                        })()
+
+                        return (
+                          <th key={idx} style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+                            <div>{header || `Coluna ${idx + 1}`}</div>
+                            <div style={{ fontSize: '10px', color: '#ff5200', marginTop: '2px', fontWeight: 700 }}>
+                              → {targetLabel}
+                            </div>
+                          </th>
+                        )
+                      })}
                     </tr>
                   </thead>
                   <tbody>
-                    {currentPageItems.map((item, idx) => {
-                      const globalIdx = (previewPage - 1) * previewPerPage + idx + 1
-                      return (
-                        <tr key={idx} className={item._hasCollision ? 'has-collision' : ''}>
-                          <td className="idx-col">{globalIdx}</td>
-                          <td className="nome-col">
-                            <strong>{item.nome}</strong>
+                    {atletasRows.slice(0, 50).map((row, rowIdx) => (
+                      <tr key={rowIdx}>
+                        <td style={{ fontWeight: 800, color: '#64748b' }}>{rowIdx + 1}</td>
+                        {atletasHeaders.map((_, colIdx) => (
+                          <td key={colIdx}>
+                            {row[colIdx] !== undefined && String(row[colIdx]).trim() !== ''
+                              ? String(row[colIdx])
+                              : '—'}
                           </td>
-                          <td>{item.doc || '—'}</td>
-                          <td>
-                            <span className="mod-pill">{item.modalidade || '—'}</span>
-                          </td>
-                          <td>{item.categoria || '—'}</td>
-                          <td>{item.camiseta || '—'}</td>
-                          <td>{item.sexo || '—'}</td>
-                          <td>{item.equipe || '—'}</td>
-                          <td>
-                            <span className="peito-pill">{item.numero || '—'}</span>
-                          </td>
-                          <td>
-                            {item.chip ? (
-                              <span className="chip-badge-linked">
-                                <CpuChipIcon />
-                                <strong>{item.chip}</strong>
-                              </span>
-                            ) : (
-                              <span className="chip-badge-empty">Não associado</span>
-                            )}
-                          </td>
-                          <td>
-                            {item._hasCollision ? (
-                              <span className="status-pill warning" title="Número de peito já existe na base">
-                                Atualizará existente
-                              </span>
-                            ) : (
-                              <span className="status-pill ok">Novo atleta</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
+                        ))}
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* PAGINAÇÃO */}
-              {totalPages > 1 && (
-                <div className="preview-pagination-row">
-                  <button
-                    type="button"
-                    className="btn-page"
-                    disabled={previewPage === 1}
-                    onClick={() => setPreviewPage((p) => Math.max(1, p - 1))}
-                  >
-                    Anterior
-                  </button>
-                  <span className="page-indicator">
-                    Página {previewPage} de {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn-page"
-                    disabled={previewPage === totalPages}
-                    onClick={() => setPreviewPage((p) => Math.min(totalPages, p + 1))}
-                  >
-                    Próxima
-                  </button>
-                </div>
+              {atletasRows.length > 50 && (
+                <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#64748b', textAlign: 'center' }}>
+                  Exibindo os primeiros 50 registros de um total de {countAtletas} atletas.
+                </p>
               )}
 
               {/* AÇÕES DA PRÉVIA */}
-              <div className="associar-modal-actions">
+              <div className="associar-modal-actions" style={{ marginTop: '16px' }}>
                 <button type="button" className="btn-associar-cancel" onClick={() => setStep(1)}>
                   ← VOLTAR E AJUSTAR
                 </button>

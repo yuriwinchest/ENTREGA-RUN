@@ -1,6 +1,30 @@
 # Handoff
 
-## 2026-09-24 — Chip Editável com Checagem de Colisão, Máscara de Nascimento, Tabela Anexada Fidedigna, Busca Aprimorada e Importação em 4 Etapas (Fase A)
+## 2026-09-24 — Eliminação de Número Sequencial, Seletores Dinâmicos da Tabela Anexada (Modalidade/PCD/Kit) e Prévia Ampla na Associação (Fase A)
+
+- **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
+- **Pedido do Yuri (PO via áudios e capturas de tela):**
+  1. *Eliminação Completa de "Número Sequencial" no Modal Novo Atleta*:
+     - Remoção total do badge `PRÓXIMO SEQUENCIAL: #...` no topo do modal.
+     - Remoção do badge `Sequencial` no campo de NÚMERO.
+     - O campo `NÚMERO` inicia 100% limpo (`''`), permitindo digitação manual livre do número de peito pelo operador (ex: 1050), sem pré-atribuição forçada.
+     - Campo `CHIP` também permanece limpo com alerta e bloqueio preventivo de colisão em tempo real.
+  2. *Opções Dinâmicas da Tabela Anexada para Seleção (Modalidade, PCD, Categoria, Kit, Equipe)*:
+     - No modal "NOVO ATLETA" e na Ficha do Atleta, campos como Modalidade, Categoria, Kit, Camiseta, Equipe e PCD/Campos Extras agora carregam seletores dinâmicos (`<select>`) extraídos diretamente das opções reais existentes na base/planilha anexada.
+     - Modalidade agora exibe todas as modalidades presentes na tabela (ex.: KIDS, 5 KM, 10 KM, ADULTO, etc.).
+     - Campo PCD e colunas personalizadas listam todas as opções detectadas na tabela anexada (ou lista expandida de acessibilidade/opções padrão), eliminando campos estáticos genéricos.
+  3. *Prévia Ampla e Completa no Modal "IMPORTAR ATLETAS E KITS" (`AssociarPlanilhasModal.jsx`)*:
+     - Reestruturação da Etapa 2 de pré-visualização para espelhar exatamente o layout amplo, limpo e organizado do `ImportarAtletasModal.jsx`.
+     - Ampliação do modal para `max-width: 1060px` com container responsivo com rolagem horizontal e vertical suave (`overflow-x: auto; white-space: nowrap`).
+     - Tabela exibindo todas as colunas reais da planilha de atletas com cabeçalhos estruturados (`COLUNA ORIGINAL → CAMPO MAPEADO`).
+     - Fim da tabela espremida de 11 colunas que quebrava nomes em 4 linhas; nomes e dados agora são exibidos em formato completo, legível e profissional.
+- **Arquivos alterados:** `client/src/components/AssociarPlanilhasModal.css`, `client/src/components/AssociarPlanilhasModal.jsx`, `client/src/components/OperacaoPage.jsx`, `HANDOFF.md`.
+- **Validação real:**
+  - `npm run lint --prefix client`: 0 warnings, 0 errors em 29 arquivos (oxlint).
+  - `npm run build --prefix client`: compilação Vite concluída com sucesso em 1.91s (`index-D3uQXNBB.js` e `index-BxoHUtgY.css`).
+- **Riscos e pendências:** Nenhuma regressão detectada.
+- **Próximo passo:** Commit e push para a branch `main` para acionamento do deploy na VPS e homologação pelo Yuri.
+
 
 - **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
 - **Pedido do Yuri (PO via áudio e mensagens):**
