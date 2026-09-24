@@ -101,6 +101,8 @@ export function matchesAthleteReference(record, reference) {
   return (
     reference.numero != null &&
     record.numero != null &&
+    String(reference.numero).trim() !== '' &&
+    String(record.numero).trim() !== '' &&
     String(record.numero) === String(reference.numero)
   )
 }

@@ -26,7 +26,7 @@ import {
   mergeAthleteColumnSchemas,
 } from '../utils/athleteTable.js'
 import { publishEspelhoState } from '../utils/espelhoSync.js'
-import AthleteQrModal from './AthleteQrModal.jsx'
+import KitQrScannerModal from './KitQrScannerModal.jsx'
 import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
 import './OperacaoPage.css'
 
@@ -370,7 +370,9 @@ export default function OperacaoPage({
   // Modal Novo Atleta
   const [showAddAthleteModal, setShowAddAthleteModal] = useState(false)
   const [athleteForm, setAthleteForm] = useState(INITIAL_ATHLETE_FORM)
-  const [qrModalAthlete, setQrModalAthlete] = useState(null)
+  const [scannerAthlete, setScannerAthlete] = useState(null)
+  const [scannedKit, setScannedKit] = useState(null)
+  const [scanFeedback, setScanFeedback] = useState('')
 
   // Modal Espelho (Acesso e Aparência)
   const [showEspelhoModal, setShowEspelhoModal] = useState(false)
@@ -462,6 +464,18 @@ export default function OperacaoPage({
       return []
     }
   })
+  const [kits, setKits] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`entregas_run_kits_${currentEvent.id}`)
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
+
+  useEffect(() => {
+    if (currentEvent.id && Array.isArray(kits)) localStorage.setItem(`entregas_run_kits_${currentEvent.id}`, JSON.stringify(kits))
+  }, [kits, currentEvent.id])
 
   const [athleteColumnSchema, setAthleteColumnSchema] = useState(() => {
     try {
@@ -488,11 +502,11 @@ export default function OperacaoPage({
 
     if (currentEvent.id && Array.isArray(athletes) && athletes.length > 0) {
       const timer = setTimeout(() => {
-        apiSaveAthletes(currentEvent.id, athletes, athleteColumnSchema).catch(() => {})
+        apiSaveAthletes(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined).catch(() => {})
       }, 600)
       return () => clearTimeout(timer)
     }
-  }, [athletes, athleteColumnSchema, currentEvent.id])
+  }, [athletes, athleteColumnSchema, kits, currentEvent.id])
 
   useEffect(() => {
     try {
@@ -514,6 +528,7 @@ export default function OperacaoPage({
       apiFetchAthletes(currentEvent.id).then((result) => {
         if (isMounted && result && Array.isArray(result.athletes) && result.athletes.length > 0) {
           setAthletes(result.athletes)
+          if (Array.isArray(result.kits)) setKits(result.kits)
           if (Array.isArray(result.schema) && result.schema.length > 0) {
             setAthleteColumnSchema(result.schema)
           }
@@ -524,6 +539,15 @@ export default function OperacaoPage({
       isMounted = false
     }
   }, [currentEvent.id, athletes.length])
+
+  useEffect(() => {
+    if (!currentEvent.id || Array.isArray(kits)) return
+    let active = true
+    apiFetchAthletes(currentEvent.id).then((result) => {
+      if (active && Array.isArray(result?.kits)) setKits(result.kits)
+    })
+    return () => { active = false }
+  }, [currentEvent.id, kits])
 
   const athleteTableColumns = useMemo(
     () => getAthleteTableColumns(athletes, athleteColumnSchema),
@@ -892,6 +916,7 @@ export default function OperacaoPage({
   const [selectedComprovante, setSelectedComprovante] = useState(null)
 
   function handleImportSuccess(newAthletes, options = {}) {
+    if (Array.isArray(options.kits)) setKits(options.kits)
     if (Array.isArray(options.columns) && options.columns.length > 0) {
       setAthleteColumnSchema((current) =>
         mergeAthleteColumnSchemas(current, options.columns)
@@ -899,9 +924,9 @@ export default function OperacaoPage({
     }
 
     setAthletes((prev) => {
-      const existingMap = new Map(prev.map((a) => [String(a.numero || a.id), a]))
+      const existingMap = new Map(prev.map((a) => [String(a.id || a.numero), a]))
       for (const a of newAthletes) {
-        existingMap.set(String(a.numero || a.id), a)
+        existingMap.set(String(a.id || a.numero), a)
       }
       const updated = Array.from(existingMap.values())
       try {
@@ -1141,7 +1166,57 @@ export default function OperacaoPage({
     setDetailFeedback('')
     setDetailSourceTab(activeTab)
     setActiveTab('entrega')
-    publishEspelho('ATENDENDO', selectedAthlete)
+    publishEspelho('ATENDENDO', athlete)
+  }
+
+  function startKitReading(athlete) {
+    if (!athlete) return
+    setScannedKit(null)
+    setScanFeedback('')
+    setScannerAthlete(athlete)
+  }
+
+  function handleKitRead(qrCode) {
+    const kit = (kits || []).find((item) => String(item.qrCode).trim() === String(qrCode).trim())
+    if (!kit) {
+      setScanFeedback('Código não encontrado na planilha de kits deste evento.')
+      return
+    }
+    const owner = athletes.find((a) =>
+      !matchesAthleteReference(a, scannerAthlete) &&
+      (String(a.numero || '') === String(kit.numero) || String(a.chip || '') === String(kit.chip))
+    )
+    if (owner) {
+      setScanFeedback(`Este número ou chip já está associado a ${owner.nome}.`)
+      return
+    }
+    setScanFeedback('')
+    setScannedKit(kit)
+  }
+
+  function confirmKitAssociation() {
+    if (!scannerAthlete || !scannedKit) return
+    const source = athletes.find((a) => matchesAthleteReference(a, scannerAthlete))
+    if (!source || source.status === 'ENTREGUE') {
+      setScanFeedback('Não é possível alterar a associação de uma entrega concluída.')
+      return
+    }
+    const collision = athletes.some((a) => !matchesAthleteReference(a, source) &&
+      (String(a.numero || '') === String(scannedKit.numero) || String(a.chip || '') === String(scannedKit.chip)))
+    if (collision) {
+      setScanFeedback('O número ou chip foi associado a outro atleta. Atualize a tela e tente novamente.')
+      return
+    }
+    const updated = { ...source, numero: String(scannedKit.numero), chip: String(scannedKit.chip), qrCode: String(scannedKit.qrCode) }
+    setAthletes((prev) => prev.map((a) => matchesAthleteReference(a, source) ? updated : a))
+    if (selectedAthlete && matchesAthleteReference(selectedAthlete, source)) {
+      setSelectedAthlete(updated)
+      setDetailForm(buildAthleteDetailDraft(updated))
+      setDetailInitialForm(buildAthleteDetailDraft(updated))
+      setDetailFeedback('Número e chip associados. O kit continua pendente de entrega.')
+    }
+    setScannerAthlete(null)
+    setScannedKit(null)
   }
 
   function closeAthleteDetail({ force = false } = {}) {
@@ -1188,12 +1263,7 @@ export default function OperacaoPage({
       window.alert('Informe o nome do atleta antes de salvar.')
       return null
     }
-    if (!normalized.numero) {
-      window.alert('Informe o número do atleta antes de salvar.')
-      return null
-    }
-
-    const duplicatedNumber = athletes.some(
+    const duplicatedNumber = normalized.numero && athletes.some(
       (athlete) =>
         !matchesAthleteReference(athlete, selectedAthlete) &&
         String(athlete.numero) === String(normalized.numero)
@@ -1409,6 +1479,10 @@ export default function OperacaoPage({
   // Deliver kit to an athlete directly
   function handleDeliverKit(athlete, sourceAthlete = athlete) {
     if (!athlete) return null
+    if (!athlete.numero || !athlete.chip) {
+      window.alert('Associe um número e chip ao atleta antes de entregar o kit.')
+      return null
+    }
     if (athlete.status === 'ENTREGUE') {
       return audits.find((a) => String(a.atletaNumero) === String(athlete.numero))
     }
@@ -1522,7 +1596,7 @@ export default function OperacaoPage({
     return newAudit
   }
 
-  function handleSaveAndDeliver({ print = false } = {}) {
+  function handleSaveAndDeliver() {
     if (detailActionLockRef.current || !selectedAthlete) return
 
     detailActionLockRef.current = true
@@ -1538,7 +1612,6 @@ export default function OperacaoPage({
       if (!auditRecord) return
 
       closeAthleteDetail({ force: true })
-      if (print) handleOpenComprovante(auditRecord)
     } finally {
       window.setTimeout(() => {
         detailActionLockRef.current = false
@@ -1865,30 +1938,24 @@ export default function OperacaoPage({
                         <CheckCircleIcon />
                         <span>ENTREGAR KIT</span>
                       </button>
-                      <button
-                        type="button"
-                        className={`btn-detail-entregar-print ${deliverBlockedByEdits ? 'btn-detail-blocked' : ''}`}
-                        onClick={() => handleSaveAndDeliver({ print: true })}
-                        disabled={detailActionInProgress || deliverBlockedByEdits}
-                        title={deliverBlockedByEdits
-                          ? 'Existem alterações não salvas — clique em SALVAR ALTERAÇÕES para liberar a entrega'
-                          : 'Entregar o kit e abrir o comprovante (2 vias)'}
-                      >
-                        <PrinterIcon />
-                        <span>ENTREGAR & IMPRIMIR</span>
-                      </button>
                     </>
                   )}
 
                   <button
                     type="button"
                     className="btn-detail-qr-action"
-                    onClick={() => setQrModalAthlete(selectedAthlete || detailForm)}
-                    title="Visualizar e Imprimir QR Code deste atleta"
+                    onClick={() => startKitReading(selectedAthlete || detailForm)}
+                    disabled={detailForm.status === 'ENTREGUE'}
+                    title="Abrir câmera para leitura do kit"
                   >
                     <QrCodeIcon size={16} />
-                    <span>QR CODE</span>
+                    <span>FAZER LEITURA</span>
                   </button>
+                  {(!detailForm.numero || !detailForm.chip) && detailForm.status !== 'ENTREGUE' && (
+                    <button type="button" className="btn-detail-qr-action" onClick={() => startKitReading(selectedAthlete)}>
+                      ASSOCIAR A ESTA PESSOA
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -1924,10 +1991,10 @@ export default function OperacaoPage({
                       <span className="bib-categoria">{detailForm.categoria || 'GERAL'}</span>
                     </div>
                     <div className="bib-center">
-                      <span className="bib-number">{detailForm.numero}</span>
+                      <span className={`bib-number ${!detailForm.numero ? 'bib-number-empty' : ''}`}>{detailForm.numero || 'Não associado'}</span>
                     </div>
                     <div className="bib-footer">
-                      <span className="bib-chip">{detailForm.chip || '—'}</span>
+                      <span className="bib-chip">{detailForm.chip || 'Não associado'}</span>
                     </div>
                   </div>
 
@@ -1976,9 +2043,9 @@ export default function OperacaoPage({
                         type="text"
                         className="athlete-form-input"
                         value={detailForm.numero}
-                        onChange={(e) =>
-                          setDetailForm({ ...detailForm, numero: e.target.value })
-                        }
+                        placeholder="Não associado"
+                        readOnly
+                        title="Número definido pela leitura do kit"
                       />
                     </div>
 
@@ -2181,33 +2248,9 @@ export default function OperacaoPage({
                         {detailForm.chip ? (
                           <span className="chip-pill-tag">
                             <span>{detailForm.chip}</span>
-                            <button
-                              type="button"
-                              className="btn-chip-remove"
-                              onClick={() =>
-                                setDetailForm({ ...detailForm, chip: '' })
-                              }
-                              title="Remover chip"
-                            >
-                              ✕
-                            </button>
                           </span>
                         ) : (
-                          <input
-                            type="text"
-                            className="chip-tag-input"
-                            placeholder="Digite o chip e pressione Enter..."
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && e.target.value.trim()) {
-                                e.preventDefault()
-                                setDetailForm({
-                                  ...detailForm,
-                                  chip: e.target.value.trim(),
-                                })
-                                e.target.value = ''
-                              }
-                            }}
-                          />
+                          <span className="chip-tag-input">Não associado</span>
                         )}
                       </div>
                     </div>
@@ -2346,7 +2389,7 @@ export default function OperacaoPage({
                           >
                             <div
                               className="kit-result-identification clickable-athlete"
-                              onClick={() => handleOpenAthleteDetail(athlete.numero)}
+                              onClick={() => handleOpenAthleteDetail(athlete.id || athlete.numero)}
                               title="Ver detalhes do atleta"
                             >
                               <span className="kit-result-name">{athlete.nome || '—'}</span>
@@ -2502,7 +2545,7 @@ export default function OperacaoPage({
                 >
                   <thead>
                     <tr>
-                      <th style={{ width: '84px', textAlign: 'center' }}>QR CODE</th>
+                      <th style={{ width: '110px', textAlign: 'center' }}>LEITURA</th>
                       {visibleAthleteTableColumns.map((column, columnIndex) => (
                         <th
                           key={column.key}
@@ -2524,7 +2567,7 @@ export default function OperacaoPage({
                       paginatedAthletes.map((a) => (
                         <tr
                           key={a.id || a.numero}
-                          onClick={(e) => handleRowClick(e, a.numero)}
+                          onClick={(e) => handleRowClick(e, a.id || a.numero)}
                           style={{ cursor: 'pointer' }}
                           title="Clique para abrir detalhes do atleta"
                         >
@@ -2532,7 +2575,7 @@ export default function OperacaoPage({
                             style={{ textAlign: 'center', width: '84px' }}
                             onClick={(e) => {
                               e.stopPropagation()
-                              setQrModalAthlete(a)
+                              startKitReading(a)
                             }}
                           >
                             <button
@@ -2540,12 +2583,12 @@ export default function OperacaoPage({
                               className="btn-table-qr-badge"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                setQrModalAthlete(a)
+                                startKitReading(a)
                               }}
-                              title={`Ver / Imprimir QR Code do atleta #${a.numero}`}
+                              title={`Fazer leitura para ${a.nome}`}
                             >
                               <QrCodeIcon size={14} />
-                              <span>QR</span>
+                              <span>LER</span>
                             </button>
                           </td>
                           {visibleAthleteTableColumns.map((column, columnIndex) => {
@@ -2879,10 +2922,10 @@ export default function OperacaoPage({
                   type="button"
                   className="btn-associar-planilha"
                   onClick={() => setShowAssociarModal(true)}
-                  title="Unir planilha de atletas e planilha de chips"
+                  title="Importar atletas e kits sem associação automática"
                 >
                   <LinkSpreadsheetIcon />
-                  <span>ASSOCIAR ATLETAS E CHIPS</span>
+                  <span>IMPORTAR ATLETAS E KITS</span>
                 </button>
                 <button
                   type="button"
@@ -3467,14 +3510,15 @@ export default function OperacaoPage({
           </div>
         )}
 
-        {/* MODAL: QR CODE INDIVIDUAL DO ATLETA */}
-        {qrModalAthlete && (
-          <AthleteQrModal
-            key={qrModalAthlete.id || qrModalAthlete.numero}
-            isOpen={Boolean(qrModalAthlete)}
-            onClose={() => setQrModalAthlete(null)}
-            athlete={qrModalAthlete}
-            event={currentEvent}
+        {scannerAthlete && (
+          <KitQrScannerModal
+            isOpen={Boolean(scannerAthlete)}
+            onClose={() => { setScannerAthlete(null); setScannedKit(null) }}
+            onRead={handleKitRead}
+            athlete={scannerAthlete}
+            kit={scannedKit}
+            feedback={scanFeedback}
+            onConfirm={confirmKitAssociation}
           />
         )}
 

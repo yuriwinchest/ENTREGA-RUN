@@ -441,18 +441,19 @@ function loadAthletesForEvent(eventId) {
   return null
 }
 
-function saveAthletesForEvent(eventId, athletes, schema = []) {
+function saveAthletesForEvent(eventId, athletes, schema = [], kits) {
   const safeId = String(eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
   if (!safeId) return false
+
+  const existing = loadAthletesForEvent(safeId)
 
   const data = {
     eventId: safeId,
     athletes: Array.isArray(athletes) ? athletes : [],
     schema: Array.isArray(schema) ? schema : [],
+    kits: kits === undefined ? (existing?.kits || []) : kits,
     updatedAt: Date.now(),
   }
-
-  athletesCache.set(safeId, data)
 
   try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -462,6 +463,7 @@ function saveAthletesForEvent(eventId, athletes, schema = []) {
     const tempPath = `${filePath}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`
     fs.writeFileSync(tempPath, JSON.stringify(data), 'utf-8')
     fs.renameSync(tempPath, filePath)
+    athletesCache.set(safeId, data)
     return true
   } catch (err) {
     console.error(`[server] Erro ao salvar atletas de ${safeId} no disco:`, err)
@@ -469,26 +471,49 @@ function saveAthletesForEvent(eventId, athletes, schema = []) {
   }
 }
 
+function validateKits(kits) {
+  if (!Array.isArray(kits)) return 'Lista de kits inválida.'
+  const seen = { qrCode: new Set(), numero: new Set(), chip: new Set() }
+  for (const kit of kits) {
+    if (!kit || typeof kit !== 'object' || Array.isArray(kit)) return 'Kit inválido.'
+    for (const field of ['qrCode', 'numero', 'chip']) {
+      const value = kit[field]
+      if ((typeof value !== 'string' && typeof value !== 'number') || !String(value).trim()) {
+        return `Kit sem ${field} válido.`
+      }
+      const key = String(value).trim()
+      if (seen[field].has(key)) return `Kit com ${field} duplicado: ${key}.`
+      seen[field].add(key)
+    }
+  }
+  return null
+}
+
 // GET /api/events/:eventId/athletes — Recupera lista de atletas e schema
 app.get('/api/events/:eventId/athletes', (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
   const data = loadAthletesForEvent(safeEventId)
   if (!data) {
-    return res.json({ ok: true, athletes: [], schema: [] })
+    return res.json({ ok: true, athletes: [], schema: [], kits: [] })
   }
-  res.json({ ok: true, athletes: data.athletes || [], schema: data.schema || [] })
+  res.json({ ok: true, athletes: data.athletes || [], schema: data.schema || [], kits: data.kits || [] })
 })
 
 // POST /api/events/:eventId/athletes — Sincroniza/persiste lista de atletas
 app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
-  const { athletes, schema } = req.body || {}
+  const { athletes, schema, kits } = req.body || {}
 
   if (!Array.isArray(athletes)) {
     return res.status(400).json({ ok: false, message: 'Lista de atletas inválida.' })
   }
 
-  const success = saveAthletesForEvent(safeEventId, athletes, schema)
+  if (kits !== undefined) {
+    const error = validateKits(kits)
+    if (error) return res.status(400).json({ ok: false, message: error })
+  }
+
+  const success = saveAthletesForEvent(safeEventId, athletes, schema, kits)
   if (!success) {
     return res.status(500).json({ ok: false, message: 'Erro ao persistir atletas.' })
   }

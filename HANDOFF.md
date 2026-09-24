@@ -1,5 +1,15 @@
 # Handoff
 
+## 2026-09-23 — Associação de kit por leitura ou digitação (Fase A)
+
+- **Autor:** Codex/Tony, com agentes Codex nas frentes de importação, leitor e persistência.
+- **Pedido:** importar atletas e kits sem atribuição automática e retirar as opções antigas de associação sequencial/aleatória; associar código físico a um atleta pela câmera ou digitação manual, confirmando número de peito e chip; retirar QR gerado e ação de entregar e imprimir da ficha.
+- **Arquivos alterados:** `client/src/components/AssociarPlanilhasModal.jsx`, `ImportarAtletasModal.jsx`, `OperacaoPage.jsx`, `OperacaoPage.css`, `KitQrScannerModal.jsx`, `KitQrScannerModal.css`, `client/src/utils/athleteDetail.js`, `client/src/utils/eventsApi.js`, `server/server.js` e este `HANDOFF.md`.
+- **Validação real:** `npm run lint --prefix client` sem avisos; `npm run build --prefix client` concluído; `node --check server/server.js` e `git diff --check` sem erros. Estes comandos validam compilação e análise estática, não a câmera física nem o fluxo completo no navegador.
+- **Riscos e pendências:** leitura automática depende de `BarcodeDetector`, câmera e permissão do navegador; digitação manual é alternativa na mesma tela. Associação ainda usa a sincronização de lista inteira existente, sem transação de reserva entre dois operadores simultâneos. Não houve homologação do Yuri, teste com planilhas reais nem deploy.
+- **Próximo passo:** validar em navegador móvel com as duas planilhas reais: atleta começa sem número/chip, leitura ou digitação encontra kit, confirmação atribui ambos, código repetido é recusado e a entrega só é registrada após associação.
+- **GitHub:** envio preparado na branch `codex/associacao-kit-leitura`; `main` dispara deploy automático e não foi usada nesta entrega.
+
 ## Convenção de registro (obrigatória)
 
 - Cada entrada começa com `## AAAA-MM-DD — título` e informa: **Autor** (quem executou), pedido, arquivos alterados, validação real, riscos/pendências e próximo passo.

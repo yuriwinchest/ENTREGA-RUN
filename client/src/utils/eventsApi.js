@@ -107,14 +107,14 @@ export async function apiFetchAthletes(eventId) {
     })
     if (!res.ok) return null
     const data = await res.json()
-    return data.ok ? { athletes: data.athletes || [], schema: data.schema || [] } : null
+    return data.ok ? { athletes: data.athletes || [], schema: data.schema || [], kits: data.kits || [] } : null
   } catch (err) {
     console.warn(`[eventsApi] Erro ao buscar atletas do evento ${eventId}:`, err)
     return null
   }
 }
 
-export async function apiSaveAthletes(eventId, athletes, schema = []) {
+export async function apiSaveAthletes(eventId, athletes, schema = [], kits) {
   if (!eventId || !Array.isArray(athletes)) return false
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes`, {
@@ -123,7 +123,7 @@ export async function apiSaveAthletes(eventId, athletes, schema = []) {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify({ athletes, schema }),
+      body: JSON.stringify({ athletes, schema, ...(kits === undefined ? {} : { kits }) }),
     })
     if (!res.ok) return false
     const data = await res.json()

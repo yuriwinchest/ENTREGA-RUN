@@ -337,7 +337,8 @@ export default function ImportarAtletasModal({
   function handleExecuteImport() {
     const warnings = []
     const importedAthletes = []
-    const existingMap = new Set(existingAthletes.map((a) => String(a.numero || a.id)))
+    const existingMap = new Set(existingAthletes.map((a) => String(a.id)))
+    const importId = `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
     parsedRows.forEach((row, rowIdx) => {
       const lineNum = rowIdx + 2 // Linha 1 é cabeçalho
@@ -391,9 +392,8 @@ export default function ImportarAtletasModal({
           athlete.nome = val.toUpperCase()
         } else if (val && fieldKey === 'nome_peito') {
           athlete.nome_peito = val.toUpperCase()
-        } else if (val && fieldKey === 'numero') {
-          athlete.numero = val
-          athlete.id = val
+        } else if (fieldKey === 'numero' || fieldKey === 'chip') {
+          // A numeração e o chip só são atribuídos após ler o QR Code do kit.
         } else if (val) {
           athlete[fieldKey] = val
         }
@@ -405,18 +405,13 @@ export default function ImportarAtletasModal({
         return
       }
 
-      // Se não veio número, gera ou usa linha
-      if (!athlete.numero) {
-        athlete.numero = String(lineNum)
-        athlete.id = String(lineNum)
-      }
-
-      if (existingMap.has(String(athlete.numero))) {
-        warnings.push(`Linha ${lineNum}: número de peito ${athlete.numero} já existe neste evento — ignorada.`)
+      athlete.id = `${importId}-${lineNum}`
+      if (existingMap.has(athlete.id)) {
+        warnings.push(`Linha ${lineNum}: identificador de atleta duplicado — ignorada.`)
         return
       }
 
-      existingMap.add(String(athlete.numero))
+      existingMap.add(athlete.id)
       importedAthletes.push(athlete)
     })
 

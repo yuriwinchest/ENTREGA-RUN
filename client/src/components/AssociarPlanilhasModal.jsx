@@ -72,28 +72,6 @@ function CheckCircleLargeIcon() {
   )
 }
 
-function AlertTriangleIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  )
-}
-
-function ShuffleIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22" />
-      <path d="m18 2 4 4-4 4" />
-      <path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2" />
-      <path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.7" />
-      <path d="m18 14 4 4-4 4" />
-    </svg>
-  )
-}
-
 // Helpers de formatação e parsing
 function formatCellValue(cell) {
   if (cell === null || cell === undefined) return ''
@@ -177,10 +155,9 @@ export default function AssociarPlanilhasModal({
   const [chipsHeaders, setChipsHeaders] = useState([])
   const [chipsRows, setChipsRows] = useState([])
   const [chipColIdx, setChipColIdx] = useState(0)
-
-  // Configurações de Associação
-  const [modoAssociacao, setModoAssociacao] = useState('sequencial') // 'sequencial' | 'aleatorio'
-  const [regraNumeroPeito, setRegraNumeroPeito] = useState('usar_chip') // 'usar_chip' | 'sequencial' | 'manter_planilha'
+  const [qrColIdx, setQrColIdx] = useState(0)
+  const [numeroColIdx, setNumeroColIdx] = useState(0)
+  const [kitRows, setKitRows] = useState([])
 
   // Dados pareados e prévia
   const [associatedList, setAssociatedList] = useState([])
@@ -235,15 +212,14 @@ export default function AssociarPlanilhasModal({
   }
 
   // Auto-detecção de coluna de chips
-  function guessChipColumn(headers) {
-    let bestIdx = 0
-    headers.forEach((h, idx) => {
-      const lower = String(h || '').toLowerCase()
-      if (lower.includes('chip') || lower.includes('rfid') || lower.includes('tag') || lower.includes('código') || lower.includes('codigo')) {
-        bestIdx = idx
-      }
-    })
-    return bestIdx
+  function guessKitColumn(headers, kind) {
+    const normalized = headers.map((h) => String(h || '').toLowerCase())
+    const terms = kind === 'qr'
+      ? ['qr', 'código', 'codigo', 'kit']
+      : kind === 'numero'
+        ? ['peito', 'número', 'numero', 'num']
+        : ['chip', 'rfid', 'tag']
+    return Math.max(0, normalized.findIndex((header) => terms.some((term) => header.includes(term))))
   }
 
   // Handle upload Planilha 1 (Atletas)
@@ -277,7 +253,9 @@ export default function AssociarPlanilhasModal({
       setChipsFile(file)
       setChipsHeaders(data.headers)
       setChipsRows(data.rows)
-      setChipColIdx(guessChipColumn(data.headers))
+      setChipColIdx(guessKitColumn(data.headers, 'chip'))
+      setQrColIdx(guessKitColumn(data.headers, 'qr'))
+      setNumeroColIdx(guessKitColumn(data.headers, 'numero'))
     } catch (err) {
       console.error('Erro ao ler planilha de chips:', err)
       alert('Erro ao carregar planilha de chips: ' + (err.message || 'formato inválido'))
@@ -299,23 +277,23 @@ export default function AssociarPlanilhasModal({
       return
     }
 
-    // Extrair lista de chips válidos
-    const extractedChips = chipsRows
-      .map((r) => (r[chipColIdx] !== undefined ? String(r[chipColIdx]).trim() : ''))
-      .filter(Boolean)
-
-    if (extractedChips.length === 0) {
-      alert('Nenhum chip válido foi encontrado na coluna selecionada da planilha de chips.')
+    if (new Set([qrColIdx, numeroColIdx, chipColIdx]).size !== 3) {
+      alert('Selecione três colunas diferentes para QR Code, número de peito e chip.')
       return
     }
-
-    // Prepara os chips conforme modo (sequencial ou aleatório)
-    let chipsPool = [...extractedChips]
-    if (modoAssociacao === 'aleatorio') {
-      // Fisher-Yates shuffle
-      for (let i = chipsPool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[chipsPool[i], chipsPool[j]] = [chipsPool[j], chipsPool[i]]
+    const importedKits = chipsRows.map((row) => ({
+      qrCode: String(row[qrColIdx] ?? '').trim(),
+      numero: String(row[numeroColIdx] ?? '').trim(),
+      chip: String(row[chipColIdx] ?? '').trim(),
+    }))
+    if (importedKits.some((kit) => !kit.qrCode || !kit.numero || !kit.chip)) {
+      alert('Todas as linhas da planilha de kits precisam ter QR Code, número de peito e chip.')
+      return
+    }
+    for (const field of ['qrCode', 'numero', 'chip']) {
+      if (new Set(importedKits.map((kit) => kit[field])).size !== importedKits.length) {
+        alert(`Há valores duplicados na coluna de ${field === 'qrCode' ? 'QR Code' : field === 'numero' ? 'número de peito' : 'chip'}.`)
+        return
       }
     }
 
@@ -327,32 +305,19 @@ export default function AssociarPlanilhasModal({
     const camCol = atletasMapping.camiseta !== '' ? Number(atletasMapping.camiseta) : -1
     const eqCol = atletasMapping.equipe !== '' ? Number(atletasMapping.equipe) : -1
     const numCol = atletasMapping.numero !== '' ? Number(atletasMapping.numero) : -1
-
-    const existingNums = new Set(existingAthletes.map((a) => String(a.numero || a.id)))
+    const importId = `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const existingIds = new Set(existingAthletes.map((a) => String(a.id)))
     const pairedAthletes = []
 
     atletasRows.forEach((row, idx) => {
       const nomeVal = row[nameCol] ? String(row[nameCol]).trim().toUpperCase() : ''
       if (!nomeVal) return // Linha sem nome ignorada
 
-      const assignedChip = chipsPool[idx] || ''
-
-      // Determinar número de peito
-      let numeroPeito = ''
-      if (numCol >= 0 && row[numCol]) {
-        numeroPeito = String(row[numCol]).trim()
-      } else if (regraNumeroPeito === 'usar_chip' && assignedChip) {
-        numeroPeito = assignedChip
-      } else if (regraNumeroPeito === 'sequencial') {
-        numeroPeito = String(idx + 1)
-      } else {
-        numeroPeito = assignedChip || String(idx + 1)
-      }
-
+      const id = `${importId}-${idx + 1}`
       const athleteObj = {
-        id: numeroPeito || `atl-${Date.now()}-${idx + 1}`,
-        numero: numeroPeito,
-        chip: assignedChip,
+        id,
+        numero: '',
+        chip: '',
         nome: nomeVal,
         doc: docCol >= 0 && row[docCol] ? String(row[docCol]).trim() : '',
         sexo: sexCol >= 0 && row[sexCol] ? String(row[sexCol]).trim() : 'Masculino',
@@ -369,7 +334,7 @@ export default function AssociarPlanilhasModal({
         status: 'PENDENTE',
         createdAt: new Date().toISOString(),
         customFields: {},
-        _hasCollision: existingNums.has(String(numeroPeito)),
+        _hasCollision: existingIds.has(id),
       }
 
       // Preserva automaticamente qualquer coluna adicional da planilha de atletas (como PCD)
@@ -405,6 +370,7 @@ export default function AssociarPlanilhasModal({
     }
 
     setAssociatedList(pairedAthletes)
+    setKitRows(importedKits)
     setPreviewPage(1)
     setStep(2)
   }
@@ -439,6 +405,7 @@ export default function AssociarPlanilhasModal({
 
       onImportSuccess(cleanList, {
         columns: buildImportColumnSchema(atletasHeaders, mappingByColumn),
+        kits: kitRows,
       })
     }
 
@@ -462,7 +429,6 @@ export default function AssociarPlanilhasModal({
 
   const countAtletas = atletasRows.length
   const countChips = chipsRows.length
-  const countAssociados = associatedList.filter((a) => a.chip).length
 
   return (
     <div className="associar-modal-backdrop" onClick={onClose}>
@@ -474,9 +440,9 @@ export default function AssociarPlanilhasModal({
               <LinkChainIcon />
             </div>
             <div>
-              <h2 className="associar-modal-title">ASSOCIAR PLANILHAS (ATLETAS + CHIPS)</h2>
+              <h2 className="associar-modal-title">IMPORTAR ATLETAS E KITS</h2>
               <p className="associar-modal-subtitle">
-                Junte a planilha de corredores com a lista de chips de cronometragem de forma automática.
+                Cadastre atletas e kits separadamente. A associação acontece na leitura do QR Code.
               </p>
             </div>
           </div>
@@ -512,7 +478,7 @@ export default function AssociarPlanilhasModal({
             <div className="associar-step-container">
               <div className="associar-helper-box">
                 <p>
-                  <strong>Como funciona a associação:</strong> Você carrega uma planilha contendo os dados dos atletas (nomes, CPFs, modalidades) e outra planilha com os números/códigos dos chips. O sistema associa cada chip a um atleta sequencialmente ou por sorteio.
+                  <strong>Como funciona:</strong> Importe os dados dos atletas e a planilha de kits com QR Code, número de peito e chip. Nenhum kit será atribuído nesta etapa.
                 </p>
               </div>
 
@@ -626,7 +592,7 @@ export default function AssociarPlanilhasModal({
                         </div>
 
                         <div className="mapping-field-item">
-                          <label>Coluna de Nº de Peito (Se já existir):</label>
+                          <label>Coluna de Nº de Peito (não será atribuída):</label>
                           <CustomSelect
                             value={atletasMapping.numero}
                             onChange={(val) => setAtletasMapping({ ...atletasMapping, numero: val })}
@@ -651,8 +617,8 @@ export default function AssociarPlanilhasModal({
                       <CpuChipIcon />
                     </div>
                     <div>
-                      <h4 className="dual-card-title">2. PLANILHA DE CHIPS</h4>
-                      <p className="dual-card-desc">Números de chips, tags RFID ou sequências</p>
+                      <h4 className="dual-card-title">2. PLANILHA DE KITS</h4>
+                      <p className="dual-card-desc">QR Code, número de peito e chip por linha</p>
                     </div>
                   </div>
 
@@ -683,14 +649,14 @@ export default function AssociarPlanilhasModal({
                       <div className="dropzone-icon">
                         <UploadTrayIcon />
                       </div>
-                      <div className="dropzone-text-primary">SELECIONAR ARQUIVO DE CHIPS</div>
+                      <div className="dropzone-text-primary">SELECIONAR ARQUIVO DE KITS</div>
                       <div className="dropzone-text-sub">Arraste ou clique para enviar (.xlsx, .xls, .csv)</div>
                     </div>
                   ) : (
                     <div className="file-loaded-box">
                       <div className="file-loaded-info">
                         <span className="file-name">{chipsFile.name}</span>
-                        <span className="badge-count indigo">✓ {chipsRows.length} chips detectados</span>
+                        <span className="badge-count indigo">✓ {chipsRows.length} kits detectados</span>
                       </div>
                       <button
                         type="button"
@@ -706,6 +672,16 @@ export default function AssociarPlanilhasModal({
 
                       {/* Seleção de coluna do chip */}
                       <div className="inline-mapping-area">
+                        <div className="mapping-field-item">
+                          <label>Coluna do QR Code impresso no kit:</label>
+                          <CustomSelect value={String(qrColIdx)} onChange={(val) => setQrColIdx(Number(val))}
+                            options={chipsHeaders.map((h, idx) => ({ value: String(idx), label: `Coluna ${idx + 1}: ${h || `(Coluna ${idx + 1})`}` }))} />
+                        </div>
+                        <div className="mapping-field-item">
+                          <label>Coluna do número de peito:</label>
+                          <CustomSelect value={String(numeroColIdx)} onChange={(val) => setNumeroColIdx(Number(val))}
+                            options={chipsHeaders.map((h, idx) => ({ value: String(idx), label: `Coluna ${idx + 1}: ${h || `(Coluna ${idx + 1})`}` }))} />
+                        </div>
                         <div className="mapping-field-item">
                           <label>Coluna com o Número/Código do Chip:</label>
                           <CustomSelect
@@ -735,80 +711,6 @@ export default function AssociarPlanilhasModal({
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
-
-              {/* OPÇÕES DE REGRAS DE ASSOCIAÇÃO */}
-              <div className="association-settings-card">
-                <h4 className="settings-title">CONFIGURAÇÕES DA JUNÇÃO</h4>
-                <div className="settings-grid">
-                  <div className="setting-option">
-                    <span className="setting-label">Ordem de Associação:</span>
-                    <div className="radio-group">
-                      <label className="radio-card">
-                        <input
-                          type="radio"
-                          name="modoAssociacao"
-                          value="sequencial"
-                          checked={modoAssociacao === 'sequencial'}
-                          onChange={() => setModoAssociacao('sequencial')}
-                        />
-                        <div className="radio-card-content">
-                          <strong>Sequencial (1 para 1)</strong>
-                          <span>O 1º atleta recebe o 1º chip, o 2º recebe o 2º chip, etc.</span>
-                        </div>
-                      </label>
-
-                      <label className="radio-card">
-                        <input
-                          type="radio"
-                          name="modoAssociacao"
-                          value="aleatorio"
-                          checked={modoAssociacao === 'aleatorio'}
-                          onChange={() => setModoAssociacao('aleatorio')}
-                        />
-                        <div className="radio-card-content">
-                          <strong>
-                            <ShuffleIcon /> Sorteio / Aleatório
-                          </strong>
-                          <span>Embaralha os chips antes de associá-los aos corredores.</span>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="setting-option">
-                    <span className="setting-label">Número de Peito (se não constar na lista):</span>
-                    <div className="radio-group">
-                      <label className="radio-card">
-                        <input
-                          type="radio"
-                          name="regraNumeroPeito"
-                          value="usar_chip"
-                          checked={regraNumeroPeito === 'usar_chip'}
-                          onChange={() => setRegraNumeroPeito('usar_chip')}
-                        />
-                        <div className="radio-card-content">
-                          <strong>Mesmo valor do Chip</strong>
-                          <span>O atleta recebe o número do próprio chip como número de peito.</span>
-                        </div>
-                      </label>
-
-                      <label className="radio-card">
-                        <input
-                          type="radio"
-                          name="regraNumeroPeito"
-                          value="sequencial"
-                          checked={regraNumeroPeito === 'sequencial'}
-                          onChange={() => setRegraNumeroPeito('sequencial')}
-                        />
-                        <div className="radio-card-content">
-                          <strong>Sequencial (1, 2, 3...)</strong>
-                          <span>Gera número de peito em sequência crescente a partir de 1.</span>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -842,47 +744,26 @@ export default function AssociarPlanilhasModal({
                   <span className="metric-value">{countAtletas}</span>
                 </div>
                 <div className="preview-metric-card">
-                  <span className="metric-label">CHIPS NA PLANILHA</span>
+                  <span className="metric-label">KITS NA PLANILHA</span>
                   <span className="metric-value">{countChips}</span>
                 </div>
                 <div className="preview-metric-card highlight">
-                  <span className="metric-label">PARES ASSOCIADOS</span>
-                  <span className="metric-value">{countAssociados}</span>
+                  <span className="metric-label">ASSOCIAÇÕES NESTA IMPORTAÇÃO</span>
+                  <span className="metric-value">0</span>
                 </div>
               </div>
 
-              {/* ALERTA DE DIFERENÇA DE QUANTIDADES */}
-              {countAtletas > countChips && (
-                <div className="preview-alert-warning">
-                  <AlertTriangleIcon />
-                  <div>
-                    <strong>Atenção: Existem mais atletas do que chips!</strong>
-                    <p>
-                      A planilha possui {countAtletas} atletas e apenas {countChips} chips. Os últimos{' '}
-                      <strong>{countAtletas - countChips} atletas</strong> ficarão com o chip em branco (poderá ser atribuído manualmente na entrega).
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {countChips > countAtletas && (
-                <div className="preview-alert-info">
-                  <div className="info-icon-badge">ℹ</div>
-                  <div>
-                    <strong>Chips sobressalentes disponíveis</strong>
-                    <p>
-                      Existem {countChips} chips para {countAtletas} atletas. Os {countChips - countAtletas} chips restantes não serão atribuídos nesta importação.
-                    </p>
-                  </div>
-                </div>
-              )}
+              <div className="preview-alert-info">
+                <div className="info-icon-badge">ℹ</div>
+                <div><strong>Importação sem associação</strong><p>Os kits permanecem disponíveis para leitura do QR Code na entrega.</p></div>
+              </div>
 
               {/* BARRA DE BUSCA NA PRÉVIA */}
               <div className="preview-table-header-bar">
                 <div className="preview-search-wrap">
                   <input
                     type="text"
-                    placeholder="Filtrar atletas na pré-visualização (nome, chip, doc)..."
+                    placeholder="Filtrar atletas na pré-visualização (nome, documento)..."
                     value={previewFilter}
                     onChange={(e) => {
                       setPreviewFilter(e.target.value)
@@ -932,7 +813,7 @@ export default function AssociarPlanilhasModal({
                                 <strong>{item.chip}</strong>
                               </span>
                             ) : (
-                              <span className="chip-badge-empty">Sem chip</span>
+                              <span className="chip-badge-empty">Não associado</span>
                             )}
                           </td>
                           <td>
@@ -1002,19 +883,19 @@ export default function AssociarPlanilhasModal({
                 <div className="conclusion-icon-wrap">
                   <CheckCircleLargeIcon />
                 </div>
-                <h3 className="conclusion-title">ASSOCIAÇÃO CONCLUÍDA COM SUCESSO!</h3>
+                <h3 className="conclusion-title">IMPORTAÇÃO CONCLUÍDA!</h3>
                 <p className="conclusion-desc">
-                  <strong>{associatedList.length} atletas</strong> foram importados e vinculados aos respectivos chips de cronometragem.
+                  <strong>{associatedList.length} atletas</strong> e <strong>{kitRows.length} kits</strong> foram importados separadamente. A associação será feita pela leitura do QR Code.
                 </p>
 
                 <div className="conclusion-details-box">
                   <div className="detail-row">
-                    <span>Atletas com chip atribuído:</span>
-                    <strong>{countAssociados}</strong>
+                    <span>Atletas associados nesta importação:</span>
+                    <strong>0</strong>
                   </div>
                   <div className="detail-row">
-                    <span>Modo utilizado:</span>
-                    <strong>{modoAssociacao === 'aleatorio' ? 'Sorteio / Aleatório' : 'Sequencial Direto (1 para 1)'}</strong>
+                    <span>Kits disponíveis:</span>
+                    <strong>{kitRows.length}</strong>
                   </div>
                 </div>
 
