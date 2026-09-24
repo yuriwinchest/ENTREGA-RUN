@@ -55,9 +55,24 @@ jobs:
             docker compose build --no-cache
             docker compose up -d
 
-            # Healthcheck de verificação do serviço
-            sleep 4
-            curl -f http://127.0.0.1:3050/api/health || (echo "Healthcheck falhou!" && exit 1)
+            # Healthcheck de verificação do serviço com retry inteligente (Vitor / SRE)
+            echo "Aguardando inicialização do serviço..."
+            HEALTHY=false
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              sleep 2
+              if curl -s -f http://127.0.0.1:3050/api/health > /dev/null; then
+                HEALTHY=true
+                echo "Healthcheck OK na tentativa $i!"
+                break
+              fi
+              echo "Tentativa $i falhou, aguardando..."
+            done
+
+            if [ "$HEALTHY" != "true" ]; then
+              echo "Healthcheck falhou após 20s! Logs do container:"
+              docker logs --tail 50 entregas-run-web || true
+              exit 1
+            fi
 
             echo "=== DEPLOY CONCLUÍDO COM SUCESSO! ==="
             docker ps --filter name=entregas-run-web --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"

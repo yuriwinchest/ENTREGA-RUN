@@ -27,7 +27,7 @@ RUN cd server && npm ci --omit=dev
 RUN mkdir -p /app/data && chown -R node:node /app/data
 
 # Copia código do servidor
-COPY server/server.js ./server/
+COPY server/ ./server/
 
 # Copia o build estático do client para servir na mesma origem
 COPY --from=builder /app/client/dist ./client/dist
