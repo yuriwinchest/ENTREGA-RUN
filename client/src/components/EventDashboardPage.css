@@ -720,6 +720,23 @@
   font-size: 13.5px;
 }
 
+.delivery-breakdown-row {
+  padding: 12px 0;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.delivery-breakdown-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.delivery-breakdown-heading span { color: #64748b; text-align: right; }
+.delivery-breakdown-track { height: 9px; margin-top: 8px; border-radius: 8px; background: #fee2e2; overflow: hidden; }
+.delivery-breakdown-track span { display: block; height: 100%; background: #10b981; }
+
 @media (max-width: 1024px) {
   .dash-six-metrics {
     grid-template-columns: repeat(2, 1fr);

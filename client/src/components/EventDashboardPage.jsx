@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { apiFetchAthletes } from '../utils/eventsApi.js'
 import Sidebar from './Sidebar.jsx'
 import './EventDashboardPage.css'
 
@@ -54,19 +55,40 @@ const AGE_GROUPS_DATA = [
   { key: '70+', label: '70+', masc: 0, fem: 0, misto: 0, center: 635, colLeft: 601, colWidth: 68 },
 ]
 
-const CAMISETAS_DATA = [
-  { size: 'P', entregue: 65, faltante: 3, total: 68, center: 94.6, colLeft: 54, colWidth: 81.2, barWidth: 52 },
-  { size: 'M', entregue: 114, faltante: 11, total: 125, center: 175.8, colLeft: 135.2, colWidth: 81.2, barWidth: 52 },
-  { size: 'G', entregue: 55, faltante: 2, total: 57, center: 257.0, colLeft: 216.4, colWidth: 81.2, barWidth: 52 },
-  { size: 'GG', entregue: 19, faltante: 0, total: 19, center: 338.2, colLeft: 297.6, colWidth: 81.2, barWidth: 52 },
-  { size: 'XG', entregue: 1, faltante: 0, total: 1, center: 419.4, colLeft: 378.8, colWidth: 81.2, barWidth: 52 },
-]
+function groupDeliveries(athletes, field) {
+  const groups = new Map()
+  athletes.forEach((athlete) => {
+    const name = String(field(athlete) || 'Não informado').trim() || 'Não informado'
+    const item = groups.get(name) || { name, total: 0, delivered: 0 }
+    item.total += 1
+    if (isDelivered(athlete)) item.delivered += 1
+    groups.set(name, item)
+  })
+  return [...groups.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'pt-BR'))
+}
 
-const KITS_DATA = [
-  { name: 'KIT ELITE', entregue: 255, faltante: 5, total: 260, center: 121.7, colLeft: 54, colWidth: 135.33, barWidth: 96 },
-  { name: 'KIT ATLETA', entregue: 136, faltante: 3, total: 139, center: 257.0, colLeft: 189.33, colWidth: 135.33, barWidth: 96 },
-  { name: 'Kit Padrão', entregue: 0, faltante: 11, total: 11, center: 392.3, colLeft: 324.66, colWidth: 135.33, barWidth: 96 },
-]
+function isDelivered(athlete) {
+  return String(athlete.status || '').toUpperCase() === 'ENTREGUE' || Boolean(athlete.entregueEm)
+}
+
+function DeliveryBreakdown({ title, rows }) {
+  return (
+    <div className="dash-chart-card">
+      <h3 className="dash-chart-title">{title}</h3>
+      {rows.length === 0 ? <div className="chart-empty-msg">Nenhum atleta cadastrado</div> : rows.map((row) => {
+        const remaining = row.total - row.delivered
+        return (
+          <div className="delivery-breakdown-row" key={row.name}>
+            <div className="delivery-breakdown-heading"><strong>{row.name}</strong><span>{row.delivered} entregues · {remaining} pendentes · {row.total} total</span></div>
+            <div className="delivery-breakdown-track" aria-label={`${row.name}: ${row.delivered} entregues de ${row.total}`}>
+              <span style={{ width: `${(row.delivered / row.total) * 100}%` }} />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function EventDashboardPage({
   event,
@@ -79,36 +101,47 @@ export default function EventDashboardPage({
   const [hoveredAgeGroup, setHoveredAgeGroup] = useState(AGE_GROUPS_DATA[2])
   const [hoveredStatus, setHoveredStatus] = useState(null)
   const [hoveredGender, setHoveredGender] = useState(null)
-  const [hoveredModalidadeKit, setHoveredModalidadeKit] = useState(false)
-  const [hoveredCamiseta, setHoveredCamiseta] = useState(null)
-  const [hoveredKit, setHoveredKit] = useState(null)
 
-  const athletes = (() => {
-    try {
-      if (!event?.id) return []
-      const saved = localStorage.getItem(`entregas_run_athletes_${event.id}`)
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
+  const [athletes, setAthletes] = useState([])
+  const [loadError, setLoadError] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function refresh() {
+      const result = await apiFetchAthletes(event?.id)
+      if (cancelled) return
+      if (result) {
+        setAthletes(result.athletes)
+        setLoadError(false)
+      } else {
+        setLoadError(true)
+      }
+      setLoading(false)
     }
-  })()
+    refresh()
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh()
+    }, 15000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [event?.id])
 
   // Métricas calculadas dinamicamente
-  const totalCount = athletes.length > 0 ? athletes.length : (Number(event?.total_athletes || event?.total) || 430)
+  const totalCount = athletes.length
   const mascCount = athletes.length > 0
     ? athletes.filter((a) => (a.sexo || a.gender || '').toUpperCase().startsWith('M')).length
-    : 179
+    : 0
   const femCount = athletes.length > 0
     ? athletes.filter((a) => (a.sexo || a.gender || '').toUpperCase().startsWith('F')).length
-    : 251
+    : 0
   const entreguesCount = athletes.length > 0
     ? athletes.filter((a) => String(a.status || '').toUpperCase() === 'ENTREGUE' || Boolean(a.entregueEm)).length
-    : 361
+    : 0
   const faltantesCount = Math.max(0, totalCount - entreguesCount)
-  const entreguesPct = totalCount > 0 ? ((entreguesCount / totalCount) * 100).toFixed(1) : '84.0'
-  const faltantesPct = totalCount > 0 ? ((faltantesCount / totalCount) * 100).toFixed(1) : '16.0'
-  const mascPct = totalCount > 0 ? ((mascCount / totalCount) * 100).toFixed(1) : '41.6'
-  const femPct = totalCount > 0 ? ((femCount / totalCount) * 100).toFixed(1) : '58.4'
+  const entreguesPct = totalCount > 0 ? ((entreguesCount / totalCount) * 100).toFixed(1) : '0.0'
+  const faltantesPct = totalCount > 0 ? ((faltantesCount / totalCount) * 100).toFixed(1) : '0.0'
+  const mascPct = totalCount > 0 ? ((mascCount / totalCount) * 100).toFixed(1) : '0.0'
+  const femPct = totalCount > 0 ? ((femCount / totalCount) * 100).toFixed(1) : '0.0'
 
   // Equipes calculadas dinamicamente
   const teamsData = (() => {
@@ -125,18 +158,7 @@ export default function EventDashboardPage({
         .map((item, idx) => ({ rank: idx + 1, ...item }))
       return sorted.length > 0 ? sorted : [{ rank: 1, name: 'Sem Equipe', count: athletes.length }]
     }
-    return [
-      { rank: 1, name: 'Sem Equipe', count: 267 },
-      { rank: 2, name: 'BORA PRO CORRE', count: 55 },
-      { rank: 3, name: 'BORAPROCORRE', count: 15 },
-      { rank: 4, name: 'FORMOSO PACE CLUBE', count: 6 },
-      { rank: 5, name: 'BROCARUN', count: 6 },
-      { rank: 6, name: 'UNA-SE', count: 3 },
-      { rank: 7, name: 'FORMOSO PACE', count: 3 },
-      { rank: 8, name: 'SAO BENTO DO UNA', count: 3 },
-      { rank: 9, name: 'SANTA LUZIA', count: 3 },
-      { rank: 10, name: 'BORRA PRO CORRE', count: 2 },
-    ]
+    return []
   })()
   const maxTeamCount = teamsData[0]?.count || 1
 
@@ -177,7 +199,7 @@ export default function EventDashboardPage({
           </div>
         </section>
 
-        {athletes.length === 0 ? (
+        {loading || loadError || athletes.length === 0 ? (
           <div style={{
             background: '#fff',
             border: '1.5px dashed #e2e8f0',
@@ -192,10 +214,10 @@ export default function EventDashboardPage({
           }}>
             <PackageIcon />
             <p style={{ margin: 0, color: '#64748b', fontSize: '16px', fontWeight: 600 }}>
-              Nenhum dado de atletas cadastrado para este evento ainda.
+              {loading ? 'Carregando atletas...' : loadError ? 'Não foi possível carregar os dados do evento.' : 'Nenhum atleta cadastrado neste evento.'}
             </p>
             <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px', maxWidth: '440px', lineHeight: 1.5 }}>
-              Importe uma planilha oficial de atletas ou cadastre manualmente para visualizar gráficos e métricas analíticas em tempo real.
+              {loadError ? 'Verifique a conexão com o servidor e tente novamente.' : 'Importe uma planilha de atletas ou cadastre manualmente para visualizar as métricas.'}
             </p>
             <button
               type="button"
@@ -668,504 +690,17 @@ export default function EventDashboardPage({
         {/* TAB 2: ENTREGA DE KIT */}
         {activeSubtab === 'entrega' && (
           <div className="event-dash-body">
-            {/* Top 3 metrics */}
             <div className="dash-three-charts">
-              <div className="dash-stat-card blue">
-                <div className="dash-stat-label"><PackageIcon /> Total</div>
-                <div className="dash-stat-val">430</div>
-              </div>
-
-              <div className="dash-stat-card green">
-                <div className="dash-stat-label">✓ Entregue</div>
-                <div className="dash-stat-val">361</div>
-                <span className="dash-stat-sub">84.0%</span>
-              </div>
-
-              <div className="dash-stat-card coral">
-                <div className="dash-stat-label">✕ Faltante</div>
-                <div className="dash-stat-val">69</div>
-                <span className="dash-stat-sub">16.0%</span>
-              </div>
+              <div className="dash-stat-card blue"><div className="dash-stat-label"><PackageIcon /> Total</div><div className="dash-stat-val">{totalCount}</div></div>
+              <div className="dash-stat-card green"><div className="dash-stat-label">✓ Entregue</div><div className="dash-stat-val">{entreguesCount}</div><span className="dash-stat-sub">{entreguesPct}%</span></div>
+              <div className="dash-stat-card coral"><div className="dash-stat-label">✕ Faltante</div><div className="dash-stat-val">{faltantesCount}</div><span className="dash-stat-sub">{faltantesPct}%</span></div>
             </div>
-
-            {/* Kits por modalidade */}
-            <div className="dash-chart-card">
-              <h3 className="dash-chart-title">Kits por Modalidade</h3>
-              <div className="interactive-chart-box">
-                <svg width="100%" height="220" viewBox="0 0 600 220" preserveAspectRatio="none">
-                  <line x1="40" y1="30" x2="560" y2="30" stroke="#f1f5f9" strokeDasharray="4" />
-                  <line x1="40" y1="75" x2="560" y2="75" stroke="#f1f5f9" strokeDasharray="4" />
-                  <line x1="40" y1="120" x2="560" y2="120" stroke="#f1f5f9" strokeDasharray="4" />
-                  <line x1="40" y1="165" x2="560" y2="165" stroke="#e2e8f0" />
-                  <text x="15" y="34" fill="#94a3b8" fontSize="11">600</text>
-                  <text x="15" y="79" fill="#94a3b8" fontSize="11">450</text>
-                  <text x="15" y="124" fill="#94a3b8" fontSize="11">300</text>
-                  <text x="15" y="169" fill="#94a3b8" fontSize="11">150</text>
-                  <text x="26" y="190" fill="#94a3b8" fontSize="11">0</text>
-
-                  {hoveredModalidadeKit && (
-                    <rect x="170" y="20" width="300" height="150" fill="#e2e8f0" opacity="0.65" />
-                  )}
-
-                  {/* Stacked bar for 5 KM */}
-                  <g
-                    style={{ cursor: 'pointer' }}
-                    onMouseEnter={() => setHoveredModalidadeKit(true)}
-                    onMouseLeave={() => setHoveredModalidadeKit(false)}
-                  >
-                    <rect x="180" y="65" width="280" height="24" fill="#ef4444" rx="2" />
-                    <text x="312" y="81" fill="#ffffff" fontSize="11" fontWeight="bold">69</text>
-                    <rect x="180" y="89" width="280" height="76" fill="#10b981" rx="2" />
-                    <text x="310" y="132" fill="#ffffff" fontSize="11" fontWeight="bold">361</text>
-                    <text x="306" y="185" fill="#64748b" fontSize="11">5 KM</text>
-                  </g>
-                </svg>
-                {hoveredModalidadeKit && (
-                  <div
-                    className="chart-floating-tooltip"
-                    style={{ left: '50%', top: '15px', transform: 'translateX(-50%)' }}
-                  >
-                    <div className="tooltip-title">Modalidade: 5 KM</div>
-                    <div className="tooltip-row entregue">
-                      <span>Entregue :</span>
-                      <span>361 (84.0%)</span>
-                    </div>
-                    <div className="tooltip-row faltante">
-                      <span>Faltante :</span>
-                      <span>69 (16.0%)</span>
-                    </div>
-                    <div className="tooltip-row total">
-                      <span>Total :</span>
-                      <span>430</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="donut-legend">
-                <span className="legend-item"><span className="legend-square" style={{ background: '#10b981' }} /> Entregue</span>
-                <span className="legend-item"><span className="legend-square" style={{ background: '#ef4444' }} /> Faltante</span>
-              </div>
-            </div>
-
-            {/* Camisetas e Kits */}
+            <DeliveryBreakdown title="Kits por Modalidade" rows={groupDeliveries(athletes, (a) => a.modalidade)} />
             <div className="highlights-grid">
-              <div className="dash-chart-card">
-                <h3 className="dash-chart-title">Camisetas</h3>
-                <div className="interactive-chart-box">
-                  <svg width="100%" height="280" viewBox="0 0 480 270">
-                    {/* Y-axis Title */}
-                    <text
-                      x="-120"
-                      y="16"
-                      transform="rotate(-90)"
-                      fill="#64748b"
-                      fontSize="12"
-                      textAnchor="middle"
-                      fontWeight="500"
-                    >
-                      Quantidade
-                    </text>
-
-                    {/* Dotted horizontal grid lines */}
-                    <line x1="54" y1="20" x2="460" y2="20" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="70" x2="460" y2="70" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="120" x2="460" y2="120" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="170" x2="460" y2="170" stroke="#f1f5f9" strokeDasharray="3 3" />
-
-                    {/* Right boundary dotted grid line */}
-                    <line x1="460" y1="20" x2="460" y2="220" stroke="#f1f5f9" strokeDasharray="3 3" />
-
-                    {/* Vertical grid lines at category centers */}
-                    {CAMISETAS_DATA.map((item) => (
-                      <line
-                        key={`grid-${item.size}`}
-                        x1={item.center}
-                        y1="20"
-                        x2={item.center}
-                        y2="220"
-                        stroke="#f1f5f9"
-                        strokeDasharray="3 3"
-                      />
-                    ))}
-
-                    {/* Axes */}
-                    <line x1="54" y1="20" x2="54" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-                    <line x1="54" y1="220" x2="460" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-
-                    {/* Y-axis Ticks & Labels */}
-                    <line x1="49" y1="20" x2="54" y2="20" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="24" fill="#94a3b8" fontSize="11.5" textAnchor="end">140</text>
-
-                    <line x1="49" y1="70" x2="54" y2="70" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="74" fill="#94a3b8" fontSize="11.5" textAnchor="end">105</text>
-
-                    <line x1="49" y1="120" x2="54" y2="120" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="124" fill="#94a3b8" fontSize="11.5" textAnchor="end">70</text>
-
-                    <line x1="49" y1="170" x2="54" y2="170" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="174" fill="#94a3b8" fontSize="11.5" textAnchor="end">35</text>
-
-                    <line x1="49" y1="220" x2="54" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="224" fill="#94a3b8" fontSize="11.5" textAnchor="end">0</text>
-
-                    {/* Active column highlight */}
-                    {hoveredCamiseta && (
-                      <rect
-                        x={hoveredCamiseta.colLeft}
-                        y="20"
-                        width={hoveredCamiseta.colWidth}
-                        height="200"
-                        fill="#cbd5e1"
-                        opacity="0.45"
-                      />
-                    )}
-
-                    {/* Wide Bars */}
-                    {CAMISETAS_DATA.map((item) => {
-                      const scale = 200 / 140
-                      const faltanteH = item.faltante * scale
-                      const entregueH = item.entregue * scale
-                      const totalH = faltanteH + entregueH
-                      const topY = 220 - totalH
-                      const entregueY = 220 - entregueH
-                      const barX = item.center - item.barWidth / 2
-
-                      return (
-                        <g
-                          key={item.size}
-                          style={{ cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredCamiseta(item)}
-                          onMouseLeave={() => setHoveredCamiseta(null)}
-                        >
-                          {/* Invisible hover catcher */}
-                          <rect
-                            x={item.colLeft}
-                            y="20"
-                            width={item.colWidth}
-                            height="210"
-                            fill="transparent"
-                          />
-
-                          {/* Faltante (Coral/Red) */}
-                          {item.faltante > 0 && (
-                            <rect
-                              x={barX}
-                              y={topY}
-                              width={item.barWidth}
-                              height={Math.max(4, faltanteH)}
-                              fill="#f87171"
-                              rx="3"
-                            />
-                          )}
-
-                          {/* Faltante label */}
-                          {item.faltante >= 2 && (
-                            <text
-                              x={item.center}
-                              y={topY + Math.max(4, faltanteH) / 2 + 4}
-                              fill="#fff"
-                              fontSize={item.faltante >= 10 ? '11' : '10'}
-                              fontWeight="bold"
-                              textAnchor="middle"
-                            >
-                              {item.faltante}
-                            </text>
-                          )}
-
-                          {/* Entregue (Vivid Green) */}
-                          {item.entregue > 0 && (
-                            <rect
-                              x={barX}
-                              y={entregueY}
-                              width={item.barWidth}
-                              height={entregueH}
-                              fill="#22c55e"
-                              rx={item.faltante === 0 ? '3' : '0'}
-                            />
-                          )}
-
-                          {/* Entregue label */}
-                          {item.entregue >= 10 && (
-                            <text
-                              x={item.center}
-                              y={entregueY + entregueH / 2 + 4.5}
-                              fill="#fff"
-                              fontSize="12"
-                              fontWeight="bold"
-                              textAnchor="middle"
-                            >
-                              {item.entregue}
-                            </text>
-                          )}
-
-                          {/* X-axis tick */}
-                          <line
-                            x1={item.center}
-                            y1="220"
-                            x2={item.center}
-                            y2="225"
-                            stroke="#cbd5e1"
-                            strokeWidth="1"
-                          />
-
-                          {/* X-axis Label */}
-                          <text
-                            x={item.center}
-                            y="244"
-                            fill={hoveredCamiseta?.size === item.size ? '#0f172a' : '#64748b'}
-                            fontWeight={hoveredCamiseta?.size === item.size ? '700' : '600'}
-                            fontSize="12.5"
-                            textAnchor="middle"
-                          >
-                            {item.size}
-                          </text>
-                        </g>
-                      )
-                    })}
-                  </svg>
-
-                  {hoveredCamiseta && (
-                    <div
-                      className="chart-floating-tooltip"
-                      style={{
-                        left: hoveredCamiseta.center > 260 ? '18%' : '55%',
-                        top: '15px',
-                      }}
-                    >
-                      <div className="tooltip-title">Camiseta: {hoveredCamiseta.size}</div>
-                      <div className="tooltip-row entregue">
-                        <span>Entregue :</span>
-                        <span>{hoveredCamiseta.entregue}</span>
-                      </div>
-                      <div className="tooltip-row faltante">
-                        <span>Faltante :</span>
-                        <span>{hoveredCamiseta.faltante}</span>
-                      </div>
-                      <div className="tooltip-row total">
-                        <span>Total :</span>
-                        <span>{hoveredCamiseta.total}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="dash-chart-legend">
-                  <span className="legend-item entregue">
-                    <span className="legend-square" style={{ background: '#22c55e' }} />
-                    Entregue
-                  </span>
-                  <span className="legend-item faltante">
-                    <span className="legend-square" style={{ background: '#f87171' }} />
-                    Faltante
-                  </span>
-                </div>
-              </div>
-
-              <div className="dash-chart-card">
-                <h3 className="dash-chart-title">Kits</h3>
-                <div className="interactive-chart-box">
-                  <svg width="100%" height="280" viewBox="0 0 480 270">
-                    {/* Dotted horizontal grid lines */}
-                    <line x1="54" y1="20" x2="460" y2="20" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="70" x2="460" y2="70" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="120" x2="460" y2="120" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="170" x2="460" y2="170" stroke="#f1f5f9" strokeDasharray="3 3" />
-
-                    {/* Right boundary dotted grid line */}
-                    <line x1="460" y1="20" x2="460" y2="220" stroke="#f1f5f9" strokeDasharray="3 3" />
-
-                    {/* Vertical grid lines at category centers */}
-                    {KITS_DATA.map((item) => (
-                      <line
-                        key={`grid-${item.name}`}
-                        x1={item.center}
-                        y1="20"
-                        x2={item.center}
-                        y2="220"
-                        stroke="#f1f5f9"
-                        strokeDasharray="3 3"
-                      />
-                    ))}
-
-                    {/* Axes */}
-                    <line x1="54" y1="20" x2="54" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-                    <line x1="54" y1="220" x2="460" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-
-                    {/* Y-axis Ticks & Labels */}
-                    <line x1="49" y1="20" x2="54" y2="20" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="24" fill="#94a3b8" fontSize="11.5" textAnchor="end">260</text>
-
-                    <line x1="49" y1="70" x2="54" y2="70" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="74" fill="#94a3b8" fontSize="11.5" textAnchor="end">195</text>
-
-                    <line x1="49" y1="120" x2="54" y2="120" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="124" fill="#94a3b8" fontSize="11.5" textAnchor="end">130</text>
-
-                    <line x1="49" y1="170" x2="54" y2="170" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="174" fill="#94a3b8" fontSize="11.5" textAnchor="end">65</text>
-
-                    <line x1="49" y1="220" x2="54" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="224" fill="#94a3b8" fontSize="11.5" textAnchor="end">0</text>
-
-                    {/* Active column highlight */}
-                    {hoveredKit && (
-                      <rect
-                        x={hoveredKit.colLeft}
-                        y="20"
-                        width={hoveredKit.colWidth}
-                        height="200"
-                        fill="#cbd5e1"
-                        opacity="0.45"
-                      />
-                    )}
-
-                    {/* Thick Wide Bars */}
-                    {KITS_DATA.map((item) => {
-                      const scale = 200 / 260
-                      const faltanteH = item.faltante * scale
-                      const entregueH = item.entregue * scale
-                      const totalH = faltanteH + entregueH
-                      const topY = 220 - totalH
-                      const entregueY = 220 - entregueH
-                      const barX = item.center - item.barWidth / 2
-
-                      return (
-                        <g
-                          key={item.name}
-                          style={{ cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredKit(item)}
-                          onMouseLeave={() => setHoveredKit(null)}
-                        >
-                          {/* Invisible hover catcher */}
-                          <rect
-                            x={item.colLeft}
-                            y="20"
-                            width={item.colWidth}
-                            height="210"
-                            fill="transparent"
-                          />
-
-                          {/* Faltante (Coral/Red) */}
-                          {item.faltante > 0 && (
-                            <rect
-                              x={barX}
-                              y={topY}
-                              width={item.barWidth}
-                              height={Math.max(4, faltanteH)}
-                              fill="#f87171"
-                              rx="3"
-                            />
-                          )}
-
-                          {/* Faltante label */}
-                          {item.faltante >= 3 && (
-                            <text
-                              x={item.center}
-                              y={topY + Math.max(4, faltanteH) / 2 + 4}
-                              fill="#fff"
-                              fontSize={item.faltante >= 10 ? '11' : '10'}
-                              fontWeight="bold"
-                              textAnchor="middle"
-                            >
-                              {item.faltante}
-                            </text>
-                          )}
-
-                          {/* Entregue (Vivid Green) */}
-                          {item.entregue > 0 && (
-                            <rect
-                              x={barX}
-                              y={entregueY}
-                              width={item.barWidth}
-                              height={entregueH}
-                              fill="#22c55e"
-                              rx={item.faltante === 0 ? '3' : '0'}
-                            />
-                          )}
-
-                          {/* Entregue label */}
-                          {item.entregue >= 30 && (
-                            <text
-                              x={item.center}
-                              y={entregueY + entregueH / 2 + 5}
-                              fill="#fff"
-                              fontSize="13"
-                              fontWeight="bold"
-                              textAnchor="middle"
-                            >
-                              {item.entregue}
-                            </text>
-                          )}
-
-                          {/* X-axis tick */}
-                          <line
-                            x1={item.center}
-                            y1="220"
-                            x2={item.center}
-                            y2="225"
-                            stroke="#cbd5e1"
-                            strokeWidth="1"
-                          />
-
-                          {/* X-axis Label */}
-                          <text
-                            x={item.center}
-                            y="244"
-                            fill={hoveredKit?.name === item.name ? '#0f172a' : '#64748b'}
-                            fontWeight={hoveredKit?.name === item.name ? '700' : '600'}
-                            fontSize="11.5"
-                            textAnchor="middle"
-                          >
-                            {item.name}
-                          </text>
-                        </g>
-                      )
-                    })}
-                  </svg>
-
-                  {hoveredKit && (
-                    <div
-                      className="chart-floating-tooltip"
-                      style={{
-                        left: hoveredKit.center > 260 ? '15%' : '50%',
-                        top: '15px',
-                      }}
-                    >
-                      <div className="tooltip-title">{hoveredKit.name}</div>
-                      <div className="tooltip-row entregue">
-                        <span>Entregue :</span>
-                        <span>{hoveredKit.entregue}</span>
-                      </div>
-                      <div className="tooltip-row faltante">
-                        <span>Faltante :</span>
-                        <span>{hoveredKit.faltante}</span>
-                      </div>
-                      <div className="tooltip-row total">
-                        <span>Total :</span>
-                        <span>{hoveredKit.total}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="dash-chart-legend">
-                  <span className="legend-item entregue">
-                    <span className="legend-square" style={{ background: '#22c55e' }} />
-                    Entregue
-                  </span>
-                  <span className="legend-item faltante">
-                    <span className="legend-square" style={{ background: '#f87171' }} />
-                    Faltante
-                  </span>
-                </div>
-              </div>
+              <DeliveryBreakdown title="Camisetas" rows={groupDeliveries(athletes, (a) => a.camiseta || a.tamanho)} />
+              <DeliveryBreakdown title="Kits" rows={groupDeliveries(athletes, (a) => a.kit || a.tipoKit)} />
             </div>
-
-            {/* Entregas por operador */}
-            <div className="dash-chart-card">
-              <h3 className="dash-chart-title">Entregas por Operador</h3>
-              <div className="chart-empty-msg">
-                Nenhuma entrega registrada
-              </div>
-            </div>
+            <DeliveryBreakdown title="Entregas por Operador" rows={groupDeliveries(athletes.filter(isDelivered), (a) => a.entreguePor)} />
           </div>
         )}
           </>

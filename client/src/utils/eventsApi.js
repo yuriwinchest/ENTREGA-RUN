@@ -107,30 +107,26 @@ export async function apiFetchAthletes(eventId) {
     })
     if (!res.ok) return null
     const data = await res.json()
-    return data.ok ? { athletes: data.athletes || [], schema: data.schema || [], kits: data.kits || [] } : null
+    return data.ok ? { athletes: data.athletes || [], schema: data.schema || [], kits: data.kits || [], deliveries: data.deliveries || [], audits: data.audits || [], revision: data.revision ?? null } : null
   } catch (err) {
     console.warn(`[eventsApi] Erro ao buscar atletas do evento ${eventId}:`, err)
     return null
   }
 }
 
-export async function apiSaveAthletes(eventId, athletes, schema = [], kits) {
-  if (!eventId || !Array.isArray(athletes)) return false
+export async function apiSaveAthletes(eventId, athletes, schema = [], kits, deliveries, audits, expectedRevision) {
+  if (!eventId || !Array.isArray(athletes)) return { ok: false }
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({ athletes, schema, ...(kits === undefined ? {} : { kits }) }),
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ athletes, schema, ...(kits === undefined ? {} : { kits }), ...(deliveries === undefined ? {} : { deliveries }), ...(audits === undefined ? {} : { audits }), ...(expectedRevision == null ? {} : { expectedRevision }) }),
     })
-    if (!res.ok) return false
     const data = await res.json()
-    return Boolean(data.ok)
+    return { ok: Boolean(res.ok && data.ok), revision: data.revision, conflict: res.status === 409 }
   } catch (err) {
     console.error(`[eventsApi] Erro ao salvar atletas do evento ${eventId}:`, err)
-    return false
+    return { ok: false }
   }
 }
 

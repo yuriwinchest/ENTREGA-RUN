@@ -164,6 +164,8 @@ export default function EventosPage({
   const [openDropdownId, setOpenDropdownId] = useState(null)
   const [editingEvent, setEditingEvent] = useState(null)
   const [deletingEvent, setDeletingEvent] = useState(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newEventForm, setNewEventForm] = useState({
     name: '',
@@ -230,11 +232,48 @@ export default function EventosPage({
     setEditingEvent(null)
   }
 
-  function handleConfirmDelete() {
+  async function handleDownloadBeforeDelete() {
+    if (!deletingEvent || deleteBusy) return
+    setDeleteBusy(true)
+    setDeleteError('')
+    try {
+      const response = await fetch(`/api/events/${encodeURIComponent(deletingEvent.id)}/export.csv`)
+      if (!response.ok) throw new Error('Não foi possível baixar a tabela do evento.')
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `atletas_${deletingEvent.id}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (error) {
+      setDeleteError(error.message)
+    } finally {
+      setDeleteBusy(false)
+    }
+  }
+
+  async function handleConfirmDelete() {
     if (!deletingEvent) return
     const idToDelete = deletingEvent.id
+    setDeleteBusy(true)
+    setDeleteError('')
+    const deleted = await apiDeleteEvent(idToDelete)
+    setDeleteBusy(false)
+    if (!deleted) {
+      setDeleteError('Não foi possível excluir o evento no servidor. Tente novamente.')
+      return
+    }
     setEvents((prev) => prev.filter((ev) => ev.id !== idToDelete))
-    apiDeleteEvent(idToDelete).catch(() => {})
+    try {
+      for (const prefix of ['entregas_run_athletes_', 'entregas_run_original_athletes_', 'entregas_run_deliveries_', 'entregas_run_audits_', 'entregas_run_athlete_columns_', 'entregas_run_kits_']) {
+        localStorage.removeItem(`${prefix}${idToDelete}`)
+      }
+    } catch {
+      // Exclusão no servidor já concluída; armazenamento local pode estar indisponível.
+    }
     setDeletingEvent(null)
   }
 
@@ -387,7 +426,7 @@ export default function EventosPage({
                       type="button"
                       className="icon-action-btn delete"
                       title="Excluir evento"
-                      onClick={() => setDeletingEvent(event)}
+                      onClick={() => { setDeleteError(''); setDeletingEvent(event) }}
                     >
                       <TrashIcon />
                     </button>
@@ -717,13 +756,22 @@ export default function EventosPage({
                 <p className="modal-delete-text">
                   Tem certeza que deseja excluir o evento{' '}
                   <strong>"{deletingEvent.name}"</strong>? Esta ação não poderá
-                  ser desfeita.
+                  ser desfeita. Os atletas, kits e dados de entrega deste evento
+                  serão removidos do servidor. Se precisar guardar a tabela,
+                  baixe uma cópia antes de excluir.
                 </p>
+
+                {deleteError && <p role="alert" className="modal-delete-text" style={{ color: '#b91c1c' }}>{deleteError}</p>}
+
+                <button type="button" className="modal-btn-save" disabled={deleteBusy} onClick={handleDownloadBeforeDelete}>
+                  BAIXAR TABELA DO EVENTO (CSV)
+                </button>
 
                 <div className="modal-actions-row">
                   <button
                     type="button"
                     className="modal-btn-cancel"
+                    disabled={deleteBusy}
                     onClick={() => setDeletingEvent(null)}
                   >
                     CANCELAR
@@ -731,9 +779,10 @@ export default function EventosPage({
                   <button
                     type="button"
                     className="modal-btn-delete"
+                    disabled={deleteBusy}
                     onClick={handleConfirmDelete}
                   >
-                    EXCLUIR
+                    {deleteBusy ? 'AGUARDE...' : 'EXCLUIR'}
                   </button>
                 </div>
               </div>

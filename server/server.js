@@ -201,12 +201,19 @@ function readDeletedIds() {
 const deletedEventIds = readDeletedIds()
 
 function markEventDeleted(id) {
-  if (!id) return
-  deletedEventIds.add(id)
+  if (!id) return false
   try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
-    fs.writeFileSync(DELETED_EVENTS_FILE, JSON.stringify([...deletedEventIds]), 'utf-8')
-  } catch {}
+    const nextIds = [...deletedEventIds, id]
+    const tempFile = `${DELETED_EVENTS_FILE}.${Date.now()}.tmp`
+    fs.writeFileSync(tempFile, JSON.stringify(nextIds), 'utf-8')
+    fs.renameSync(tempFile, DELETED_EVENTS_FILE)
+    deletedEventIds.add(id)
+    return true
+  } catch (err) {
+    console.error('[server] Erro ao registrar exclusão do evento:', err)
+    return false
+  }
 }
 
 let diskWriteError = null
@@ -246,7 +253,7 @@ function readEventsFromDisk() {
 let inMemoryEvents = readEventsFromDisk()
 
 function writeEventsToDisk(events) {
-  let saved = false
+  let primarySaved = false
 
   try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -256,7 +263,7 @@ function writeEventsToDisk(events) {
     fs.writeFileSync(tempFile, JSON.stringify(events, null, 2), 'utf-8')
     fs.renameSync(tempFile, EVENTS_FILE)
     diskWriteError = null
-    saved = true
+    primarySaved = true
   } catch (err) {
     diskWriteError = err.message || String(err)
     console.error('[server] Erro ao salvar events.json em DATA_DIR:', err)
@@ -272,12 +279,11 @@ function writeEventsToDisk(events) {
     const targetFb = path.join(fallbackDir, 'events.json')
     fs.writeFileSync(tempFb, JSON.stringify(events, null, 2), 'utf-8')
     fs.renameSync(tempFb, targetFb)
-    saved = true
   } catch (fbErr) {
     console.error('[server] Erro ao salvar no diretório de contingência:', fbErr)
   }
 
-  return saved
+  return primarySaved
 }
 
 function sanitizeEventPayload(raw, isUpdate = false) {
@@ -379,19 +385,56 @@ app.put('/api/events/:eventId', (req, res) => {
   res.json({ ok: true, event: updated })
 })
 
-// DELETE /api/events/:eventId — Remove evento
-app.delete('/api/events/:eventId', (req, res) => {
-  const eventId = String(req.params.eventId || '').trim().slice(0, 64)
-  const initialLength = inMemoryEvents.length
-  inMemoryEvents = inMemoryEvents.filter((e) => e.id !== eventId)
+function csvCell(value) {
+  const raw = value === null || value === undefined ? '' : String(value)
+  const safe = /^[\s]*[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
+  return `"${safe.replaceAll('"', '""')}"`
+}
 
-  markEventDeleted(eventId)
-
-  if (inMemoryEvents.length === initialLength) {
+// Exporta a tabela atual do evento antes da exclusão, incluindo colunas importadas.
+app.get('/api/events/:eventId/export.csv', (req, res) => {
+  const eventId = String(req.params.eventId || '').trim()
+  if (!/^[\w-]{1,64}$/.test(eventId) || !inMemoryEvents.some((event) => event.id === eventId)) {
     return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
   }
+  const data = loadAthletesForEvent(eventId)
+  const athletes = Array.isArray(data?.athletes) ? data.athletes : []
+  const columns = [...new Set([
+    ...(Array.isArray(data?.schema) ? data.schema.map((column) => typeof column === 'string' ? column : column?.key).filter((column) => typeof column === 'string') : []),
+    ...athletes.flatMap((athlete) => Object.keys(athlete || {}).filter((key) => key !== 'customFields')),
+    ...athletes.flatMap((athlete) => Object.keys(athlete?.customFields || {})),
+  ])]
+  const lines = [columns.map(csvCell).join(';'), ...athletes.map((athlete) =>
+    columns.map((column) => csvCell(athlete?.[column] ?? athlete?.customFields?.[column] ?? '')).join(';'))]
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="atletas_${eventId}.csv"`)
+  res.send(`\uFEFF${lines.join('\r\n')}`)
+})
 
-  writeEventsToDisk(inMemoryEvents)
+// DELETE /api/events/:eventId — Remove evento e seus dados de atletas/kits.
+app.delete('/api/events/:eventId', (req, res) => {
+  const eventId = String(req.params.eventId || '').trim()
+  if (!/^[\w-]{1,64}$/.test(eventId) || !inMemoryEvents.some((e) => e.id === eventId)) {
+    return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  }
+  const remaining = inMemoryEvents.filter((e) => e.id !== eventId)
+  if (!writeEventsToDisk(remaining)) {
+    return res.status(500).json({ ok: false, message: 'Não foi possível persistir a exclusão.' })
+  }
+  if (!markEventDeleted(eventId)) {
+    writeEventsToDisk(inMemoryEvents)
+    return res.status(500).json({ ok: false, message: 'Não foi possível registrar a exclusão.' })
+  }
+  inMemoryEvents = remaining
+  try {
+    fs.rmSync(getAthletesFilePath(eventId), { force: true })
+    fs.rmSync(path.join('/tmp/entregas-run-data', `athletes_${eventId}.json`), { force: true })
+  } catch (err) {
+    console.error('[server] Erro ao remover dados dos atletas do evento:', err)
+    return res.status(500).json({ ok: false, message: 'Evento excluído, mas a limpeza dos atletas falhou.' })
+  }
+  athletesCache.delete(eventId)
+  espelhoStates.delete(eventId)
   res.json({ ok: true })
 })
 
@@ -453,7 +496,7 @@ function loadAthletesForEvent(eventId) {
   return null
 }
 
-function saveAthletesForEvent(eventId, athletes, schema = [], kits) {
+function saveAthletesForEvent(eventId, athletes, schema = [], kits, deliveries, audits) {
   const safeId = String(eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
   if (!safeId) return false
 
@@ -464,6 +507,9 @@ function saveAthletesForEvent(eventId, athletes, schema = [], kits) {
     athletes: Array.isArray(athletes) ? athletes : [],
     schema: Array.isArray(schema) ? schema : [],
     kits: kits === undefined ? (existing?.kits || []) : kits,
+    deliveries: deliveries === undefined ? (existing?.deliveries || []) : deliveries,
+    audits: audits === undefined ? (existing?.audits || []) : audits,
+    revision: (Number(existing?.revision) || 0) + 1,
     updatedAt: Date.now(),
   }
 
@@ -500,17 +546,24 @@ function validateKits(kits) {
 // GET /api/events/:eventId/athletes — Recupera lista de atletas e schema
 app.get('/api/events/:eventId/athletes', (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  if (deletedEventIds.has(safeEventId) || !inMemoryEvents.some((event) => event.id === safeEventId)) {
+    return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  }
   const data = loadAthletesForEvent(safeEventId)
   if (!data) {
-    return res.json({ ok: true, athletes: [], schema: [], kits: [] })
+    return res.json({ ok: true, athletes: [], schema: [], kits: [], deliveries: [], audits: [], revision: 0 })
   }
-  res.json({ ok: true, athletes: data.athletes || [], schema: data.schema || [], kits: data.kits || [] })
+  res.json({ ok: true, athletes: data.athletes || [], schema: data.schema || [], kits: data.kits || [], deliveries: data.deliveries || [], audits: data.audits || [], revision: Number(data.revision) || 0 })
 })
 
 // POST /api/events/:eventId/athletes — Sincroniza/persiste lista de atletas
 app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
-  const { athletes, schema, kits } = req.body || {}
+  const { athletes, schema, kits, deliveries, audits, expectedRevision } = req.body || {}
+
+  if (deletedEventIds.has(safeEventId) || !inMemoryEvents.some((event) => event.id === safeEventId)) {
+    return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  }
 
   if (!Array.isArray(athletes)) {
     return res.status(400).json({ ok: false, message: 'Lista de atletas inválida.' })
@@ -521,12 +574,23 @@ app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
     if (error) return res.status(400).json({ ok: false, message: error })
   }
 
-  const success = saveAthletesForEvent(safeEventId, athletes, schema, kits)
+  if (deliveries !== undefined && !Array.isArray(deliveries)) {
+    return res.status(400).json({ ok: false, message: 'Lista de entregas inválida.' })
+  }
+  if (audits !== undefined && !Array.isArray(audits)) {
+    return res.status(400).json({ ok: false, message: 'Lista de auditoria inválida.' })
+  }
+  const currentRevision = Number(loadAthletesForEvent(safeEventId)?.revision) || 0
+  if (expectedRevision !== undefined && expectedRevision !== currentRevision) {
+    return res.status(409).json({ ok: false, message: 'Dados alterados em outro aparelho. Atualize antes de salvar.', revision: currentRevision })
+  }
+
+  const success = saveAthletesForEvent(safeEventId, athletes, schema, kits, deliveries, audits)
   if (!success) {
     return res.status(500).json({ ok: false, message: 'Erro ao persistir atletas.' })
   }
 
-  res.json({ ok: true, count: athletes.length })
+  res.json({ ok: true, count: athletes.length, revision: currentRevision + 1 })
 })
 
 // PUT /api/events/:eventId/athletes/:numero/status — Atualiza status da entrega

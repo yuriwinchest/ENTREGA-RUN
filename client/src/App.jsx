@@ -8,7 +8,7 @@ import EspelhoPage from './components/EspelhoPage.jsx'
 import ValidarAtletaPage from './components/ValidarAtletaPage.jsx'
 import TutorialModal from './components/TutorialModal.jsx'
 import UsuariosPage from './components/UsuariosPage.jsx'
-import { apiFetchEvents, apiSyncEvents, apiUpdateEvent } from './utils/eventsApi.js'
+import { apiFetchEvents, apiUpdateEvent } from './utils/eventsApi.js'
 
 const MOCK_EVENT_IDS = [
   '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6',
@@ -26,26 +26,7 @@ export default function App() {
     }
   })
 
-  const [events, setEvents] = useState(() => {
-    try {
-      const saved = localStorage.getItem('entregas_run_events')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed)) {
-          return parsed.filter(
-            (e) =>
-              !MOCK_EVENT_IDS.includes(e?.id) &&
-              !e?.name?.includes('GALINHA') &&
-              !e?.name?.includes('SURUBIM') &&
-              !e?.name?.includes('YURI2TESTE')
-          )
-        }
-      }
-      return []
-    } catch {
-      return []
-    }
-  })
+  const [events, setEvents] = useState([])
 
   // Sincroniza eventos locais com o servidor central e puxa atualizações
   useEffect(() => {
@@ -55,37 +36,6 @@ export default function App() {
       const serverEvents = await apiFetchEvents()
       if (!isMounted || !Array.isArray(serverEvents)) return
 
-      const alreadyMigrated = localStorage.getItem('entregas_run_events_migrated')
-
-      if (!alreadyMigrated) {
-        // Primeira carga da nova versão no dispositivo: resgata eventos legados locais
-        setEvents((currentLocal) => {
-          const serverIds = new Set(serverEvents.map((e) => e.id))
-          const localOnly = currentLocal.filter(
-            (e) => e && e.id && !serverIds.has(e.id) && !MOCK_EVENT_IDS.includes(e.id)
-          )
-
-          try {
-            localStorage.setItem('entregas_run_events_migrated', 'true')
-          } catch {
-            // ignore
-          }
-
-          if (localOnly.length > 0) {
-            apiSyncEvents(localOnly).then((synced) => {
-              if (isMounted && Array.isArray(synced) && synced.length > 0) {
-                setEvents(synced)
-              }
-            })
-            return [...localOnly, ...serverEvents]
-          }
-
-          return serverEvents
-        })
-        return
-      }
-
-      // Servidor é a fonte oficial da verdade
       setEvents(serverEvents)
     }
 
@@ -98,11 +48,13 @@ export default function App() {
       }
     }
 
+    const refreshInterval = window.setInterval(syncEventsWithServer, 15000)
     window.addEventListener('visibilitychange', handleVisibilityOrFocus)
     window.addEventListener('focus', handleVisibilityOrFocus)
 
     return () => {
       isMounted = false
+      window.clearInterval(refreshInterval)
       window.removeEventListener('visibilitychange', handleVisibilityOrFocus)
       window.removeEventListener('focus', handleVisibilityOrFocus)
     }

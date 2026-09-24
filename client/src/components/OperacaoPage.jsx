@@ -432,6 +432,14 @@ export default function OperacaoPage({
     concl: '0.0%',
   }, [event])
 
+  const [hydratedEventId, setHydratedEventId] = useState('')
+  const revisionRef = useRef(null)
+  const serverSnapshotRef = useRef('')
+  const saveInFlightRef = useRef(false)
+  const syncBlockedRef = useRef(false)
+  const [syncTick, setSyncTick] = useState(0)
+  const [syncError, setSyncError] = useState('')
+
   // Load and manage athletes per event with localStorage persistence
   const [athletes, setAthletes] = useState(() => {
     try {
@@ -468,26 +476,9 @@ export default function OperacaoPage({
     }
   })
 
-  // Save athletes to localStorage e sincroniza com o servidor central
   useEffect(() => {
-    try {
-      if (currentEvent.id) {
-        localStorage.setItem(
-          `entregas_run_athletes_${currentEvent.id}`,
-          JSON.stringify(athletes)
-        )
-      }
-    } catch {
-      // ignore
-    }
-
-    if (currentEvent.id && Array.isArray(athletes) && athletes.length > 0) {
-      const timer = setTimeout(() => {
-        apiSaveAthletes(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined).catch(() => {})
-      }, 600)
-      return () => clearTimeout(timer)
-    }
-  }, [athletes, athleteColumnSchema, kits, currentEvent.id])
+    if (currentEvent.id) localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(athletes))
+  }, [athletes, currentEvent.id])
 
   useEffect(() => {
     try {
@@ -501,34 +492,6 @@ export default function OperacaoPage({
       // ignore
     }
   }, [athleteColumnSchema, currentEvent.id])
-
-  // Se este navegador ainda não tem os atletas deste evento salvos localmente, busca da API central
-  useEffect(() => {
-    let isMounted = true
-    if (currentEvent.id && athletes.length === 0) {
-      apiFetchAthletes(currentEvent.id).then((result) => {
-        if (isMounted && result && Array.isArray(result.athletes) && result.athletes.length > 0) {
-          setAthletes(result.athletes)
-          if (Array.isArray(result.kits)) setKits(result.kits)
-          if (Array.isArray(result.schema) && result.schema.length > 0) {
-            setAthleteColumnSchema(result.schema)
-          }
-        }
-      })
-    }
-    return () => {
-      isMounted = false
-    }
-  }, [currentEvent.id, athletes.length])
-
-  useEffect(() => {
-    if (!currentEvent.id || Array.isArray(kits)) return
-    let active = true
-    apiFetchAthletes(currentEvent.id).then((result) => {
-      if (active && Array.isArray(result?.kits)) setKits(result.kits)
-    })
-    return () => { active = false }
-  }, [currentEvent.id, kits])
 
   const athleteTableColumns = useMemo(
     () => getAthleteTableColumns(athletes, athleteColumnSchema),
@@ -668,7 +631,7 @@ export default function OperacaoPage({
 
   // Synchronize event metrics with parent state / localStorage
   useEffect(() => {
-    if (!currentEvent.id || !onUpdateEvent) return
+    if (!currentEvent.id || !onUpdateEvent || hydratedEventId !== currentEvent.id) return
     if (
       currentEvent.total !== totalAthletes ||
       currentEvent.entregues !== deliveredAthletes ||
@@ -690,6 +653,7 @@ export default function OperacaoPage({
     percentDone,
     currentEvent,
     onUpdateEvent,
+    hydratedEventId,
   ])
 
   // Dynamic breakdown of Camisetas (Total, Entregues, Pendentes)
@@ -830,6 +794,59 @@ export default function OperacaoPage({
       // ignore
     }
   }, [audits, currentEvent.id])
+
+  useEffect(() => {
+    if (!currentEvent.id) return
+    let active = true
+    const eventId = currentEvent.id
+    async function refresh() {
+      if (saveInFlightRef.current) return
+      const result = await apiFetchAthletes(eventId)
+      if (!active) return
+      if (!result) { setSyncError('Não foi possível carregar os dados centrais deste evento.'); return }
+      if (hydratedEventId === eventId && result.revision === revisionRef.current) return
+      const latestLocal = JSON.stringify({ athletes, schema: athleteColumnSchema, kits: Array.isArray(kits) ? kits : [], deliveries, audits })
+      if (hydratedEventId === eventId && latestLocal !== serverSnapshotRef.current) return
+      serverSnapshotRef.current = JSON.stringify({ athletes: result.athletes, schema: result.schema, kits: result.kits, deliveries: result.deliveries, audits: result.audits })
+      revisionRef.current = result.revision
+      setAthletes(result.athletes)
+      setAthleteColumnSchema(result.schema)
+      setKits(result.kits)
+      setDeliveries(result.deliveries)
+      setAudits(result.audits)
+      setHydratedEventId(eventId)
+      setSyncError('')
+    }
+    refresh()
+    const interval = window.setInterval(refresh, 10000)
+    window.addEventListener('focus', refresh)
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener('focus', refresh) }
+  }, [currentEvent.id, athletes, athleteColumnSchema, kits, deliveries, audits, hydratedEventId])
+
+  useEffect(() => {
+    if (hydratedEventId !== currentEvent.id || saveInFlightRef.current || syncBlockedRef.current) return
+    const payload = { athletes, schema: athleteColumnSchema, kits: Array.isArray(kits) ? kits : [], deliveries, audits }
+    const serialized = JSON.stringify(payload)
+    if (serialized === serverSnapshotRef.current) return
+    const timer = window.setTimeout(async () => {
+      saveInFlightRef.current = true
+      const result = await apiSaveAthletes(currentEvent.id, payload.athletes, payload.schema, payload.kits, payload.deliveries, payload.audits, revisionRef.current)
+      saveInFlightRef.current = false
+      if (result?.ok) {
+        setSyncTick((tick) => tick + 1)
+        setSyncError('')
+        revisionRef.current = result.revision
+        serverSnapshotRef.current = serialized
+      } else if (result?.conflict) {
+        syncBlockedRef.current = true
+        setSyncError('Este evento mudou em outra estação. Recarregue a página antes de continuar.')
+      } else {
+        syncBlockedRef.current = true
+        setSyncError('Não foi possível salvar no servidor. Os dados desta tela ainda não estão sincronizados; recarregue após restabelecer a conexão.')
+      }
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [athletes, athleteColumnSchema, kits, deliveries, audits, currentEvent.id, hydratedEventId, syncTick])
 
   // Sincroniza e garante que qualquer atleta entregue possua registro na Auditoria
   useEffect(() => {
@@ -1155,9 +1172,6 @@ export default function OperacaoPage({
     }
     const nextAthletes = athletes.map((a) => matchesAthleteReference(a, source) ? updated : a)
     setAthletes(nextAthletes)
-    if (currentEvent?.id) {
-      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined).catch(() => {})
-    }
     if (selectedAthlete && matchesAthleteReference(selectedAthlete, source)) {
       setSelectedAthlete(updated)
       setDetailForm(buildAthleteDetailDraft(updated))
@@ -1371,9 +1385,6 @@ export default function OperacaoPage({
     }
 
     // Persistência no backend / volume
-    if (currentEvent?.id) {
-      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined).catch(() => {})
-    }
 
     const nextDraft = buildAthleteDetailDraft(updatedAthlete)
     setSelectedAthlete(updatedAthlete)
@@ -1443,11 +1454,6 @@ export default function OperacaoPage({
         pendentes: newPendentes,
         concl: conclRate,
       })
-    }
-
-    // Sincroniza atômica com o servidor central
-    if (currentEvent?.id) {
-      apiSaveAthletes(currentEvent.id, updatedAthletes, athleteColumnSchema).catch(() => {})
     }
 
     setShowAddAthleteModal(false)
@@ -1812,6 +1818,7 @@ export default function OperacaoPage({
       />
 
       <main className="operacao-main">
+        {syncError && <div role="alert" style={{ padding: '12px 16px', background: '#fff3cd', color: '#713f12', fontWeight: 700 }}>{syncError}</div>}
         {/* Top bar with Event title on left and Tutorial / Voltar on right */}
         <header className="operacao-top-header">
           <h1 className="operacao-page-title">{currentEvent.name}</h1>

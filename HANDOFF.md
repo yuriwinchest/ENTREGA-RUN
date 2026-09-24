@@ -1,5 +1,15 @@
 # Handoff
 
+## 2026-09-24 — Dashboard de entrega, sincronização e exclusão de dados do evento (Fase A)
+
+- **Autor:** Codex/Tony, com agentes Codex nas frentes de dashboard, sincronização e exclusão.
+- **Pedido:** corrigir dashboard de Entrega de Kit, refletir dados do mesmo evento entre aparelhos, baixar tabela de atletas antes de excluir o evento e limpar os dados desse evento do volume da aplicação.
+- **Arquivos alterados:** `client/src/App.jsx`, `client/src/components/EventDashboardPage.jsx`, `EventDashboardPage.css`, `EventosPage.jsx`, `OperacaoPage.jsx`, `client/src/utils/eventsApi.js`, `server/server.js`, `server/test/event-storage-sync.mjs` e este `HANDOFF.md`.
+- **Implementação:** eventos vêm da API; operação atualiza atletas, kits, entregas e auditoria a partir do servidor e sinaliza falhas/conflitos por revisão; dashboard de entrega usa dados reais da API; exclusão oferece CSV de atletas e remove catálogo, arquivo de dados, cache e estado de espelho do evento. Contas globais em `users.json` são preservadas. O armazenamento atual é JSON por evento em `DATA_DIR`, não um banco SQL.
+- **Validação real:** `npm run lint --prefix client`, `npm run build --prefix client`, `node --check server/server.js` e `git diff --check` passaram. `node server/test/event-storage-sync.mjs` passou com servidor em diretório descartável: leitura compartilhada, conflito 409, exportação CSV, exclusão física e rejeição de gravação após exclusão.
+- **Riscos e pendências:** ainda não houve teste visual com dois navegadores/aparelhos, nem homologação do Yuri. Rotas de atletas e exportação não exigem sessão/autorização no servidor; esta mudança não deve ser enviada à produção antes de corrigir essa fronteira. Não houve deploy ou operação no volume da VPS.
+- **Próximo passo:** validar login em dois navegadores com mesmo evento, importação/entrega e dashboard refletindo a alteração; testar o fluxo de exportação e exclusão com dados descartáveis na UI; implementar autorização de backend antes de publicar.
+
 ## 2026-09-23 — Gerenciamento de Usuários, Telão Completo sem Corte, Limpeza de Colunas, Otimização de Busca e Refatoração do Dashboard (Fase A)
 
 - **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
