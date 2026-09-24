@@ -1,5 +1,32 @@
 # Handoff
 
+## 2026-09-24 — Correção de Persistência de Planilhas de Atletas e Campo de Retirada por Terceiro (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead).
+- **Pedido do Yuri (PO via áudio e captura de tela):**
+  1. *Planilha não salva no banco e atletas somem ao atualizar:* No evento (ex: `TESTE 2`), o cabeçalho marcava 1010 atletas, mas a lista de atletas exibia *"Nenhum atleta encontrado. 0 de 0 atletas"*. Ao atualizar a página, a lista não persistia no servidor nem no banco.
+  2. *Campo de Retirada por Terceiro:* Ao atribuir e entregar o kit, deve haver campo claro e editável para digitar o nome da pessoa que retirou o kit caso seja um terceiro (e não o próprio atleta), tanto na ficha do atleta quanto no modal de leitura QR Code.
+- **Causa Raiz Identificada:**
+  1. Em `server/server.js`, a linha 236 continha um middleware global `app.use(express.json({ limit: '64kb' }))`. Ao salvar eventos com centenas ou milhares de atletas (payload de ~500KB a alguns MBs), o Express rejeitava a requisição com `PayloadTooLargeError: request entity too large` (HTTP 413), impedindo que o JSON fosse salvo no disco e no Appwrite. Ao recarregar a tela, a consulta ao servidor vinha vazia.
+  2. O campo `ENTREGUE PARA` na ficha do atleta estava no rodapé da página após todos os campos customizados, possuía `disabled={isOperator}` (impedindo o operador de preencher quem retirou) e a função `handleSaveAndDeliver` ignorava alterações no nome do terceiro feitas por operadores.
+  3. No modal de leitura do QR Code (`KitQrScannerModal`), não havia opção para informar quem estava retirando o kit antes de confirmar.
+- **Arquivos alterados:** `server/server.js`, `client/src/components/OperacaoPage.jsx`, `client/src/components/KitQrScannerModal.jsx`, `HANDOFF.md`.
+- **O que foi feito:**
+  1. **Aumento do limite no Backend Node (`server/server.js`):**
+     - Configurado `app.use(express.json({ limit: '50mb' }))` e `app.use(express.urlencoded({ extended: true, limit: '50mb' }))` para suportar planilhas grandes sem erro 413.
+     - Adicionado `app.set('trust proxy', 1)` para compatibilidade com o reverse proxy Nginx.
+  2. **Persistência Imediata no Frontend (`OperacaoPage.jsx`):**
+     - Em `handleImportSuccess`, adicionado disparo direto de `apiSaveAthletes` logo após a importação das planilhas, garantindo sincronização imediata no backend sem depender unicamente de timeout de debounce.
+  3. **Campo de Retirada por Terceiro / Entregue Para:**
+     - **No modal de scanner QR Code (`KitQrScannerModal.jsx`):** Adicionado campo *"Retirado por / Entregue para (se terceiro, digite o nome)"* na confirmação da associação, repassando o nome digitado para `confirmKitAssociation`.
+     - **Na ficha do atleta (`OperacaoPage.jsx`):** O card `👤 ENTREGUE PARA / RETIRADO POR` foi movido para o topo (logo abaixo dos cards de destaque e status de entrega), com orientação visual clara e livremente editável pelo perfil Operador antes da entrega.
+     - **Na conclusão da entrega (`handleSaveAndDeliver`):** Tanto para Operadores quanto Supervisores/Admins, o valor digitado no campo é capturado e enviado ao histórico de entregas, registrando tipo `TERCEIRO` ou `ATLETA` e comprovante com o nome de quem efetivamente retirou.
+- **Validação real executada:**
+  - `oxlint`: 0 warnings, 0 errors em 29 arquivos.
+  - `npm run build`: bundle compilado com sucesso (`index-Cc5RsoG3.js`, `index-BhGlw0Xt.css`).
+  - `node --check server/server.js`: sintaxe validada com sucesso.
+- **Próximo passo:** Subir via `git push origin main` para deploy automático na VPS e homologação com o Yuri.
+
 ## 2026-09-24 — Alinhamento Estrito com a Planilha: Opções de PCD (SIM/NÃO) e Ocultação do Painel de KITS (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead).

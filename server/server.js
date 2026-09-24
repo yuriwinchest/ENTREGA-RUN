@@ -113,6 +113,7 @@ try {
 }
 
 const app = express()
+app.set('trust proxy', 1)
 app.disable('x-powered-by')
 app.use(
   helmet({
@@ -233,7 +234,8 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req
   res.json({ ok: true })
 })
 
-app.use(express.json({ limit: '64kb' }))
+app.use(express.json({ limit: '50mb' }))
+app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
 // Crowley (Fase A, desenho): login com limite de tentativas, sem logar senha.
 const loginLimiter = rateLimit({

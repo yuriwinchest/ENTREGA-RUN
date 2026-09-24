@@ -985,29 +985,41 @@ export default function OperacaoPage({
   const [selectedComprovante, setSelectedComprovante] = useState(null)
 
   function handleImportSuccess(newAthletes, options = {}) {
-    if (Array.isArray(options.kits)) setKits(options.kits)
+    let nextKits = kits
+    if (Array.isArray(options.kits)) {
+      setKits(options.kits)
+      nextKits = options.kits
+    }
+    let nextSchema = athleteColumnSchema
     if (Array.isArray(options.columns) && options.columns.length > 0) {
-      setAthleteColumnSchema((current) =>
-        mergeAthleteColumnSchemas(current, options.columns)
-      )
+      nextSchema = mergeAthleteColumnSchemas(athleteColumnSchema, options.columns)
+      setAthleteColumnSchema(nextSchema)
     }
 
+    let mergedAthletes = []
     setAthletes((prev) => {
       const existingMap = new Map(prev.map((a) => [String(a.id || a.numero), a]))
       for (const a of newAthletes) {
         existingMap.set(String(a.id || a.numero), a)
       }
-      const updated = Array.from(existingMap.values())
+      mergedAthletes = Array.from(existingMap.values())
       try {
-        localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(updated))
+        localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(mergedAthletes))
         if (options?.isInitialImport) {
-          localStorage.setItem(`entregas_run_original_athletes_${currentEvent.id}`, JSON.stringify(updated))
+          localStorage.setItem(`entregas_run_original_athletes_${currentEvent.id}`, JSON.stringify(mergedAthletes))
         }
       } catch {
         // ignore
       }
-      return updated
+      return mergedAthletes
     })
+
+    if (currentEvent?.id && mergedAthletes.length > 0) {
+      setAthletesSync({ state: 'saving', at: Date.now() })
+      apiSaveAthletes(currentEvent.id, mergedAthletes, nextSchema, Array.isArray(nextKits) ? nextKits : undefined)
+        .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
+        .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
+    }
 
     const importedDelivered = (newAthletes || []).filter((a) => a.status === 'ENTREGUE')
     if (importedDelivered.length > 0) {
@@ -1224,7 +1236,7 @@ export default function OperacaoPage({
     setScannedKit(unassignedKit)
   }
 
-  function confirmKitAssociation() {
+  function confirmKitAssociation(recipient) {
     if (!scannerAthlete || !scannedKit) return
     const source = athletes.find((a) => matchesAthleteReference(a, scannerAthlete))
     if (!source || source.status === 'ENTREGUE') {
@@ -1240,11 +1252,13 @@ export default function OperacaoPage({
       setScanFeedback('Este kit exato (mesmo número e chip) já foi associado a outro atleta. Atualize a tela e tente novamente.')
       return
     }
+    const cleanRecipient = typeof recipient === 'string' && recipient.trim() ? recipient.trim() : (source.entreguePara || source.nome || '')
     const updated = {
       ...source,
       numero: String(scannedKit.numero),
       chip: String(scannedKit.chip),
       qrCode: String(scannedKit.qrCode),
+      entreguePara: cleanRecipient,
     }
     const nextAthletes = athletes.map((a) => matchesAthleteReference(a, source) ? updated : a)
     setAthletes(nextAthletes)
@@ -1710,9 +1724,23 @@ export default function OperacaoPage({
     setDetailActionInProgress(true)
     try {
       const sourceAthlete = selectedAthlete
+      const recipientName = String(
+        (detailForm && detailForm.entreguePara !== undefined ? detailForm.entreguePara : '') ||
+        selectedAthlete.entreguePara ||
+        detailForm?.nome ||
+        selectedAthlete.nome ||
+        ''
+      ).trim()
+
       const athleteToDeliver = isOperator
-        ? selectedAthlete
-        : persistDetailDraft({ showFeedback: false })
+        ? {
+            ...selectedAthlete,
+            entreguePara: recipientName,
+          }
+        : {
+            ...(persistDetailDraft({ showFeedback: false }) || selectedAthlete),
+            entreguePara: recipientName,
+          }
       if (!athleteToDeliver) return
 
       const auditRecord = handleDeliverKit(athleteToDeliver, sourceAthlete)
@@ -2180,9 +2208,33 @@ export default function OperacaoPage({
                   </div>
                 )}
 
+                {/* Card: RETIRADO POR / ENTREGUE PARA (acessível para Operador e Supervisor) */}
+                <div className="athlete-entregue-para-card" style={{ marginBottom: '16px' }}>
+                  <div className="athlete-form-group">
+                    <label className="athlete-form-label" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>👤 ENTREGUE PARA / RETIRADO POR</span>
+                      <small style={{ fontWeight: 400, color: '#64748b' }}>(Se terceiro estiver retirando, digite o nome aqui antes de entregar)</small>
+                    </label>
+                    <input
+                      type="text"
+                      className="athlete-form-input entregue-para-input"
+                      disabled={detailForm.status === 'ENTREGUE' && isOperator}
+                      value={detailForm.entreguePara !== undefined ? detailForm.entreguePara : (detailForm.nome || '')}
+                      placeholder={detailForm.nome || 'Nome de quem está retirando'}
+                      onChange={(e) =>
+                        setDetailForm({
+                          ...detailForm,
+                          entreguePara: e.target.value,
+                        })
+                      }
+                      style={{ maxWidth: '100%', fontSize: '15px', fontWeight: 500 }}
+                    />
+                  </div>
+                </div>
+
                 {isOperator && (
                   <div className="operator-permission-notice">
-                    <span>🔒 Perfil Operador: consulta e entrega de kit liberadas. Alteração de dados reservada ao Supervisor.</span>
+                    <span>🔒 Perfil Operador: consulta e entrega de kit liberadas. Alteração de dados cadastrais reservada ao Supervisor.</span>
                   </div>
                 )}
 
@@ -2547,25 +2599,6 @@ export default function OperacaoPage({
                   )}
                   </fieldset>
                 </form>
-
-                {/* 5. Card: ENTREGUE PARA */}
-                <div className="athlete-entregue-para-card">
-                  <div className="athlete-form-group">
-                    <label className="athlete-form-label">ENTREGUE PARA</label>
-                    <input
-                      type="text"
-                      className="athlete-form-input entregue-para-input"
-                      disabled={isOperator}
-                      value={detailForm.entreguePara || detailForm.nome}
-                      onChange={(e) =>
-                        setDetailForm({
-                          ...detailForm,
-                          entreguePara: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
               </div>
             ) : (
               /* VIEW B: LISTA NORMAL DE ENTREGA (BUSCA + ÚLTIMAS ENTREGAS) */
