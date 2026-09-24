@@ -58,7 +58,7 @@ jobs:
             # Healthcheck de verificação do serviço com retry inteligente (Vitor / SRE)
             echo "Aguardando inicialização do serviço..."
             HEALTHY=false
-            for i in 1 2 3 4 5 6 7 8 9 10; do
+            for i in $(seq 1 20); do
               sleep 2
               if curl -s -f http://127.0.0.1:3050/api/health > /dev/null; then
                 HEALTHY=true
@@ -69,8 +69,8 @@ jobs:
             done
 
             if [ "$HEALTHY" != "true" ]; then
-              echo "Healthcheck falhou após 20s! Logs do container:"
-              docker logs --tail 50 entregas-run-web || true
+              echo "Healthcheck falhou após 40s! Logs do container:"
+              docker logs --tail 100 entregas-run-web || true
               exit 1
             fi
 
