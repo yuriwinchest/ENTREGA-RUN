@@ -473,7 +473,6 @@ function saveAthletesForEvent(eventId, athletes, schema = [], kits) {
 
 function validateKits(kits) {
   if (!Array.isArray(kits)) return 'Lista de kits inválida.'
-  const seen = { qrCode: new Set(), numero: new Set(), chip: new Set() }
   for (const kit of kits) {
     if (!kit || typeof kit !== 'object' || Array.isArray(kit)) return 'Kit inválido.'
     for (const field of ['qrCode', 'numero', 'chip']) {
@@ -481,9 +480,6 @@ function validateKits(kits) {
       if ((typeof value !== 'string' && typeof value !== 'number') || !String(value).trim()) {
         return `Kit sem ${field} válido.`
       }
-      const key = String(value).trim()
-      if (seen[field].has(key)) return `Kit com ${field} duplicado: ${key}.`
-      seen[field].add(key)
     }
   }
   return null

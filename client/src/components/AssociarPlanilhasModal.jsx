@@ -211,15 +211,23 @@ export default function AssociarPlanilhasModal({
     return mapping
   }
 
-  // Auto-detecção de coluna de chips
+  // Auto-detecção de coluna de chips e kits
   function guessKitColumn(headers, kind) {
     const normalized = headers.map((h) => String(h || '').toLowerCase())
-    const terms = kind === 'qr'
-      ? ['qr', 'código', 'codigo', 'kit']
-      : kind === 'numero'
-        ? ['peito', 'número', 'numero', 'num']
-        : ['chip', 'rfid', 'tag']
-    return Math.max(0, normalized.findIndex((header) => terms.some((term) => header.includes(term))))
+    if (kind === 'qr') {
+      const qrIdx = normalized.findIndex((h) => ['qr', 'código', 'codigo', 'kit'].some((term) => h.includes(term)))
+      if (qrIdx >= 0) return qrIdx
+      // Se não houver coluna com "qr", sugere a coluna de número de peito por padrão
+      const numIdx = normalized.findIndex((h) => ['peito', 'número', 'numero', 'num'].some((term) => h.includes(term)))
+      if (numIdx >= 0) return numIdx
+      return 0
+    }
+    if (kind === 'numero') {
+      const numIdx = normalized.findIndex((h) => ['peito', 'número', 'numero', 'num'].some((term) => h.includes(term)))
+      return numIdx >= 0 ? numIdx : 0
+    }
+    const chipIdx = normalized.findIndex((h) => ['chip', 'rfid', 'tag', 'crono'].some((term) => h.includes(term)))
+    return chipIdx >= 0 ? chipIdx : 0
   }
 
   // Handle upload Planilha 1 (Atletas)
@@ -277,24 +285,37 @@ export default function AssociarPlanilhasModal({
       return
     }
 
-    if (new Set([qrColIdx, numeroColIdx, chipColIdx]).size !== 3) {
-      alert('Selecione três colunas diferentes para QR Code, número de peito e chip.')
+    if (qrColIdx < 0 || numeroColIdx < 0 || chipColIdx < 0) {
+      alert('Selecione as colunas correspondentes para a planilha de kits.')
       return
     }
-    const importedKits = chipsRows.map((row) => ({
-      qrCode: String(row[qrColIdx] ?? '').trim(),
-      numero: String(row[numeroColIdx] ?? '').trim(),
-      chip: String(row[chipColIdx] ?? '').trim(),
-    }))
-    if (importedKits.some((kit) => !kit.qrCode || !kit.numero || !kit.chip)) {
-      alert('Todas as linhas da planilha de kits precisam ter QR Code, número de peito e chip.')
-      return
-    }
-    for (const field of ['qrCode', 'numero', 'chip']) {
-      if (new Set(importedKits.map((kit) => kit[field])).size !== importedKits.length) {
-        alert(`Há valores duplicados na coluna de ${field === 'qrCode' ? 'QR Code' : field === 'numero' ? 'número de peito' : 'chip'}.`)
-        return
+
+    const importedKits = []
+    chipsRows.forEach((row) => {
+      const qrVal = String(row[qrColIdx] ?? '').trim()
+      const numVal = String(row[numeroColIdx] ?? '').trim()
+      const chipVal = String(row[chipColIdx] ?? '').trim()
+
+      // Ignora linha completamente vazia
+      if (!qrVal && !numVal && !chipVal) return
+
+      // Se não houver QR code explicitamente separado mas houver número de peito, o QR code é o próprio número
+      const finalNum = numVal || qrVal
+      const finalQr = qrVal || finalNum
+      const finalChip = chipVal || finalNum
+
+      if (finalNum || finalQr) {
+        importedKits.push({
+          qrCode: finalQr,
+          numero: finalNum,
+          chip: finalChip,
+        })
       }
+    })
+
+    if (importedKits.length === 0) {
+      alert('Nenhum kit válido encontrado na planilha de kits.')
+      return
     }
 
     const nameCol = Number(atletasMapping.nome)
@@ -676,6 +697,9 @@ export default function AssociarPlanilhasModal({
                           <label>Coluna do QR Code impresso no kit:</label>
                           <CustomSelect value={String(qrColIdx)} onChange={(val) => setQrColIdx(Number(val))}
                             options={chipsHeaders.map((h, idx) => ({ value: String(idx), label: `Coluna ${idx + 1}: ${h || `(Coluna ${idx + 1})`}` }))} />
+                          <small style={{ color: '#64748b', fontSize: '11px', marginTop: '3px', display: 'block' }}>
+                            (Pode selecionar a mesma coluna do número de peito se o QR Code for o próprio número)
+                          </small>
                         </div>
                         <div className="mapping-field-item">
                           <label>Coluna do número de peito:</label>

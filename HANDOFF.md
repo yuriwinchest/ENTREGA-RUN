@@ -1,5 +1,14 @@
 # Handoff
 
+## 2026-09-23 — Aceite de números duplicados e mapeamento flexível de kits (Fase A)
+
+- **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
+- **Pedido do Yuri (PO via áudio):** na associação de planilhas, permitir que o QR Code use os mesmos números do peito (mesma coluna ou valores duplicados), aceitando duplicação de números na planilha de kits sem travar o avanço com alertas de valores duplicados.
+- **Arquivos alterados:** `client/src/components/AssociarPlanilhasModal.jsx`, `client/src/components/OperacaoPage.jsx`, `server/server.js` e este `HANDOFF.md`.
+- **Validação real:** `npm run lint --prefix client` concluído com 0 warnings e 0 errors (oxlint em 28 arquivos); `npm run build --prefix client` gerando bundle Vite em 332ms; `node --check server/server.js` sem erros de sintaxe; teste unitário em `validateKits` aprovando duplicações e rejeitando apenas kits com campos ausentes.
+- **Riscos e pendências:** quando múltiplos kits possuem o mesmo código QR ou número (ex: categorias ou modalidades distintas), a leitura associa sequencialmente o primeiro kit disponível não atribuído. Operador deve conferir os dados no modal antes de confirmar.
+- **Próximo passo:** enviar para a branch `main` para acionar o deploy automático na VPS e homologar com o arquivo real de atletas e kits.
+
 ## 2026-09-23 — Associação de kit por leitura ou digitação (Fase A)
 
 - **Autor:** Codex/Tony, com agentes Codex nas frentes de importação, leitor e persistência.

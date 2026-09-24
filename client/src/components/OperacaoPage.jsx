@@ -1177,21 +1177,39 @@ export default function OperacaoPage({
   }
 
   function handleKitRead(qrCode) {
-    const kit = (kits || []).find((item) => String(item.qrCode).trim() === String(qrCode).trim())
-    if (!kit) {
+    const codeStr = String(qrCode || '').trim()
+    const matchingKits = (kits || []).filter(
+      (item) => String(item.qrCode).trim() === codeStr || String(item.numero).trim() === codeStr
+    )
+    if (matchingKits.length === 0) {
       setScanFeedback('Código não encontrado na planilha de kits deste evento.')
       return
     }
-    const owner = athletes.find((a) =>
-      !matchesAthleteReference(a, scannerAthlete) &&
-      (String(a.numero || '') === String(kit.numero) || String(a.chip || '') === String(kit.chip))
+
+    // Se houver duplicação de códigos na planilha, procura o primeiro kit que ainda não foi associado a outro atleta
+    const unassignedKit = matchingKits.find((k) =>
+      !athletes.some((a) =>
+        !matchesAthleteReference(a, scannerAthlete) &&
+        String(a.chip || '').trim() === String(k.chip).trim() &&
+        String(a.numero || '').trim() === String(k.numero).trim()
+      )
     )
-    if (owner) {
-      setScanFeedback(`Este número ou chip já está associado a ${owner.nome}.`)
+
+    if (!unassignedKit) {
+      const firstOwner = athletes.find((a) =>
+        !matchesAthleteReference(a, scannerAthlete) &&
+        matchingKits.some(
+          (k) =>
+            String(a.chip || '').trim() === String(k.chip).trim() &&
+            String(a.numero || '').trim() === String(k.numero).trim()
+        )
+      )
+      setScanFeedback(`Todos os kits com este código já foram associados${firstOwner ? ` (ex: ${firstOwner.nome})` : ''}.`)
       return
     }
+
     setScanFeedback('')
-    setScannedKit(kit)
+    setScannedKit(unassignedKit)
   }
 
   function confirmKitAssociation() {
@@ -1201,14 +1219,26 @@ export default function OperacaoPage({
       setScanFeedback('Não é possível alterar a associação de uma entrega concluída.')
       return
     }
-    const collision = athletes.some((a) => !matchesAthleteReference(a, source) &&
-      (String(a.numero || '') === String(scannedKit.numero) || String(a.chip || '') === String(scannedKit.chip)))
+    const collision = athletes.some((a) =>
+      !matchesAthleteReference(a, source) &&
+      String(a.chip || '').trim() === String(scannedKit.chip).trim() &&
+      String(a.numero || '').trim() === String(scannedKit.numero).trim()
+    )
     if (collision) {
-      setScanFeedback('O número ou chip foi associado a outro atleta. Atualize a tela e tente novamente.')
+      setScanFeedback('Este kit exato (mesmo número e chip) já foi associado a outro atleta. Atualize a tela e tente novamente.')
       return
     }
-    const updated = { ...source, numero: String(scannedKit.numero), chip: String(scannedKit.chip), qrCode: String(scannedKit.qrCode) }
-    setAthletes((prev) => prev.map((a) => matchesAthleteReference(a, source) ? updated : a))
+    const updated = {
+      ...source,
+      numero: String(scannedKit.numero),
+      chip: String(scannedKit.chip),
+      qrCode: String(scannedKit.qrCode),
+    }
+    const nextAthletes = athletes.map((a) => matchesAthleteReference(a, source) ? updated : a)
+    setAthletes(nextAthletes)
+    if (currentEvent?.id) {
+      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined).catch(() => {})
+    }
     if (selectedAthlete && matchesAthleteReference(selectedAthlete, source)) {
       setSelectedAthlete(updated)
       setDetailForm(buildAthleteDetailDraft(updated))
