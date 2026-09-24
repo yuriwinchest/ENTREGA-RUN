@@ -1,5 +1,24 @@
 # Handoff
 
+## 2026-09-23 — Leitor QR Universal com jsQR, Busca Alfabética Inteligente e Simplificação da Aba Auditoria (Fase A)
+
+- **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
+- **Pedido do Yuri (PO via áudio/vídeo):**
+  1. *Leitor de QR Code Universal*: Habilitar leitura real de QR Code na câmera em qualquer navegador através de `jsqr`, contornando a ausência do `BarcodeDetector` nativo no Chrome/Edge para Windows.
+  2. *Botão Único na Ficha do Atleta*: Unificar botões duplicados da ficha de entrega no botão `ASSOCIAR KIT`.
+  3. *Busca Alfabética Inteligente*: Priorizar nomes que iniciam pela letra/termo digitado, ordenados alfabeticamente na aba de entrega e na lista de atletas.
+  4. *Aba Auditoria*:
+     - Renomear `BAIXAR PLANILHA GERAL` para `BAIXAR PLANILHA ATUALIZADA`.
+     - Renomear `IMPORTAR ATLETAS` para `IMPORTAR SEM ASSOCIAÇÃO`.
+     - Renomear `IMPORTAR ATLETAS E KITS` para `IMPORTAR COM ASSOCIAÇÃO`.
+     - Remover botão `RESTAURAR PLANILHA ORIGINAL`.
+     - Remover cards de métricas do topo (Entregas no Filtro, Pelo Atleta, Por Terceiro, Top Operador).
+     - Remover card complexo de filtros; transformar a tabela em `HISTÓRICO DE ENTREGAS` com busca ágil, `EXPORTAR CSV` e `GERAR PDF`.
+- **Arquivos alterados:** `client/package.json`, `client/package-lock.json`, `client/src/components/KitQrScannerModal.jsx`, `client/src/components/OperacaoPage.jsx` e este `HANDOFF.md`.
+- **Validação real:** `npm run lint --prefix client` concluído com 0 warnings e 0 errors; `npm run build --prefix client` gerando bundle Vite sem falhas.
+- **Riscos e pendências:** Nenhuma regressão detectada.
+- **Próximo passo:** Commit e push para `main` para acionar o GitHub Actions e validar em produção.
+
 ## 2026-09-23 — Aceite de números duplicados e mapeamento flexível de kits (Fase A)
 
 - **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).

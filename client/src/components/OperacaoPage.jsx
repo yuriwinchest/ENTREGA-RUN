@@ -8,7 +8,6 @@ import {
   enrichAuditRecords,
   exportCsvFile,
   filterAuditRecords,
-  getAuditOperatorOptions,
   getAuditTimestamp,
   openAuditReportPrint,
 } from '../utils/auditData.js'
@@ -300,14 +299,6 @@ function LinkSpreadsheetIcon() {
   )
 }
 
-function FilterFunnelIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-    </svg>
-  )
-}
-
 function FilePdfIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -316,18 +307,6 @@ function FilePdfIcon() {
       <path d="M9 13v4" />
       <path d="M12 13v4" />
       <path d="M15 13v4" />
-    </svg>
-  )
-}
-
-function TrophyIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-      <path d="M4 22h16" />
-      <path d="M10 14.66V17c0 .55-.45 1-1 1H7c-.55 0-1 .45-1 1v1h12v-1c0-.55-.45-1-1-1h-2c-.55 0-1-.45-1-1v-2.34" />
-      <path d="M6 4h12a2 2 0 0 1 2 2v3a6 6 0 0 1-12 0V6a2 2 0 0 1 2-2Z" />
     </svg>
   )
 }
@@ -902,13 +881,8 @@ export default function OperacaoPage({
     })
   }, [athletes, currentEvent.id, user])
 
-  // Filter controls
+  // Controles de auditoria / histórico de entregas
   const [auditSearch, setAuditSearch] = useState('')
-  const [auditOperatorFilter, setAuditOperatorFilter] = useState('TODOS')
-  const [auditTypeFilter, setAuditTypeFilter] = useState('TODOS')
-  const [auditPeriod, setAuditPeriod] = useState('TODOS')
-  const [auditMatchMode, setAuditMatchMode] = useState('contem')
-  const [auditIncludeComprovantes, setAuditIncludeComprovantes] = useState(true)
   const [auditPerPage, setAuditPerPage] = useState(50)
   const [auditPage, setAuditPage] = useState(1)
 
@@ -965,28 +939,6 @@ export default function OperacaoPage({
     }
   }
 
-  function handleRestoreOriginalAthletes() {
-    try {
-      const saved = localStorage.getItem(`entregas_run_original_athletes_${currentEvent.id}`)
-      if (!saved) {
-        alert('Nenhuma planilha base original arquivada para este evento.')
-        return
-      }
-      const originalList = JSON.parse(saved)
-      if (
-        window.confirm(
-          `Deseja restaurar a planilha base original com ${originalList.length} atletas? As alterações e associações atuais de chips serão revertidas para a planilha original.`
-        )
-      ) {
-        setAthletes(originalList)
-        localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(originalList))
-        alert('Planilha base original restaurada com sucesso!')
-      }
-    } catch (err) {
-      console.error('Erro ao restaurar planilha original:', err)
-    }
-  }
-
   function handleExportPlanilha() {
     const filename = `planilha_geral_${(currentEvent?.name || 'evento').toLowerCase().replace(/\s+/g, '_')}.csv`
     try {
@@ -1029,27 +981,27 @@ export default function OperacaoPage({
       a.camiseta || '',
       a.modalidade || '',
       ]
-      if (auditIncludeComprovantes) row.unshift(a.comprovanteId || '')
+      row.unshift(a.comprovanteId || '')
       return row
     })
 
     try {
       exportCsvFile(filename, headers, rows)
     } catch {
-      window.alert('Não foi possível exportar as entregas filtradas. Tente novamente.')
+      window.alert('Não foi possível exportar as entregas. Tente novamente.')
     }
   }
 
   function handlePrintAuditPdf() {
     if (filteredAudits.length === 0) {
-      window.alert('Não há entregas para gerar o relatório com os filtros atuais.')
+      window.alert('Não há entregas para gerar o relatório.')
       return
     }
     const opened = openAuditReportPrint({
       eventName: currentEvent?.name,
       records: filteredAudits,
-      filterSummary: auditFilterSummary,
-      includeComprovantes: auditIncludeComprovantes,
+      filterSummary: auditSearch.trim() ? `Busca: ${auditSearch.trim()}` : 'Todas as entregas',
+      includeComprovantes: true,
     })
     if (!opened) {
       window.alert('O navegador bloqueou a janela do relatório. Libere pop-ups para gerar o PDF.')
@@ -1061,51 +1013,15 @@ export default function OperacaoPage({
     [audits, athletes]
   )
 
-  const auditOperatorOptions = useMemo(
-    () => getAuditOperatorOptions(enrichedAudits, operators),
-    [enrichedAudits, operators]
-  )
-
-  // A tabela, os cards, o CSV e o PDF consomem exatamente o mesmo resultado.
+  // A tabela, o CSV e o PDF consomem exatamente o mesmo resultado filtrado pela busca.
   const filteredAudits = filterAuditRecords({
     audits: enrichedAudits,
     search: auditSearch,
-    operator: auditOperatorFilter,
-    type: auditTypeFilter,
-    period: auditPeriod,
-    matchMode: auditMatchMode,
+    operator: 'TODOS',
+    type: 'TODOS',
+    period: 'TODOS',
+    matchMode: 'contem',
   })
-
-  const auditFilterSummary = [
-    auditSearch.trim() ? `Busca: ${auditSearch.trim()}` : null,
-    auditOperatorFilter !== 'TODOS' ? `Operador: ${auditOperatorFilter}` : 'Todos os operadores',
-    auditPeriod !== 'TODOS' ? `Período: ${auditPeriod}` : 'Todo o período',
-    auditTypeFilter !== 'TODOS' ? `Tipo: ${auditTypeFilter}` : null,
-  ].filter(Boolean).join(' · ')
-
-  // Metrics calculations
-  const totalAuditsCount = filteredAudits.length
-  const atletaAuditsCount = filteredAudits.filter((a) => a.tipo === 'ATLETA').length
-  const terceiroAuditsCount = filteredAudits.filter((a) => a.tipo === 'TERCEIRO').length
-
-  const atletaPercent = totalAuditsCount > 0 ? ((atletaAuditsCount / totalAuditsCount) * 100).toFixed(1) : '0.0'
-  const terceiroPercent = totalAuditsCount > 0 ? ((terceiroAuditsCount / totalAuditsCount) * 100).toFixed(1) : '0.0'
-
-  // Top operator
-  const operatorCounts = {}
-  for (const a of filteredAudits) {
-    const op = a.operadorNome || 'OPERADOR'
-    operatorCounts[op] = (operatorCounts[op] || 0) + 1
-  }
-  let topOperatorName = '—'
-  let topOperatorCount = totalAuditsCount
-  let topOperatorPercent = '100.0'
-  const opEntries = Object.entries(operatorCounts).sort((a, b) => b[1] - a[1])
-  if (opEntries.length > 0) {
-    topOperatorName = opEntries[0][0]
-    topOperatorCount = opEntries[0][1]
-    topOperatorPercent = totalAuditsCount > 0 ? ((topOperatorCount / totalAuditsCount) * 100).toFixed(1) : '100.0'
-  }
 
   // Pagination calculation
   const totalPages = Math.max(1, Math.ceil(filteredAudits.length / auditPerPage))
@@ -1692,25 +1608,74 @@ export default function OperacaoPage({
     setSelectedComprovante(fallbackAudit)
   }
 
-  // Filtered Athletes for Tab 2 (sempre ordenados de forma crescente por número de peito)
-  const filteredAthletes = useMemo(() => {
-    return athletes
-      .filter((a) => {
-        const q = atletaSearch.toLowerCase().trim()
-        const matchesSearch =
-          !q ||
-          (a.nome && a.nome.toLowerCase().includes(q)) ||
-          (a.numero && String(a.numero).includes(q)) ||
-          (a.doc && a.doc.toLowerCase().includes(q))
+  // Função de ordenação inteligente para buscas por nome ou número
+  function sortAthletesBySearchQuery(athletesList, query) {
+    const q = String(query || '').trim().toLowerCase()
+    if (!q) {
+      return [...athletesList].sort((a, b) => compareAthleteNumbers(a.numero, b.numero))
+    }
 
-        const matchesFilter =
-          atletaFilter === 'TODOS' ||
-          (atletaFilter === 'PENDENTES' && a.status !== 'ENTREGUE') ||
-          (atletaFilter === 'ENTREGUES' && a.status === 'ENTREGUE')
-
-        return matchesSearch && matchesFilter
+    const isNumeric = /^\d+$/.test(q)
+    if (isNumeric) {
+      return [...athletesList].sort((a, b) => {
+        const numA = String(a.numero || '').trim()
+        const numB = String(b.numero || '').trim()
+        const exactA = numA === q ? 1 : 0
+        const exactB = numB === q ? 1 : 0
+        if (exactA !== exactB) return exactB - exactA
+        const startsA = numA.startsWith(q) ? 1 : 0
+        const startsB = numB.startsWith(q) ? 1 : 0
+        if (startsA !== startsB) return startsB - startsA
+        return compareAthleteNumbers(a.numero, b.numero)
       })
-      .sort((a, b) => compareAthleteNumbers(a.numero, b.numero))
+    }
+
+    // Busca textual: prioriza quem COMEÇA com a letra/termo digitado (ex: 'S' -> 'SEVERINO' antes de 'ADRIANA SILVA')
+    return [...athletesList].sort((a, b) => {
+      const nomeA = (a.nome || '').trim().toLowerCase()
+      const nomeB = (b.nome || '').trim().toLowerCase()
+
+      // 1. Nomes cujo primeiro nome começa com a busca
+      const startsA = nomeA.startsWith(q) ? 1 : 0
+      const startsB = nomeB.startsWith(q) ? 1 : 0
+      if (startsA !== startsB) return startsB - startsA
+
+      // 2. Nomes onde alguma palavra (sobrenome) começa com a busca
+      const wordsA = nomeA.split(/\s+/).some((w) => w.startsWith(q)) ? 1 : 0
+      const wordsB = nomeB.split(/\s+/).some((w) => w.startsWith(q)) ? 1 : 0
+      if (wordsA !== wordsB) return wordsB - wordsA
+
+      // 3. Ordem alfabética pelo nome completo
+      return nomeA.localeCompare(nomeB, 'pt-BR')
+    })
+  }
+
+  // Filtered Athletes for Tab 2 (ordenados inteligentemente pela busca ou número)
+  const filteredAthletes = useMemo(() => {
+    const q = atletaSearch.toLowerCase().trim()
+    const cleanDigits = q.replace(/[^\d]/g, '')
+    const isNumeric = /^\d+$/.test(q)
+
+    const matches = athletes.filter((a) => {
+      const nome = (a.nome || '').toLowerCase()
+      const numero = String(a.numero || '')
+      const doc = (a.doc || '').replace(/[^\d]/g, '')
+
+      const matchesSearch =
+        !q ||
+        (isNumeric
+          ? (numero.includes(q) || (cleanDigits && doc.includes(cleanDigits)))
+          : (nome.includes(q) || (cleanDigits && doc.includes(cleanDigits))))
+
+      const matchesFilter =
+        atletaFilter === 'TODOS' ||
+        (atletaFilter === 'PENDENTES' && a.status !== 'ENTREGUE') ||
+        (atletaFilter === 'ENTREGUES' && a.status === 'ENTREGUE')
+
+      return matchesSearch && matchesFilter
+    })
+
+    return sortAthletesBySearchQuery(matches, q)
   }, [athletes, atletaSearch, atletaFilter])
 
   // Paginação da grade de atletas (10 por página). O reset para a página 1
@@ -1751,19 +1716,26 @@ export default function OperacaoPage({
     [visibleAthleteTableColumns]
   )
 
-  // Filtered Athletes for Tab 1 (Kit Search - sempre ordenados por número)
+  // Filtered Athletes for Tab 1 (Kit Search - prioriza quem começa com a letra digitada)
   const searchResultsKit = useMemo(() => {
     if (!kitSearch.trim()) return []
     const q = kitSearch.toLowerCase().trim()
-    return athletes
-      .filter((a) => {
-        return a.status !== 'ENTREGUE' && (
-          (a.nome && a.nome.toLowerCase().includes(q)) ||
-          (a.numero && String(a.numero).includes(q)) ||
-          (a.doc && a.doc.toLowerCase().includes(q))
-        )
-      })
-      .sort((a, b) => compareAthleteNumbers(a.numero, b.numero))
+    const cleanDigits = q.replace(/[^\d]/g, '')
+    const isNumeric = /^\d+$/.test(q)
+
+    const matches = athletes.filter((a) => {
+      if (a.status === 'ENTREGUE') return false
+      const nome = (a.nome || '').toLowerCase()
+      const numero = String(a.numero || '')
+      const doc = (a.doc || '').replace(/[^\d]/g, '')
+
+      if (isNumeric) {
+        return numero.includes(q) || (cleanDigits && doc.includes(cleanDigits))
+      }
+      return nome.includes(q) || (cleanDigits && doc.includes(cleanDigits))
+    })
+
+    return sortAthletesBySearchQuery(matches, q)
   }, [athletes, kitSearch])
 
   // Lista de entregas sempre ordenada por número de peito de forma crescente (1, 2, 3...)
@@ -1976,16 +1948,11 @@ export default function OperacaoPage({
                     className="btn-detail-qr-action"
                     onClick={() => startKitReading(selectedAthlete || detailForm)}
                     disabled={detailForm.status === 'ENTREGUE'}
-                    title="Abrir câmera para leitura do kit"
+                    title="Associar kit por leitura de QR Code ou código manual"
                   >
                     <QrCodeIcon size={16} />
-                    <span>FAZER LEITURA</span>
+                    <span>ASSOCIAR KIT</span>
                   </button>
-                  {(!detailForm.numero || !detailForm.chip) && detailForm.status !== 'ENTREGUE' && (
-                    <button type="button" className="btn-detail-qr-action" onClick={() => startKitReading(selectedAthlete)}>
-                      ASSOCIAR A ESTA PESSOA
-                    </button>
-                  )}
 
                   <button
                     type="button"
@@ -2849,74 +2816,7 @@ export default function OperacaoPage({
         {/* TAB 4: AUDITORIA */}
         {effectiveTab === 'auditoria' && (
           <div className="operacao-tab-content auditoria-content-layout">
-            {/* 1. CARDS DE MÉTRICAS (4 CARDS) */}
-            <div className="audit-metrics-grid">
-              {/* Card 1: Entregas no Filtro */}
-              <div className="audit-metric-card">
-                <div className="audit-metric-header">
-                  <span className="audit-metric-label">ENTREGAS NO FILTRO</span>
-                  <div className="audit-metric-icon-wrap blue">
-                    <ClipboardIcon />
-                  </div>
-                </div>
-                <div className="audit-metric-value">{totalAuditsCount}</div>
-                <div className="audit-metric-footer">
-                  <span className="audit-dot-green"></span>
-                  <span className="audit-footer-text">HISTÓRICO CONSOLIDADO</span>
-                  <span className="audit-badge-pill green">100%</span>
-                </div>
-              </div>
-
-              {/* Card 2: Pelo Atleta */}
-              <div className="audit-metric-card">
-                <div className="audit-metric-header">
-                  <span className="audit-metric-label">PELO ATLETA</span>
-                  <div className="audit-metric-icon-wrap emerald">
-                    <UsersTabIcon />
-                  </div>
-                </div>
-                <div className="audit-metric-value">{atletaAuditsCount}</div>
-                <div className="audit-metric-footer">
-                  <span className="audit-badge-pill green">{atletaPercent}%</span>
-                  <span className="audit-footer-text">DO TOTAL FILTRADO</span>
-                </div>
-              </div>
-
-              {/* Card 3: Por Terceiro */}
-              <div className="audit-metric-card">
-                <div className="audit-metric-header">
-                  <span className="audit-metric-label">POR TERCEIRO</span>
-                  <div className="audit-metric-icon-wrap amber">
-                    <UsersTabIcon />
-                  </div>
-                </div>
-                <div className="audit-metric-value">{terceiroAuditsCount}</div>
-                <div className="audit-metric-footer">
-                  <span className="audit-badge-pill amber">{terceiroPercent}%</span>
-                  <span className="audit-footer-text">DO TOTAL FILTRADO</span>
-                </div>
-              </div>
-
-              {/* Card 4: Top Operador */}
-              <div className="audit-metric-card">
-                <div className="audit-metric-header">
-                  <span className="audit-metric-label">TOP OPERADOR</span>
-                  <div className="audit-metric-icon-wrap gold">
-                    <TrophyIcon />
-                  </div>
-                </div>
-                <div className="audit-metric-value">
-                  <span className="top-op-name">{topOperatorName}</span>
-                  <span className="top-op-count"> · {topOperatorCount}</span>
-                </div>
-                <div className="audit-metric-footer">
-                  <span className="audit-badge-pill green">{topOperatorPercent}%</span>
-                  <span className="audit-footer-text">CONCENTRAÇÃO</span>
-                </div>
-              </div>
-            </div>
-
-            {/* 2. CARD: PLANILHA DE ATLETAS */}
+            {/* 1. CARD: PLANILHA DE ATLETAS */}
             <div className="planilha-box-card">
               <div className="planilha-box-left">
                 <div className="planilha-icon-badge">
@@ -2937,197 +2837,72 @@ export default function OperacaoPage({
                   title="Baixar todos os atletas em CSV, incluindo entregues e pendentes"
                 >
                   <DownloadIcon />
-                  <span>BAIXAR PLANILHA GERAL</span>
+                  <span>BAIXAR PLANILHA ATUALIZADA</span>
                 </button>
                 <button
                   type="button"
                   className="btn-import-planilha"
                   onClick={() => setShowImportModal(true)}
-                  title="Abrir assistente de importação de planilha"
+                  title="Abrir assistente de importação de atletas sem associação"
                 >
                   <UploadIcon />
-                  <span>IMPORTAR ATLETAS</span>
+                  <span>IMPORTAR SEM ASSOCIAÇÃO</span>
                 </button>
                 <button
                   type="button"
                   className="btn-associar-planilha"
                   onClick={() => setShowAssociarModal(true)}
-                  title="Importar atletas e kits sem associação automática"
+                  title="Importar atletas e kits para associação"
                 >
                   <LinkSpreadsheetIcon />
-                  <span>IMPORTAR ATLETAS E KITS</span>
-                </button>
-                <button
-                  type="button"
-                  className="btn-restore-planilha"
-                  onClick={handleRestoreOriginalAthletes}
-                  title="Restaurar a planilha base original importada para este evento"
-                >
-                  <RefreshIcon />
-                  <span>RESTAURAR PLANILHA ORIGINAL</span>
+                  <span>IMPORTAR COM ASSOCIAÇÃO</span>
                 </button>
               </div>
             </div>
 
-            {/* 3. CARD: FILTROS */}
-            <div className="filtros-audit-card">
-              <div className="filtros-audit-header">
-                <div className="filtros-header-left">
-                  <span className="filtros-icon-wrap">
-                    <FilterFunnelIcon />
-                  </span>
-                  <div>
-                    <h3 className="filtros-card-title">FILTRAR ENTREGAS</h3>
-                    <p className="filtros-card-subtitle">
-                      A tabela, o CSV e o PDF abaixo respeitam os mesmos filtros.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="filtros-form-grid">
-                {/* Linha 1 */}
-                <div className="filtros-row-1">
-                  <div className="filtro-field search-field">
-                    <label className="filtro-label">BUSCAR ATLETA (NOME, PEITO, CPF, CHIP)</label>
-                    <div className="filtro-search-input-wrap">
-                      <SearchIcon />
-                      <input
-                        type="text"
-                        placeholder="Digite o nome, número de peito, CPF ou chip..."
-                        value={auditSearch}
-                        onChange={(e) => {
-                          setAuditSearch(e.target.value)
-                          setAuditPage(1)
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="filtro-field">
-                    <label className="filtro-label">ENTREGAS FEITAS POR</label>
-                    <CustomSelect
-                      className="filtro-select-custom"
-                      value={auditOperatorFilter}
-                      onChange={(val) => {
-                        setAuditOperatorFilter(val)
-                        setAuditPage(1)
-                      }}
-                      options={[
-                        { value: 'TODOS', label: 'TODOS OS OPERADORES' },
-                        ...auditOperatorOptions.map((name) => ({ value: name, label: name })),
-                      ]}
-                    />
-                  </div>
-
-                  <div className="filtro-field">
-                    <label className="filtro-label">TIPO DE RETIRADA</label>
-                    <CustomSelect
-                      className="filtro-select-custom"
-                      value={auditTypeFilter}
-                      onChange={(val) => {
-                        setAuditTypeFilter(val)
-                        setAuditPage(1)
-                      }}
-                      options={[
-                        { value: 'TODOS', label: 'TODOS OS TIPOS' },
-                        { value: 'ATLETA', label: 'PELO ATLETA' },
-                        { value: 'TERCEIRO', label: 'POR TERCEIRO' },
-                      ]}
-                    />
-                  </div>
-                </div>
-
-                {/* Linha 2 */}
-                <div className="filtros-row-2">
-                  <div className="filtro-field periodo-field">
-                    <label className="filtro-label">PERÍODO</label>
-                    <div className="periodo-pills">
-                      {['TODOS', 'HOJE', 'ONTEM', 'ÚLTIMOS 7 DIAS'].map((period) => (
-                        <button
-                          key={period}
-                          type="button"
-                          className={`periodo-pill-btn ${auditPeriod === period ? 'active' : ''}`}
-                          onClick={() => {
-                            setAuditPeriod(period)
-                            setAuditPage(1)
-                          }}
-                        >
-                          {period}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="filtro-field modo-busca-field">
-                    <label className="filtro-label">MODO DE BUSCA</label>
-                    <CustomSelect
-                      className="filtro-select-custom"
-                      value={auditMatchMode}
-                      onChange={(val) => setAuditMatchMode(val)}
-                      options={[
-                        { value: 'contem', label: 'Contém o termo' },
-                        { value: 'inicia', label: 'Início do termo' },
-                        { value: 'exato', label: 'Termo exato' },
-                      ]}
-                    />
-                  </div>
-                </div>
-
-                {/* Linha 3 */}
-                <div className="filtros-row-3">
-                  <div className="filtro-checkbox-wrap">
-                    <label className="custom-checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={auditIncludeComprovantes}
-                        onChange={(e) => setAuditIncludeComprovantes(e.target.checked)}
-                      />
-                      <span>Incluir número do comprovante no relatório</span>
-                    </label>
-                  </div>
-
-                  <div className="audit-filter-live-summary">
-                    {filteredAudits.length} entrega(s) encontrada(s) · {auditFilterSummary}
-                  </div>
-
-                  <div className="filtros-export-actions">
-                    <button
-                      type="button"
-                      className="btn-filtro-action"
-                      onClick={handleExportAuditsCsv}
-                      title="Exportar exatamente as entregas exibidas pelos filtros"
-                    >
-                      <DownloadIcon />
-                      <span>EXPORTAR ENTREGAS</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-filtro-action"
-                      onClick={handlePrintAuditPdf}
-                      title="Gerar relatório com todas as entregas filtradas"
-                    >
-                      <FilePdfIcon />
-                      <span>GERAR PDF DO FILTRO</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 4. CARD: TABELA DE AUDITORIA */}
+            {/* 2. CARD: TABELA DE AUDITORIA / HISTÓRICO DE ENTREGAS */}
             <div className="audit-table-card">
               <div className="audit-table-header">
                 <div className="audit-table-header-left">
                   <div className="table-title-row">
-                    <h3 className="audit-table-title">RESULTADO DO FILTRO</h3>
+                    <h3 className="audit-table-title">HISTÓRICO DE ENTREGAS</h3>
                     <span className="audit-counter-badge">{filteredAudits.length} registro(s)</span>
                   </div>
                   <p className="audit-table-subtitle">
-                    Estas são as entregas que serão incluídas no CSV e no PDF.
+                    Relatório completo e comprovantes de todas as retiradas de kits deste evento.
                   </p>
                 </div>
                 <div className="audit-table-header-right">
+                  <div className="filtro-search-input-wrap" style={{ minWidth: '220px' }}>
+                    <SearchIcon />
+                    <input
+                      type="text"
+                      placeholder="Buscar entrega (nome, peito, CPF)..."
+                      value={auditSearch}
+                      onChange={(e) => {
+                        setAuditSearch(e.target.value)
+                        setAuditPage(1)
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-filtro-action"
+                    onClick={handleExportAuditsCsv}
+                    title="Exportar entregas em CSV"
+                  >
+                    <DownloadIcon />
+                    <span>EXPORTAR CSV</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-filtro-action"
+                    onClick={handlePrintAuditPdf}
+                    title="Gerar relatório de entregas em PDF"
+                  >
+                    <FilePdfIcon />
+                    <span>GERAR PDF</span>
+                  </button>
                   <div className="per-page-selector">
                     <CustomSelect
                       className="per-page-select-custom"

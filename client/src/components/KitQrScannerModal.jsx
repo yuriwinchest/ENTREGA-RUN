@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import jsQR from 'jsqr'
 import './KitQrScannerModal.css'
 
 export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, kit, feedback, onConfirm }) {
@@ -26,16 +27,20 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
         setCameraMessage('Este navegador não permite acesso à câmera. Digite o código impresso no kit.')
         return
       }
-      if (typeof window.BarcodeDetector !== 'function') {
-        setCameraMessage('A leitura automática não está disponível neste navegador. Digite o código impresso no kit.')
-        return
-      }
 
       try {
-        const detector = new window.BarcodeDetector({ formats: ['qr_code'] })
+        let nativeDetector = null
+        if (typeof window.BarcodeDetector === 'function') {
+          try {
+            nativeDetector = new window.BarcodeDetector({ formats: ['qr_code'] })
+          } catch {
+            nativeDetector = null
+          }
+        }
+
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { facingMode: { ideal: 'environment' } },
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
         })
         if (!active) {
           stream.getTracks().forEach((track) => track.stop())
@@ -49,24 +54,51 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
         if (!active) return
         setCameraMessage('Aponte a câmera para o QR Code impresso no kit.')
 
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+
         async function scan() {
           if (!active || deliveredRef.current) return
-          if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-            try {
-              const results = await detector.detect(video)
-              const value = results.find((result) => result.rawValue?.trim())?.rawValue.trim()
-              if (value && active && !deliveredRef.current) {
-                deliveredRef.current = true
-                onReadRef.current(value)
-                window.setTimeout(() => {
-                  if (!active || kitRef.current) return
-                  deliveredRef.current = false
-                  frameId = requestAnimationFrame(scan)
-                }, 900)
-                return
+          if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
+            let value = null
+
+            // 1. Tenta detector nativo do navegador se disponível
+            if (nativeDetector) {
+              try {
+                const results = await nativeDetector.detect(video)
+                value = results.find((result) => result.rawValue?.trim())?.rawValue.trim()
+              } catch {
+                // Se falhar o detector nativo, o jsQR continuará abaixo
               }
-            } catch {
-              // Alguns frames podem falhar enquanto a câmera ajusta o foco.
+            }
+
+            // 2. Se não detectou com nativo, usa jsQR (funciona 100% no Chrome Windows, Edge, Safari, Firefox)
+            if (!value && ctx) {
+              try {
+                canvas.width = video.videoWidth
+                canvas.height = video.videoHeight
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+                const qrResult = jsQR(imageData.data, imageData.width, imageData.height, {
+                  inversionAttempts: 'attemptBoth',
+                })
+                if (qrResult?.data?.trim()) {
+                  value = qrResult.data.trim()
+                }
+              } catch {
+                // Frame em transição ignorado
+              }
+            }
+
+            if (value && active && !deliveredRef.current) {
+              deliveredRef.current = true
+              onReadRef.current(value)
+              window.setTimeout(() => {
+                if (!active || kitRef.current) return
+                deliveredRef.current = false
+                frameId = requestAnimationFrame(scan)
+              }, 900)
+              return
             }
           }
           if (active) frameId = requestAnimationFrame(scan)
