@@ -355,6 +355,10 @@ export default function UsuariosPage({
 
   function handleCopyCredentials(creds) {
     if (!creds) return
+    if (!creds.password) {
+      alert('Gere uma nova senha antes de copiar o acesso.')
+      return
+    }
     const systemUrl = typeof window !== 'undefined' ? window.location.origin : 'https://app.entregasrun.com.br'
     const text = `🏃 *ENTREGAS RUN — DADOS DE ACESSO AO SISTEMA*
 Olá *${creds.name}*, seu login foi liberado!
@@ -380,7 +384,8 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
       prev.map((u) => (u.id === userId ? { ...u, password: newPass } : u))
     )
     setUserToManagePassword((prev) => (prev ? { ...prev, password: newPass } : null))
-    setManagePasswordFeedback('✓ Nova senha gerada com sucesso!')
+    setShowManagePasswordEye(true)
+    setManagePasswordFeedback('✓ Nova senha gerada! Copie agora — ela não será exibida de novo.')
     setTimeout(() => setManagePasswordFeedback(''), 3000)
 
     apiUpdateUser(userId, { password: newPass }).catch(() => {})
@@ -459,11 +464,11 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   <button
                     type="button"
                     className="btn-user-cred-action"
-                    title="Ver ou redefinir senha do usuário"
+                    title="Redefinir senha do usuário"
                     onClick={() => {
                       setUserToManagePassword({
                         ...item,
-                        password: item.password || generateEasySecurePassword(),
+                        password: '',
                       })
                       setShowManagePasswordEye(false)
                       setManagePasswordFeedback('')
@@ -859,12 +864,12 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   </div>
 
                   <div className="cred-field-row password-row">
-                    <span className="cred-field-label">SENHA ATUAL</span>
+                    <span className="cred-field-label">SENHA</span>
                     <div className="password-display-group">
                       <strong className="cred-field-value pass-value">
-                        {showManagePasswordEye
-                          ? userToManagePassword.password || '(Não definida)'
-                          : '••••••••••••'}
+                        {userToManagePassword.password
+                          ? (showManagePasswordEye ? userToManagePassword.password : '••••••••••••')
+                          : 'Oculta por segurança — gere uma nova abaixo'}
                       </strong>
                       <button
                         type="button"

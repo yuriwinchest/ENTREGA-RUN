@@ -48,6 +48,17 @@ jobs:
             chmod -R 777 /opt/entregas-run/data || true
             chown -R 1000:1000 /opt/entregas-run/data || true
 
+            # Segredos de ambiente na VPS (arquivo local, fora do Git).
+            umask 077
+            touch /opt/entregas-run/.env
+            chmod 600 /opt/entregas-run/.env || true
+            if [ -n "${{ secrets.APPWRITE_API_KEY }}" ]; then
+              grep -q '^APPWRITE_API_KEY=' /opt/entregas-run/.env 2>/dev/null && sed -i 's|^APPWRITE_API_KEY=.*|APPWRITE_API_KEY=${{ secrets.APPWRITE_API_KEY }}|' /opt/entregas-run/.env || echo 'APPWRITE_API_KEY=${{ secrets.APPWRITE_API_KEY }}' >> /opt/entregas-run/.env
+            fi
+            if [ -n "${{ secrets.APPWRITE_DATABASE_ID }}" ]; then
+              grep -q '^APPWRITE_DATABASE_ID=' /opt/entregas-run/.env 2>/dev/null && sed -i 's|^APPWRITE_DATABASE_ID=.*|APPWRITE_DATABASE_ID=${{ secrets.APPWRITE_DATABASE_ID }}|' /opt/entregas-run/.env || echo 'APPWRITE_DATABASE_ID=${{ secrets.APPWRITE_DATABASE_ID }}' >> /opt/entregas-run/.env
+            fi
+
             # Build e Reinicialização Isolada no Docker (porta 3050 -> 3001)
             docker compose down --remove-orphans || true
             docker rm -f entregas-run-web || true

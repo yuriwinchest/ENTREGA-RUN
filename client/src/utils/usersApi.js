@@ -1,11 +1,26 @@
 /**
  * API client para gerenciamento e sincronização de usuários da operação.
+ * Envia o token de sessão (emitido no login) em todas as chamadas.
  */
+
+function authHeaders(extra = {}) {
+  let token = ''
+  try {
+    token = localStorage.getItem('entregas_run_token') || ''
+  } catch {
+    token = ''
+  }
+  return {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  }
+}
 
 export async function apiFetchUsers() {
   try {
     const res = await fetch('/api/users', {
-      headers: { Accept: 'application/json' },
+      headers: authHeaders(),
     })
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
@@ -22,10 +37,7 @@ export async function apiCreateUser(userData) {
   try {
     const res = await fetch('/api/users', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(userData),
     })
     if (!res.ok) {
@@ -44,10 +56,7 @@ export async function apiUpdateUser(userId, patchData) {
   try {
     const res = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(patchData),
     })
     if (!res.ok) {
@@ -66,7 +75,7 @@ export async function apiDeleteUser(userId) {
   try {
     const res = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
       method: 'DELETE',
-      headers: { Accept: 'application/json' },
+      headers: authHeaders(),
     })
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}))

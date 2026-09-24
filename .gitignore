@@ -16,7 +16,8 @@ logs/
 .metrics/
 scratch/
 data/*.tmp
-data/events.json
+data/*.json
+!data/.gitkeep
 
 # Editor / OS
 .vscode/*

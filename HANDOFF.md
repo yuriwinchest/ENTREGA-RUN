@@ -1,5 +1,76 @@
 # Handoff
 
+## 2026-09-24 — Correção do Botão Avançar para Pré-Visualização no Modal Importar Atletas e Kits (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead).
+- **Pedido do Yuri (PO via áudio e captura de tela):** Ao anexar as planilhas na tela de Operação (`app.entregasrun.com.br`) no modal "IMPORTAR ATLETAS E KITS" e tentar prosseguir clicando no botão `AVANÇAR PARA PRÉ-VISUALIZAÇÃO →`, o botão não clicava, não avançava e nada acontecia.
+- **Causa Raiz Identificada:**
+  1. No arquivo `client/src/components/AssociarPlanilhasModal.jsx`, linha 404, havia uma chamada a `setPreviewPage(1)`, mas o estado `previewPage` / `setPreviewPage` não existia no componente (resquício de refatoração anterior).
+  2. Ao clicar no botão, o React disparava a função `handleGenerateAssociation()`, que lançava um erro fatal `ReferenceError: setPreviewPage is not defined`, abortando a execução antes de chamar `setStep(2)` e travando silenciosamente o avanço do modal.
+  3. Adicionalmente, a condição de `disabled` do botão e a validação exigiam obrigatoriamente a planilha de chips, impedindo o avanço caso o usuário quisesse importar apenas a planilha de atletas não associados para posterior leitura de QR Code.
+- **Arquivos alterados:** `client/src/components/AssociarPlanilhasModal.jsx`, `HANDOFF.md`.
+- **O que foi feito:**
+  1. Remoção da chamada incorreta `setPreviewPage(1)`.
+  2. Tratamento com bloco `try/catch` robusto em `handleGenerateAssociation` para garantir que qualquer erro de formato seja capturado e alertado amigavelmente sem congelar o fluxo.
+  3. Flexibilização da planilha de chips: se o usuário anexar apenas a lista de atletas (para associação futura na tenda), o modal avança normalmente sem bloquear o operador. Se anexar ambas as planilhas, associa e valida kits normalmente.
+  4. Atualização da propriedade `disabled` do botão principal: habilitado com a planilha de atletas e coluna do nome mapeada.
+- **Validação real executada:**
+  - `npx oxlint -D no-undef client/src/components/AssociarPlanilhasModal.jsx`: 0 erros de identificadores não definidos (antes acusava `setPreviewPage is not defined`).
+  - `npm run lint --prefix client`: 0 warnings, 0 errors em 29 arquivos.
+  - `npm run build --prefix client`: compilação concluída com sucesso em 663ms (`index-DOJK-6n7.js`).
+- **Próximo passo:** Subir alterações para produção e validar no navegador do Yuri.
+
+## 2026-09-24 — Correção de Sintaxe do .env e Ativação da Conexão com o Banco de Dados Appwrite (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead).
+- **Pedido do Yuri (PO via áudio):** Corrigir a sintaxe do arquivo `.env` (chaves, anotações e variáveis) e fazer a conexão com o banco de dados Appwrite funcionar perfeitamente para que tudo opere corretamente.
+- **Diagnóstico realizado:**
+  1. O arquivo `.env` continha comandos de terminal e notas brutas em vez de formato `CHAVE=VALOR` (linhas com prefixos `api:`, `Segredo:`, `id`, `VITE_` com espaços).
+  2. O backend Node não carregava `.env` nativamente e o conector anterior não serializava as queries REST conforme a especificação do Appwrite 1.9.6.
+  3. No Appwrite (`https://db.largadabrasil.com/v1`), o banco `entregas_run_db` e as coleções relacionais (`events`, `athletes`, `user_profiles`, `audit_logs`) já existiam com atributos definidos, porém estavam com 0 registros.
+- **Arquivos alterados:** `.env`, `server/server.js`, `server/appwrite.js`, `docker-compose.yml`, `client/src/utils/eventsApi.js`, `HANDOFF.md`.
+- **O que foi feito:**
+  1. **Higienização e Padronização do `.env`:** Sintaxe limpa, canônica e segura em padrão dotenv. Credenciais preservadas integralmente (`APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_DATABASE_ID=entregas_run_db`, `APPWRITE_API_KEY`, coleções). Comandos de terminal e notas de VPS/GIT foram comentados para não causar falha sintática no parser.
+  2. **Carregamento Nativo do `.env` no Node:** `process.loadEnvFile` configurado no topo de `server/server.js` e `server/appwrite.js` para garantir disponibilidade imediata das variáveis tanto em desenvolvimento quanto em produção.
+  3. **Conector Relacional Completo do Appwrite (`server/appwrite.js`):**
+     - Mapeamento bidirecional tipado entre os dados da aplicação e os atributos do Appwrite (`events`, `athletes`, `audit_logs`).
+     - IDs determinísticos de documento de 32 caracteres (MD5 hex) para upsert atômico sem duplicações.
+     - Suporte ao formato de queries JSON do Appwrite 1.9.6 (`formatQueries`) para contagem, paginação e buscas filtradas.
+     - Registro automático de comprovante em `audit_logs` a cada entrega de kit confirmada.
+  4. **Persistência Híbrida Write-Through:** As rotas `/api/events` e `/api/events/:eventId/athletes` gravam tanto no disco local da VPS (resposta instantânea em 0ms para a tenda e operação offline) quanto no Appwrite em nuvem. Se uma nova máquina/instância subir com disco vazio, reidrata automaticamente os dados do Appwrite.
+  5. **Mapeamento no `docker-compose.yml`:** Incluídas as variáveis de ambiente das coleções para garantir paridade total em produção.
+  6. **Exportação de Status no Client (`client/src/utils/eventsApi.js`):** Função `apiGetAppwriteStatus` disponibilizada para consulta diagnóstica.
+- **Validação real executada:**
+  - `process.loadEnvFile('.env')`: carregamento limpo com 0 erros de sintaxe.
+  - Endpoint `http://localhost:3001/api/appwrite/status`: confirmou `enabled: true`, `connected: true` com sucesso nas 4 coleções (`events`, `athletes`, `user_profiles`, `audit_logs`).
+  - Teste end-to-end de escrita: criação de evento via API persistiu no Appwrite; upload de atleta persistiu em `athletes`; atualização para `ENTREGUE` alterou o status no Appwrite e gerou entrada em `audit_logs`.
+  - Limpeza pós-teste executada via API (exclusão em cascata confirmada no Appwrite).
+  - `npm run build --prefix client`: compilação concluída com sucesso em 1.13s (0 erros).
+- **Riscos e pendências:**
+  - No deploy para a VPS, certificar-se de que as variáveis do `.env` (especialmente `APPWRITE_API_KEY`, `APPWRITE_DATABASE_ID`, `APPWRITE_PROJECT_ID`) estejam replicadas no arquivo `.env` do servidor ou nos Secrets do GitHub Actions.
+- **Próximo passo:** Subir alterações para homologação do Yuri.
+
+## 2026-09-24 — Fecha /api/users sem login, sync fatiado de atletas e espelho Appwrite (Fase A)
+
+- **Autor:** Codex (agente de código, continuação das correções do GPT).
+- **Pedido do Yuri (PO):** continuar as correções que o GPT estava fazendo; entender por que o banco/Appwrite não estava sendo acessado (o projeto tem chave e API no console).
+- **Por que a dificuldade de acessar o banco:** o `.env` local tinha endpoint e project ID, mas o segredo da chave Appwrite só existia no console (oculto). A chamada só com os dados do `.env` devolvia 401. O GPT copiou o segredo via controle do console e confirmou leitura (4 tabelas: eventos e atletas/auditoria vazios, perfis com 1 registro). Para não repetir o erro, o backend agora lê a chave SOMENTE de variável de ambiente do servidor (`APPWRITE_API_KEY`), nunca do bundle frontend e nunca do Git — sem env, roda em disco (fallback) sem quebrar.
+- **Arquivos alterados:** `server/server.js`, `server/appwrite.js` (novo), `client/src/App.jsx`, `client/src/components/LoginPage.jsx`, `client/src/components/OperacaoPage.jsx`, `client/src/components/UsuariosPage.jsx`, `client/src/utils/eventsApi.js`, `client/src/utils/usersApi.js`, `docker-compose.yml`, `.github/workflows/deploy.yml`, `.env.example`, `HANDOFF.md`.
+- **O que foi feito:**
+  1. `/api/users` fechado: exigia nada e devolvia `password` de todos. Agora exige token de sessão (Bearer) + papel ADMIN, e nenhuma resposta inclui senha (`sanitizeUser`). Login emite token opaco de 64 chars (TTL 7 dias); `GET /api/session` valida o token no reload (login sobrevive a recarregar a página; token expirado derruba para o login); `POST /api/logout` revoga.
+  2. Tela de usuários virou redefinição: sem "ver senha atual" (servidor não a devolve mais). Botão SENHA abre modal com senha oculta + `GERAR NOVA SENHA` (exibida uma vez para copiar ao WhatsApp).
+  3. Divergência total x lista (evento com 1.011 atletas no total e rota de atletas zerada): causa raiz — `POST /api/events/:id/athletes` retornava 400 e DESCARTAVA a lista inteira quando qualquer kit era inválido, e o frontend engolia o erro com `.catch vazio`. Agora kits inválidos viram `kitsWarning` sem bloquear atletas; saves registram estado (`SINCRONIZADO` / `SYNC FALHOU` no banner do evento) e há cura nos dois sentidos (servidor zerado + navegador com lista => reenvia; navegador zerado + servidor com lista => puxa).
+  4. Upload fatiado: `POST /api/events/:id/athletes/chunks` (`uploadId`, `chunkIndex`, `totalChunks`, fatias de 250) com merge no servidor; `apiSaveAthletes` usa fatias acima de 300 atletas.
+  5. Espelho Appwrite (server-only, best-effort): `server/appwrite.js` espelha atletas em documentos fatiados (descoberta automática de database/coleções por nome); `GET atletas` usa Appwrite como fallback e reidrata o disco; `GET /api/appwrite/status` diagnostica sem expor segredo. Compose/deploy repassam `APPWRITE_*` e `ADMIN_*` via ambiente/`.env` da VPS (fora do Git).
+- **Validação real:**
+  - `node --check server/server.js` e `server/appwrite.js`: OK.
+  - `npm run lint --prefix client`: 0 warnings, 0 errors (29 arquivos).
+  - `npm run build --prefix client`: OK em 896ms.
+  - Servidor local em porta temporária com `DATA_DIR` isolado: `/api/users` sem token => 401; login => token 64 chars; `/api/users` com token => 1 usuário e 0 campos `password`; `/api/session` => 200; `/api/appwrite/status` => `enabled:false` (modo disco, sem env); save de 350 atletas => `count:350`; save com kit inválido => `ok:true` + `kitsWarning` (antes era 400 com perda da lista); chunks 2/2 => `count:350`; GET => 350 atletas.
+  - Scan do diff: nenhum segredo novo (só o fallback `ADMIN_PASSWORD` pré-existente, já commitado antes).
+- **Riscos e pendências:** (1) Clientes logados antes desta versão perdem acesso a `/api/users` até fazer login de novo (esperado — é o fechamento da brecha). (2) `.env` local contém segredos em texto puro + anotações (PAT GitHub, senha da VPS, segredo Appwrite): NÃO está no Git (conferido via `git ls-files`), mas recomendo girar a chave Appwrite e a senha da VPS por terem circulado em chat/arquivo, e cadastrar `APPWRITE_API_KEY`/`APPWRITE_DATABASE_ID`/`ADMIN_PASSWORD` como Secrets do GitHub para o deploy gravar na VPS. (3) O espelho Appwrite ainda não foi validado contra o console real (sem env aqui); validar via `/api/appwrite/status` após configurar. (4) Senhas de usuários seguem em texto puro em `users.json` — próximo passo é hash (bcrypt). (5) Deploy ainda não publicado; homologação do Yuri pendente (Fase B).
+- **Próximo passo:** Yuri cadastrar os Secrets no GitHub, fazer push para `main` (deploy automático), entrar de novo (novo token), importar a lista de 1.011 atletas no navegador do operador e conferir no computador que a lista aparece; depois validar `/api/appwrite/status` na VPS.
+
 ## 2026-09-24 — Eliminação de Número Sequencial, Seletores Dinâmicos da Tabela Anexada (Modalidade/PCD/Kit) e Prévia Ampla na Associação (Fase A)
 
 - **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).

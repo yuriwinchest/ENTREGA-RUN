@@ -277,132 +277,129 @@ export default function AssociarPlanilhasModal({
 
   // Executar Associação e Ir para Passo 2 (Prévia)
   function handleGenerateAssociation() {
-    if (atletasRows.length === 0) {
-      alert('Por favor, carregue a Planilha de Atletas.')
-      return
-    }
-    if (chipsRows.length === 0) {
-      alert('Por favor, carregue a Planilha de Chips.')
-      return
-    }
-    if (atletasMapping.nome === '') {
-      alert('Selecione a coluna que contém o Nome do Atleta.')
-      return
-    }
+    try {
+      if (atletasRows.length === 0) {
+        alert('Por favor, carregue a Planilha de Atletas.')
+        return
+      }
+      if (atletasMapping.nome === '') {
+        alert('Selecione a coluna que contém o Nome do Atleta.')
+        return
+      }
 
-    if (qrColIdx < 0 || numeroColIdx < 0 || chipColIdx < 0) {
-      alert('Selecione as colunas correspondentes para a planilha de kits.')
-      return
-    }
+      const importedKits = []
+      if (chipsRows.length > 0) {
+        if (qrColIdx < 0 || numeroColIdx < 0 || chipColIdx < 0) {
+          alert('Selecione as colunas correspondentes para a planilha de kits.')
+          return
+        }
 
-    const importedKits = []
-    chipsRows.forEach((row) => {
-      const qrVal = String(row[qrColIdx] ?? '').trim()
-      const numVal = String(row[numeroColIdx] ?? '').trim()
-      const chipVal = String(row[chipColIdx] ?? '').trim()
+        chipsRows.forEach((row) => {
+          const qrVal = String(row[qrColIdx] ?? '').trim()
+          const numVal = String(row[numeroColIdx] ?? '').trim()
+          const chipVal = String(row[chipColIdx] ?? '').trim()
 
-      // Ignora linha completamente vazia
-      if (!qrVal && !numVal && !chipVal) return
+          // Ignora linha completamente vazia
+          if (!qrVal && !numVal && !chipVal) return
 
-      // Se não houver QR code explicitamente separado mas houver número de peito, o QR code é o próprio número
-      const finalNum = numVal || qrVal
-      const finalQr = qrVal || finalNum
-      const finalChip = chipVal || finalNum
+          // Se não houver QR code explicitamente separado mas houver número de peito, o QR code é o próprio número
+          const finalNum = numVal || qrVal
+          const finalQr = qrVal || finalNum
+          const finalChip = chipVal || finalNum
 
-      if (finalNum || finalQr) {
-        importedKits.push({
-          qrCode: finalQr,
-          numero: finalNum,
-          chip: finalChip,
+          if (finalNum || finalQr) {
+            importedKits.push({
+              qrCode: finalQr,
+              numero: finalNum,
+              chip: finalChip,
+            })
+          }
         })
       }
-    })
 
-    if (importedKits.length === 0) {
-      alert('Nenhum kit válido encontrado na planilha de kits.')
-      return
-    }
+      const nameCol = Number(atletasMapping.nome)
+      const docCol = atletasMapping.doc !== '' ? Number(atletasMapping.doc) : -1
+      const modCol = atletasMapping.modalidade !== '' ? Number(atletasMapping.modalidade) : -1
+      const catCol = atletasMapping.categoria !== '' ? Number(atletasMapping.categoria) : -1
+      const sexCol = atletasMapping.sexo !== '' ? Number(atletasMapping.sexo) : -1
+      const camCol = atletasMapping.camiseta !== '' ? Number(atletasMapping.camiseta) : -1
+      const eqCol = atletasMapping.equipe !== '' ? Number(atletasMapping.equipe) : -1
+      const numCol = atletasMapping.numero !== '' ? Number(atletasMapping.numero) : -1
+      const nascCol = atletasMapping.nascimento !== '' ? Number(atletasMapping.nascimento) : -1
+      const cidCol = atletasMapping.cidade !== '' ? Number(atletasMapping.cidade) : -1
+      const importId = `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const existingIds = new Set(existingAthletes.map((a) => String(a.id)))
+      const pairedAthletes = []
 
-    const nameCol = Number(atletasMapping.nome)
-    const docCol = atletasMapping.doc !== '' ? Number(atletasMapping.doc) : -1
-    const modCol = atletasMapping.modalidade !== '' ? Number(atletasMapping.modalidade) : -1
-    const catCol = atletasMapping.categoria !== '' ? Number(atletasMapping.categoria) : -1
-    const sexCol = atletasMapping.sexo !== '' ? Number(atletasMapping.sexo) : -1
-    const camCol = atletasMapping.camiseta !== '' ? Number(atletasMapping.camiseta) : -1
-    const eqCol = atletasMapping.equipe !== '' ? Number(atletasMapping.equipe) : -1
-    const numCol = atletasMapping.numero !== '' ? Number(atletasMapping.numero) : -1
-    const nascCol = atletasMapping.nascimento !== '' ? Number(atletasMapping.nascimento) : -1
-    const cidCol = atletasMapping.cidade !== '' ? Number(atletasMapping.cidade) : -1
-    const importId = `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const existingIds = new Set(existingAthletes.map((a) => String(a.id)))
-    const pairedAthletes = []
+      atletasRows.forEach((row, idx) => {
+        const nomeVal = row[nameCol] ? String(row[nameCol]).trim().toUpperCase() : ''
+        if (!nomeVal) return // Linha sem nome ignorada
 
-    atletasRows.forEach((row, idx) => {
-      const nomeVal = row[nameCol] ? String(row[nameCol]).trim().toUpperCase() : ''
-      if (!nomeVal) return // Linha sem nome ignorada
+        const id = `${importId}-${idx + 1}`
+        const athleteObj = {
+          id,
+          numero: numCol >= 0 && row[numCol] ? String(row[numCol]).trim() : '',
+          chip: '',
+          nome: nomeVal,
+          doc: docCol >= 0 && row[docCol] ? String(row[docCol]).trim() : '',
+          sexo: sexCol >= 0 && row[sexCol] ? String(row[sexCol]).trim() : '',
+          camiseta: camCol >= 0 && row[camCol] ? String(row[camCol]).trim() : '',
+          equipe: eqCol >= 0 && row[eqCol] ? String(row[eqCol]).trim() : '',
+          cidade: cidCol >= 0 && row[cidCol] ? String(row[cidCol]).trim() : '',
+          nascimento: nascCol >= 0 && row[nascCol] ? String(row[nascCol]).trim() : '',
+          modalidade: modCol >= 0 && row[modCol] ? String(row[modCol]).trim() : '',
+          categoria: catCol >= 0 && row[catCol] ? String(row[catCol]).trim() : '',
+          morador: '',
+          contato: '',
+          nacionalidade: '',
+          kit: '',
+          status: 'PENDENTE',
+          createdAt: new Date().toISOString(),
+          customFields: {},
+          _hasCollision: existingIds.has(id),
+        }
 
-      const id = `${importId}-${idx + 1}`
-      const athleteObj = {
-        id,
-        numero: numCol >= 0 && row[numCol] ? String(row[numCol]).trim() : '',
-        chip: '',
-        nome: nomeVal,
-        doc: docCol >= 0 && row[docCol] ? String(row[docCol]).trim() : '',
-        sexo: sexCol >= 0 && row[sexCol] ? String(row[sexCol]).trim() : '',
-        camiseta: camCol >= 0 && row[camCol] ? String(row[camCol]).trim() : '',
-        equipe: eqCol >= 0 && row[eqCol] ? String(row[eqCol]).trim() : '',
-        cidade: cidCol >= 0 && row[cidCol] ? String(row[cidCol]).trim() : '',
-        nascimento: nascCol >= 0 && row[nascCol] ? String(row[nascCol]).trim() : '',
-        modalidade: modCol >= 0 && row[modCol] ? String(row[modCol]).trim() : '',
-        categoria: catCol >= 0 && row[catCol] ? String(row[catCol]).trim() : '',
-        morador: '',
-        contato: '',
-        nacionalidade: '',
-        kit: '',
-        status: 'PENDENTE',
-        createdAt: new Date().toISOString(),
-        customFields: {},
-        _hasCollision: existingIds.has(id),
-      }
-
-      // Preserva automaticamente qualquer coluna adicional da planilha de atletas (como PCD)
-      atletasHeaders.forEach((h, colI) => {
-        if (
-          colI !== nameCol &&
-          colI !== docCol &&
-          colI !== modCol &&
-          colI !== catCol &&
-          colI !== sexCol &&
-          colI !== camCol &&
-          colI !== eqCol &&
-          colI !== numCol &&
-          colI !== nascCol &&
-          colI !== cidCol
-        ) {
-          const val = row[colI] !== undefined ? String(row[colI]).trim() : ''
-          if (h) {
-            const hClean = h.trim()
-            if (isReservedAthleteCustomField(hClean)) return
-            athleteObj.customFields[hClean] = val
-            if (val && hClean.toUpperCase().includes('PCD')) {
-              athleteObj.pcd = val
+        // Preserva automaticamente qualquer coluna adicional da planilha de atletas (como PCD)
+        atletasHeaders.forEach((h, colI) => {
+          if (
+            colI !== nameCol &&
+            colI !== docCol &&
+            colI !== modCol &&
+            colI !== catCol &&
+            colI !== sexCol &&
+            colI !== camCol &&
+            colI !== eqCol &&
+            colI !== numCol &&
+            colI !== nascCol &&
+            colI !== cidCol
+          ) {
+            const val = row[colI] !== undefined ? String(row[colI]).trim() : ''
+            if (h) {
+              const hClean = h.trim()
+              if (isReservedAthleteCustomField(hClean)) return
+              athleteObj.customFields[hClean] = val
+              if (val && hClean.toUpperCase().includes('PCD')) {
+                athleteObj.pcd = val
+              }
             }
           }
-        }
+        })
+
+        pairedAthletes.push(athleteObj)
       })
 
-      pairedAthletes.push(athleteObj)
-    })
+      if (pairedAthletes.length === 0) {
+        alert('Nenhum atleta pôde ser montado a partir dos dados fornecidos.')
+        return
+      }
 
-    if (pairedAthletes.length === 0) {
-      alert('Nenhum atleta pôde ser montado a partir dos dados fornecidos.')
-      return
+      setAssociatedList(pairedAthletes)
+      setKitRows(importedKits)
+      setStep(2)
+    } catch (err) {
+      console.error('Erro ao gerar associação de atletas:', err)
+      alert('Erro ao processar dados da planilha: ' + (err?.message || err))
     }
-
-    setAssociatedList(pairedAthletes)
-    setKitRows(importedKits)
-    setPreviewPage(1)
-    setStep(2)
   }
 
   // Concluir e persistir
@@ -845,7 +842,7 @@ export default function AssociarPlanilhasModal({
                 <button
                   type="button"
                   className="btn-associar-primary"
-                  disabled={!atletasFile || !chipsFile || atletasMapping.nome === ''}
+                  disabled={!atletasFile || atletasMapping.nome === ''}
                   onClick={handleGenerateAssociation}
                 >
                   <span>AVANÇAR PARA PRÉ-VISUALIZAÇÃO</span>

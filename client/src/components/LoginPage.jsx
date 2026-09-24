@@ -61,7 +61,12 @@ export default function LoginPage({ onLoginSuccess }) {
       setSuccess(`Bem-vindo à operação!`)
       if (onLoginSuccess) {
         setTimeout(() => {
-          onLoginSuccess(data.user || { email: email.trim() })
+          try {
+            if (data.token) localStorage.setItem('entregas_run_token', data.token)
+          } catch {
+            // ignore
+          }
+          onLoginSuccess(data.user || { email: email.trim() }, data.token || null)
         }, 300)
       }
     } catch {

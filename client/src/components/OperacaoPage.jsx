@@ -470,7 +470,12 @@ export default function OperacaoPage({
     }
   })
 
+  // Estado do sync com o servidor (visível no console + cura divergência)
+  const [athletesSync, setAthletesSync] = useState({ state: 'idle', at: null })
+
   // Save athletes to localStorage e sincroniza com o servidor central
+  // Upload fatiado automático p/ listas grandes; falha vira estado visível
+  // (antes o .catch vazio escondia a divergência total x lista zerada).
   useEffect(() => {
     try {
       if (currentEvent.id) {
@@ -484,8 +489,17 @@ export default function OperacaoPage({
     }
 
     if (currentEvent.id && Array.isArray(athletes) && athletes.length > 0) {
+      setAthletesSync((prev) => (prev.state === 'saving' ? prev : { state: 'saving', at: Date.now() }))
       const timer = setTimeout(() => {
-        apiSaveAthletes(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined).catch(() => {})
+        apiSaveAthletes(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
+          .then((saved) => {
+            setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
+            if (!saved) console.warn(`[operacao] Sync de atletas falhou p/ evento ${currentEvent.id} — tentando de novo no próximo ciclo.`)
+          })
+          .catch((err) => {
+            console.warn(`[operacao] Sync de atletas falhou p/ evento ${currentEvent.id}:`, err)
+            setAthletesSync({ state: 'error', at: Date.now() })
+          })
       }, 600)
       return () => clearTimeout(timer)
     }
@@ -504,10 +518,13 @@ export default function OperacaoPage({
     }
   }, [athleteColumnSchema, currentEvent.id])
 
-  // Se este navegador ainda não tem os atletas deste evento salvos localmente, busca da API central
+  // Cura divergência nos dois sentidos:
+  // - este navegador tem lista e o servidor está zerado => empurra local p/ servidor
+  // - este navegador está zerado e o servidor tem lista => puxa do servidor
   useEffect(() => {
     let isMounted = true
-    if (currentEvent.id && athletes.length === 0) {
+    if (!currentEvent.id) return () => { isMounted = false }
+    if (athletes.length === 0) {
       apiFetchAthletes(currentEvent.id).then((result) => {
         if (isMounted && result && Array.isArray(result.athletes) && result.athletes.length > 0) {
           setAthletes(result.athletes)
@@ -517,11 +534,25 @@ export default function OperacaoPage({
           }
         }
       })
+    } else {
+      apiFetchAthletes(currentEvent.id).then((result) => {
+        if (!isMounted) return
+        if (result && Array.isArray(result.athletes) && result.athletes.length === 0) {
+          apiSaveAthletes(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
+            .then((saved) => {
+              if (isMounted) setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
+            })
+            .catch(() => {
+              if (isMounted) setAthletesSync({ state: 'error', at: Date.now() })
+            })
+        }
+      })
     }
     return () => {
       isMounted = false
     }
-  }, [currentEvent.id, athletes.length])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentEvent.id])
 
   useEffect(() => {
     if (!currentEvent.id || Array.isArray(kits)) return
@@ -1219,7 +1250,9 @@ export default function OperacaoPage({
     const nextAthletes = athletes.map((a) => matchesAthleteReference(a, source) ? updated : a)
     setAthletes(nextAthletes)
     if (currentEvent?.id) {
-      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined).catch(() => {})
+      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
+        .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
+        .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
     }
     if (selectedAthlete && matchesAthleteReference(selectedAthlete, source)) {
       setSelectedAthlete(updated)
@@ -1460,7 +1493,9 @@ export default function OperacaoPage({
 
     // Persistência no backend / volume
     if (currentEvent?.id) {
-      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined).catch(() => {})
+      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
+        .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
+        .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
     }
 
     const nextDraft = buildAthleteDetailDraft(updatedAthlete)
@@ -1542,7 +1577,9 @@ export default function OperacaoPage({
 
     // Sincroniza atômica com o servidor central
     if (currentEvent?.id) {
-      apiSaveAthletes(currentEvent.id, updatedAthletes, athleteColumnSchema).catch(() => {})
+      apiSaveAthletes(currentEvent.id, updatedAthletes, athleteColumnSchema)
+        .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
+        .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
     }
 
     setShowAddAthleteModal(false)
@@ -1915,6 +1952,10 @@ export default function OperacaoPage({
             <h2 className="banner-title">{currentEvent.name}</h2>
             <span className="banner-meta">
               {currentEvent.dateInput || currentEvent.date} • {currentEvent.location}
+              {' • '}
+              <span title={athletesSync.state === 'error' ? 'Falha no último sync — o app tenta de novo sozinho' : 'Estado da sincronização com o servidor'}>
+                {athletesSync.state === 'saving' ? '◌ SINCRONIZANDO…' : athletesSync.state === 'error' ? '● SYNC FALHOU' : athletesSync.state === 'ok' ? '● SINCRONIZADO' : '● SYNC'}
+              </span>
             </span>
           </div>
 

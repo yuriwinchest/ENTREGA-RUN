@@ -47,6 +47,51 @@ export default function App() {
     }
   })
 
+  // Valida o token salvo: restaura a sessão após reload, derruba login expirado
+  useEffect(() => {
+    let isMounted = true
+    async function validateSession() {
+      let token = ''
+      try {
+        token = localStorage.getItem('entregas_run_token') || ''
+      } catch {
+        token = ''
+      }
+      if (!token) return
+      try {
+        const res = await fetch('/api/session', {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!isMounted) return
+        if (res.ok && data.ok && data.user) {
+          setUser((current) => current || {
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.name,
+            role: data.user.role,
+            eventId: data.user.eventId,
+            eventName: data.user.eventName,
+          })
+        } else {
+          setUser(null)
+          try {
+            localStorage.removeItem('entregas_run_user')
+            localStorage.removeItem('entregas_run_token')
+          } catch {
+            // ignore
+          }
+        }
+      } catch {
+        // sem rede: mantém o usuário em cache até a próxima validação
+      }
+    }
+    validateSession()
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   // Sincroniza eventos locais com o servidor central e puxa atualizações
   useEffect(() => {
     let isMounted = true
@@ -218,7 +263,7 @@ export default function App() {
     window.history.pushState(null, '', path)
   }
 
-  function handleLoginSuccess(userData) {
+  function handleLoginSuccess(userData, token) {
     const loggedUser = {
       id: userData?.id || 'admin_pacetime',
       email: userData?.email || 'pacetime@entregas.com',
@@ -230,6 +275,7 @@ export default function App() {
     setUser(loggedUser)
     try {
       localStorage.setItem('entregas_run_user', JSON.stringify(loggedUser))
+      if (token) localStorage.setItem('entregas_run_token', token)
     } catch {
       // ignore
     }
@@ -237,10 +283,22 @@ export default function App() {
   }
 
   function handleLogout() {
+    try {
+      const token = localStorage.getItem('entregas_run_token') || ''
+      if (token) {
+        fetch('/api/logout', {
+          method: 'POST',
+          headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+        }).catch(() => {})
+      }
+    } catch {
+      // ignore
+    }
     setUser(null)
     setShowTutorial(false)
     try {
       localStorage.removeItem('entregas_run_user')
+      localStorage.removeItem('entregas_run_token')
     } catch {
       // ignore
     }
