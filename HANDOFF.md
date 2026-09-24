@@ -18,7 +18,10 @@
   - `npx oxlint -D no-undef client/src/components/AssociarPlanilhasModal.jsx`: 0 erros de identificadores não definidos (antes acusava `setPreviewPage is not defined`).
   - `npm run lint --prefix client`: 0 warnings, 0 errors em 29 arquivos.
   - `npm run build --prefix client`: compilação concluída com sucesso em 663ms (`index-DOJK-6n7.js`).
-- **Próximo passo:** Subir alterações para produção e validar no navegador do Yuri.
+  - **Deploy em Produção (VPS):** Executado com sucesso via GitHub Actions (Run ID `35958459706`, commit `150ff59`).
+  - **Healthcheck Live:** `https://app.entregasrun.com.br/api/health` retornando `ok: true`.
+  - **Bundle Live:** `index-DOJK-6n7.js` servido ativamente na raiz do domínio.
+- **Próximo passo:** Yuri (PO) testar a importação na tela de Operação em produção.
 
 ## 2026-09-24 — Correção de Sintaxe do .env e Ativação da Conexão com o Banco de Dados Appwrite (Fase A)
 
