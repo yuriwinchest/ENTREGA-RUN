@@ -1499,10 +1499,40 @@
   gap: 14px;
 }
 
+.athlete-dynamic-grid-3 {
+  display: grid;
+  grid-template-columns: 140px 1fr 180px;
+  gap: 14px;
+}
+
+@media (max-width: 640px) {
+  .athlete-dynamic-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
 .athlete-dynamic-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 14px;
+}
+
+.chip-collision-warning-msg {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 4px 8px;
+  animation: fadeIn 0.15s ease-in;
+}
+
+.input-error-border {
+  border-color: #dc2626 !important;
+  background-color: #fffaf0 !important;
 }
 
 .athlete-number-input-wrap {

@@ -95,6 +95,7 @@ export function buildEspelhoAthlete(athlete) {
   return {
     numero: text(athlete.numero ?? athlete.id),
     nome: text(athlete.nome),
+    doc: text(athlete.doc || athlete.cpf),
     modalidade: text(athlete.modalidade),
     categoria: text(athlete.categoria),
     camiseta: text(athlete.camiseta),
@@ -102,31 +103,51 @@ export function buildEspelhoAthlete(athlete) {
     chip: text(athlete.chip),
     sexo: text(athlete.sexo),
     equipe: text(athlete.equipe),
+    cidade: text(athlete.cidade),
+    nascimento: text(athlete.nascimento),
+    nome_peito: text(athlete.nome_peito),
+    pcd: text(athlete.pcd),
+    customFields: athlete.customFields && typeof athlete.customFields === 'object' ? athlete.customFields : {},
   }
 }
 
 export async function publishEspelhoState(eventId, state) {
-  if (!eventId || typeof fetch !== 'function') return
+  if (!eventId) return
   const payload = {
     status: state?.status || 'LIVRE',
     eventName: text(state?.eventName),
     atleta: buildEspelhoAthlete(state?.atleta),
+    updatedAt: Date.now(),
   }
   if (state?.config && typeof state.config === 'object') {
     payload.config = state.config
-  } else if (state?.status) {
-    // Post de ficha/status: envia atleta explicitamente (null limpa a ficha)
-    payload.atleta = buildEspelhoAthlete(state?.atleta)
   }
+
+  // 1. Sincronização em tempo real instantânea (0ms) no mesmo navegador via BroadcastChannel e localStorage
+  broadcastEspelhoChange({
+    type: 'STATE_CHANGE',
+    eventId,
+    state: payload,
+  })
+
   try {
-    await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      keepalive: true,
-    })
+    localStorage.setItem(`entregas_run_espelho_live_${eventId}`, JSON.stringify(payload))
   } catch {
-    // rede indisponível: o espelho remoto aguarda o próximo ciclo
+    // ignore
+  }
+
+  // 2. Publicação remota para outros dispositivos/segundas telas via backend
+  if (typeof fetch === 'function') {
+    try {
+      await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      })
+    } catch {
+      // rede indisponível: o espelho remoto aguarda o próximo ciclo
+    }
   }
 }
 

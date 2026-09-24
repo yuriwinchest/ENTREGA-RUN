@@ -424,7 +424,7 @@ export default function ImportarAtletasModal({
       columns: buildImportColumnSchema(parsedHeaders, columnMapping),
     })
 
-    setStep(3)
+    setStep(4)
   }
 
   // Concluir e persistir
@@ -455,7 +455,15 @@ export default function ImportarAtletasModal({
       <div className="importar-modal-card" onClick={(e) => e.stopPropagation()}>
         {/* CABEÇALHO */}
         <div className="importar-modal-header">
-          <h2 className="importar-modal-title">IMPORTAR ATLETAS</h2>
+          <div>
+            <h2 className="importar-modal-title">IMPORTAR ATLETAS</h2>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', display: 'block', marginTop: '2px' }}>
+              {step === 1 && 'Etapa 1 de 4 — Enviar ou colar arquivo da planilha'}
+              {step === 2 && 'Etapa 2 de 4 — Mapeamento de Colunas'}
+              {step === 3 && 'Etapa 3 de 4 — Pré-visualização Completa dos Dados'}
+              {step === 4 && 'Etapa 4 de 4 — Conclusão da Importação'}
+            </span>
+          </div>
           <button
             type="button"
             className="importar-close-btn"
@@ -657,42 +665,6 @@ export default function ImportarAtletasModal({
               })}
             </div>
 
-            {/* PRÉVIA DOS DADOS DA PLANILHA */}
-            {parsedRows.length > 0 && (
-              <div className="importar-live-preview-wrap">
-                <div className="live-preview-title-row">
-                  <span className="live-preview-title">
-                    PRÉ-VISUALIZAÇÃO DOS DADOS ({parsedRows.length} atletas detectados)
-                  </span>
-                  <span className="live-preview-sub">
-                    Exibindo os primeiros registros com todas as colunas da planilha:
-                  </span>
-                </div>
-                <div className="importar-table-responsive">
-                  <table className="importar-preview-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: '45px' }}>#</th>
-                        {parsedHeaders.map((header, idx) => (
-                          <th key={idx}>{header || `Coluna ${idx + 1}`}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {parsedRows.slice(0, 5).map((row, rowIdx) => (
-                        <tr key={rowIdx}>
-                          <td style={{ fontWeight: 800, color: '#64748b' }}>{rowIdx + 1}</td>
-                          {parsedHeaders.map((_, colIdx) => (
-                            <td key={colIdx}>{row[colIdx] !== undefined && String(row[colIdx]).trim() !== '' ? String(row[colIdx]) : '—'}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
             {/* Rodapé da Etapa 2 */}
             <div className="importar-modal-actions">
               <button
@@ -705,17 +677,99 @@ export default function ImportarAtletasModal({
               <button
                 type="button"
                 className="btn-importar-primary"
-                onClick={handleExecuteImport}
+                onClick={() => setStep(3)}
               >
-                <span>IMPORTAR ATLETAS</span>
+                <span>AVANÇAR PARA PRÉVIA</span>
                 <span className="btn-arrow">→</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* ETAPA 3: RESUMO DA IMPORTAÇÃO (FOTO 5) */}
+        {/* ETAPA 3: PRÉ-VISUALIZAÇÃO COMPLETA DOS DADOS */}
         {step === 3 && (
+          <div className="importar-modal-body">
+            <div className="importar-full-preview-header">
+              <div className="live-preview-title-row">
+                <span className="live-preview-title" style={{ fontSize: '14px' }}>
+                  PRÉ-VISUALIZAÇÃO COMPLETA DOS DADOS ({parsedRows.length} atletas detectados)
+                </span>
+                <span className="live-preview-sub">
+                  Confira como as colunas mapeadas serão importadas no sistema antes de confirmar:
+                </span>
+              </div>
+            </div>
+
+            <div className="importar-table-responsive full-screen-preview" style={{ maxHeight: 'calc(75vh - 160px)', minHeight: '320px' }}>
+              <table className="importar-preview-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '45px', position: 'sticky', top: 0, zIndex: 2 }}>#</th>
+                    {parsedHeaders.map((header, idx) => {
+                      const mapping = columnMapping[idx]
+                      const targetLabel = (() => {
+                        if (!mapping || mapping === 'ignore') return 'IGNORADA'
+                        if (mapping.startsWith('custom:')) return mapping.slice(7)
+                        const found = AVAILABLE_FIELDS.find((f) => f.value === mapping)
+                        return found ? found.label : mapping
+                      })()
+
+                      return (
+                        <th key={idx} style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+                          <div>{header || `Coluna ${idx + 1}`}</div>
+                          <div style={{ fontSize: '10px', color: '#ff5200', marginTop: '2px', fontWeight: 700 }}>
+                            → {targetLabel}
+                          </div>
+                        </th>
+                      )
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedRows.slice(0, 50).map((row, rowIdx) => (
+                    <tr key={rowIdx}>
+                      <td style={{ fontWeight: 800, color: '#64748b' }}>{rowIdx + 1}</td>
+                      {parsedHeaders.map((_, colIdx) => (
+                        <td key={colIdx}>
+                          {row[colIdx] !== undefined && String(row[colIdx]).trim() !== ''
+                            ? String(row[colIdx])
+                            : '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {parsedRows.length > 50 && (
+              <p style={{ margin: 0, fontSize: '11px', color: '#64748b', textAlign: 'center' }}>
+                Exibindo os primeiros 50 registros de um total de {parsedRows.length} atletas.
+              </p>
+            )}
+
+            {/* Rodapé da Etapa 3 */}
+            <div className="importar-modal-actions">
+              <button
+                type="button"
+                className="btn-importar-cancel"
+                onClick={() => setStep(2)}
+              >
+                ← VOLTAR AO MAPEAMENTO
+              </button>
+              <button
+                type="button"
+                className="btn-importar-primary"
+                onClick={handleExecuteImport}
+              >
+                <span>CONFIRMAR E IMPORTAR ATLETAS</span>
+                <span className="btn-arrow">→</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ETAPA 4: RESUMO DA IMPORTAÇÃO */}
+        {step === 4 && (
           <div className="importar-modal-body">
             {/* Card Verde de Sucesso */}
             <div className="import-success-card">
@@ -752,7 +806,7 @@ export default function ImportarAtletasModal({
               </div>
             )}
 
-            {/* Rodapé da Etapa 3 */}
+            {/* Rodapé da Etapa 4 */}
             <div className="importar-modal-actions">
               <button
                 type="button"

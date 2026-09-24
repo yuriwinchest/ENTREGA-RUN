@@ -1,6 +1,32 @@
 # Handoff
 
-## 2026-09-23 — Gerenciamento de Usuários, Telão Completo sem Corte, Limpeza de Colunas, Otimização de Busca e Refatoração do Dashboard (Fase A)
+## 2026-09-24 — Chip Editável com Checagem de Colisão, Máscara de Nascimento, Tabela Anexada Fidedigna, Busca Aprimorada e Importação em 4 Etapas (Fase A)
+
+- **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
+- **Pedido do Yuri (PO via áudio e mensagens):**
+  1. *Modal de Adicionar Atleta*:
+     - O campo de CHIP não fixa mais número; inicia sempre limpo (`''`) e permite digitação livre.
+     - Validação de colisão de chip em tempo real: ao digitar um chip já associado a outro atleta no evento, exibe aviso visual imediato e bloqueia o salvamento.
+     - Data de nascimento com máscara dinâmica progressiva (`dd/mm/aaaa`, ex: `220` vira `22/0`, `22081995` vira `22/08/1995`).
+     - Carregamento fidedigno de todos os campos da tabela anexada (colunas padrão e personalizadas/extras), sem badges artificiais de "campos da IA/planilha".
+  2. *Ficha do Atleta e Aba de Entrega de Kit*:
+     - CHIP editável diretamente na ficha com validação de colisão contra chips de outros atletas.
+     - Data de nascimento com máscara dinâmica.
+     - Ausência de botão "Imprimir Comprovante" na aba de Entrega de Kit (mantendo o fluxo focado em entrega e associação).
+     - Confirmação protetiva ao fechar a ficha de um atleta com kit associado pendente de entrega.
+     - Busca na entrega de kit normalizada (sem acentos) e multi-termo, sem excluir atletas já entregues dos resultados.
+     - Remoção da paginação nas Últimas Entregas: exibição fixa das 5 entregas mais recentes em ordem cronológica de recência.
+  3. *Modal de Importação de Atletas (4 Etapas)*:
+     - Fluxo reestruturado em 4 etapas sequenciais: Etapa 1 (Upload/Colar) -> Etapa 2 (Mapeamento limpo de colunas, sem prévia espremida) -> Etapa 3 (Pré-visualização Ampla e Completa dos dados com colunas mapeadas) -> Etapa 4 (Conclusão e Resumo de sucesso).
+  4. *Espelho / Telão Público*:
+     - Latência zero local (0ms) com `STATE_CHANGE` no `subscribeEspelhoSync` e polling de alta frequência (1000ms) para telas remotas.
+- **Arquivos alterados:** `client/src/components/EspelhoPage.jsx`, `client/src/components/ImportarAtletasModal.jsx`, `client/src/components/OperacaoPage.css`, `client/src/components/OperacaoPage.jsx`, `client/src/utils/espelhoSync.js`, `HANDOFF.md`.
+- **Validação real:**
+  - `npm run lint --prefix client`: 0 warnings, 0 errors em 29 arquivos (oxlint).
+  - `npm run build --prefix client`: compilação Vite concluída com sucesso em 679ms (`index-CQE-23-k.js` e `index-Bef7SbCm.css`).
+- **Riscos e pendências:** Nenhuma regressão detectada.
+- **Próximo passo:** Commit e push para a branch `main` para acionar o deploy automático em produção e homologação com o Yuri.
+
 
 - **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
 - **Pedido do Yuri (PO via áudios e capturas de tela):**

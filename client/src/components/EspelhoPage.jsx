@@ -39,10 +39,17 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     return remoteName || 'EVENTO'
   })()
 
-  // Sincronização em tempo real via BroadcastChannel e Storage Events
+  // Sincronização em tempo real via BroadcastChannel e Storage Events (0ms de latência local)
   useEffect(() => {
     const unsubscribe = subscribeEspelhoSync((msg) => {
-      if (msg.type === 'CONFIG_CHANGE' && (!msg.eventId || msg.eventId === eventId)) {
+      if (msg.type === 'STATE_CHANGE' && (!msg.eventId || msg.eventId === eventId)) {
+        if (msg.state) {
+          setMirrorState(msg.state)
+          setConnected(true)
+          if (msg.state.eventName) setRemoteName(msg.state.eventName)
+          if (msg.state.config) setConfig((prev) => ({ ...prev, ...msg.state.config }))
+        }
+      } else if (msg.type === 'CONFIG_CHANGE' && (!msg.eventId || msg.eventId === eventId)) {
         setConfig(msg.config || DEFAULT_ESPELHO_CONFIG)
       } else if (msg.type === 'STORAGE_UPDATE') {
         setConfig(getEspelhoConfig(eventId))
@@ -54,8 +61,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     }
   }, [eventId])
 
-  // Polling do estado público publicado pelo guichê (funciona em
-  // qualquer aparelho que abrir o link/QR Code, não só neste PC).
+  // Polling de alta frequência (1000ms) do estado público publicado pelo guichê (para monitores remotos/outros PCs)
   useEffect(() => {
     if (!eventId) return undefined
     let cancelled = false
@@ -74,7 +80,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     }
 
     poll()
-    const interval = window.setInterval(poll, 2000)
+    const interval = window.setInterval(poll, 1000)
     return () => {
       cancelled = true
       window.clearInterval(interval)

@@ -61,6 +61,22 @@ function getNextAthleteNumber(athleteList) {
   return String(max + 1)
 }
 
+function formatDateInput(raw) {
+  if (!raw) return ''
+  const digits = String(raw).replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
+function normalizeSearchText(str) {
+  return String(str || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}
+
 function HelpCircleIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -456,8 +472,6 @@ export default function OperacaoPage({
     if (currentEvent.id && Array.isArray(kits)) localStorage.setItem(`entregas_run_kits_${currentEvent.id}`, JSON.stringify(kits))
   }, [kits, currentEvent.id])
 
-  const [deliveriesPage, setDeliveriesPage] = useState(1)
-
   const [athleteColumnSchema, setAthleteColumnSchema] = useState(() => {
     try {
       if (!currentEvent.id) return []
@@ -535,6 +549,10 @@ export default function OperacaoPage({
     [athletes, athleteColumnSchema]
   )
 
+  const activeColumnKeys = useMemo(() => {
+    return new Set(athleteTableColumns.map((col) => col.key))
+  }, [athleteTableColumns])
+
   const shirtOptions = useMemo(() => {
     const unique = new Set()
     athletes.forEach((a) => {
@@ -549,28 +567,33 @@ export default function OperacaoPage({
   }, [athletes])
 
   const availableStandardColumns = useMemo(() => {
-    const ignored = new Set(['status', 'entregueEm', 'entreguePor', 'entreguePara'])
-    const standard = athleteTableColumns.filter(
+    // Número, Nome e Chip são campos fixos de destaque no bloco principal do modal NOVO ATLETA
+    const ignored = new Set(['numero', 'nome', 'chip', 'status', 'entregueEm', 'entreguePor', 'entreguePara'])
+    return athleteTableColumns.filter(
       (col) => col.type === 'standard' && !ignored.has(col.key)
     )
-    if (standard.length === 0) {
-      return [
-        { key: 'numero', label: 'NÚMERO', required: true, type: 'standard' },
-        { key: 'nome', label: 'NOME COMPLETO', required: true, type: 'standard' },
-        { key: 'doc', label: 'DOCUMENTO / CPF', type: 'standard' },
-        { key: 'modalidade', label: 'MODALIDADE', type: 'standard' },
-        { key: 'categoria', label: 'CATEGORIA', type: 'standard' },
-        { key: 'camiseta', label: 'CAMISETA', type: 'standard' },
-        { key: 'kit', label: 'KIT', type: 'standard' },
-        { key: 'chip', label: 'CHIP', type: 'standard' },
-      ]
-    }
-    return standard
   }, [athleteTableColumns])
 
   const availableCustomColumns = useMemo(() => {
     return athleteTableColumns.filter((col) => col.type === 'custom' && col.customKey)
   }, [athleteTableColumns])
+
+  // Validação em tempo real de colisão de chip para o modal NOVO ATLETA
+  const addAthleteChipCollision = useMemo(() => {
+    const raw = String(athleteForm.chip || '').trim().toLowerCase()
+    if (!raw) return null
+    return athletes.find((a) => String(a.chip || '').trim().toLowerCase() === raw)
+  }, [athleteForm.chip, athletes])
+
+  // Validação em tempo real de colisão de chip para a FICHA DO ATLETA (Edição)
+  const detailChipCollision = useMemo(() => {
+    const raw = String(detailForm?.chip || '').trim().toLowerCase()
+    if (!raw) return null
+    const currentId = selectedAthlete?.id || detailForm?.id
+    return athletes.find(
+      (a) => String(a.chip || '').trim().toLowerCase() === raw && a.id !== currentId
+    )
+  }, [detailForm?.chip, detailForm?.id, selectedAthlete?.id, athletes])
 
   function handleOpenAddAthleteModal() {
     if (isOperator) return
@@ -584,7 +607,7 @@ export default function OperacaoPage({
       numero: nextNum,
       nome: '',
       doc: '',
-      chip: '',
+      chip: '', // Vem SEMPRE limpo!
       nascimento: '',
       sexo: 'Masculino',
       modalidade: athletes[0]?.modalidade || '5 KM',
@@ -601,7 +624,7 @@ export default function OperacaoPage({
     setShowAddAthleteModal(true)
   }
 
-  // Deliveries list: sempre ordenado de forma crescente por número de peito (1, 2, 3...)
+  // Deliveries list: mantém os entregues em ordem cronológica de recência (mais recente no topo)
   const [deliveries, setDeliveries] = useState(() => {
     try {
       if (!currentEvent.id) return []
@@ -621,7 +644,7 @@ export default function OperacaoPage({
         const existingIds = new Set(list.map((d) => String(d.id)))
         for (const a of athletesList) {
           if (a.status === 'ENTREGUE' && !existingIds.has(String(a.numero))) {
-            list.push({
+            list.unshift({
               id: a.numero,
               name: a.nome,
               doc: a.doc,
@@ -636,7 +659,7 @@ export default function OperacaoPage({
         }
       }
 
-      return list.sort((a, b) => compareAthleteNumbers(a.id, b.id))
+      return list
     } catch {
       return []
     }
@@ -1176,6 +1199,24 @@ export default function OperacaoPage({
       if (!shouldDiscard) return false
     }
 
+    // Se o atleta tem número ou chip associado mas o kit ainda está pendente de entrega
+    if (!force && detailForm && detailForm.status !== 'ENTREGUE') {
+      const hasAssociatedKit =
+        Boolean(detailForm.chip) ||
+        (Boolean(detailForm.numero) && detailForm.numero !== '—' && detailForm.numero !== '')
+      if (hasAssociatedKit) {
+        const deliverNow = window.confirm(
+          'Este atleta já possui número/chip associado, mas o kit ainda não foi entregue.\n\n' +
+          '• Clique em OK para CONFIRMAR A ENTREGA DO KIT agora.\n' +
+          '• Clique em Cancelar para sair mantendo o kit como PENDENTE.'
+        )
+        if (deliverNow) {
+          handleSaveAndDeliver()
+          return true
+        }
+      }
+    }
+
     const returnTab = detailSourceTab
     setSelectedAthlete(null)
     setDetailForm(null)
@@ -1222,6 +1263,13 @@ export default function OperacaoPage({
       return null
     }
 
+    if (detailChipCollision) {
+      window.alert(
+        `O chip "${detailForm.chip}" já pertence a outro atleta: "${detailChipCollision.nome}" (Nº ${detailChipCollision.numero}). Por favor, informe outro chip.`
+      )
+      return null
+    }
+
     setAthletes((prev) => {
       let found = false
       const updated = prev.map((athlete) => {
@@ -1245,7 +1293,7 @@ export default function OperacaoPage({
           kit: normalized.kit,
         }
       })
-      return updated.sort((a, b) => compareAthleteNumbers(a.id, b.id))
+      return updated
     })
 
     const recipient = normalized.entreguePara || normalized.nome
@@ -1395,6 +1443,13 @@ export default function OperacaoPage({
       return
     }
 
+    if (addAthleteChipCollision) {
+      window.alert(
+        `O chip "${athleteForm.chip}" já está associado ao atleta "${addAthleteChipCollision.nome}" (Nº ${addAthleteChipCollision.numero}). Por favor, informe outro chip.`
+      )
+      return
+    }
+
     const newAthlete = {
       id: `ath-${Date.now()}`,
       numero: num,
@@ -1510,8 +1565,7 @@ export default function OperacaoPage({
       dataHora: dataHoraFormatada,
     }
     setDeliveries((prev) => {
-      const next = [newDelivery, ...prev.filter((d) => String(d.id) !== String(newDelivery.id))]
-      return next.sort((a, b) => compareAthleteNumbers(a.id, b.id))
+      return [newDelivery, ...prev.filter((d) => String(d.id) !== String(newDelivery.id))]
     })
 
     // Registra na Auditoria
@@ -1598,106 +1652,72 @@ export default function OperacaoPage({
     }
   }
 
-  // Abre modal do comprovante (2 vias) para um atleta ou registro de auditoria
-  function _handleOpenComprovante(target) {
-    if (!target) return
-    if (target.comprovanteId) {
-      setSelectedComprovante(target)
-      return
-    }
-    const found = audits.find(
-      (a) => String(a.atletaNumero) === String(target.numero || target.id)
-    )
-    if (found) {
-      setSelectedComprovante(found)
-      return
-    }
-    const opName = user?.name || 'Felipe Admin'
-    const opEmail = user?.email || 'pacetime@entregas.com'
-    const fallbackAudit = {
-      id: `aud-${Date.now()}-${target.numero || target.id}`,
-      comprovanteId: `CPR-${Math.floor(100000 + Math.random() * 900000)}`,
-      dataHora: target.entregueEm || new Date().toLocaleString('pt-BR'),
-      timestamp: Date.now(),
-      atletaNumero: target.numero || target.id,
-      atletaNome: target.nome,
-      atletaCpf: target.doc || '—',
-      tipo:
-        target.entreguePara &&
-        target.entreguePara.trim().toUpperCase() !== target.nome.trim().toUpperCase()
-          ? 'TERCEIRO'
-          : 'ATLETA',
-      retiradoPor: target.entreguePara || target.nome,
-      operadorNome: target.entreguePor || opName,
-      operadorEmail: opEmail,
-      pontoEntrega: 'Guichê Principal',
-      kit: target.kit || 'Kit Padrão',
-      camiseta: target.camiseta || 'M',
-      modalidade: target.modalidade || '5 KM',
-      status: 'ENTREGUE',
-      eventId: currentEvent.id,
-    }
-    setSelectedComprovante(fallbackAudit)
-  }
 
   // Função de ordenação inteligente para buscas por nome ou número
   function sortAthletesBySearchQuery(athletesList, query) {
-    const q = String(query || '').trim().toLowerCase()
-    if (!q) {
+    const rawQ = String(query || '').trim()
+    if (!rawQ) {
       return [...athletesList].sort((a, b) => compareAthleteNumbers(a.numero, b.numero))
     }
 
-    const isNumeric = /^\d+$/.test(q)
+    const q = normalizeSearchText(rawQ)
+    const isNumeric = /^\d+$/.test(rawQ)
     if (isNumeric) {
       return [...athletesList].sort((a, b) => {
         const numA = String(a.numero || '').trim()
         const numB = String(b.numero || '').trim()
-        const exactA = numA === q ? 1 : 0
-        const exactB = numB === q ? 1 : 0
+        const exactA = numA === rawQ ? 1 : 0
+        const exactB = numB === rawQ ? 1 : 0
         if (exactA !== exactB) return exactB - exactA
-        const startsA = numA.startsWith(q) ? 1 : 0
-        const startsB = numB.startsWith(q) ? 1 : 0
+        const startsA = numA.startsWith(rawQ) ? 1 : 0
+        const startsB = numB.startsWith(rawQ) ? 1 : 0
         if (startsA !== startsB) return startsB - startsA
         return compareAthleteNumbers(a.numero, b.numero)
       })
     }
 
-    // Busca textual: prioriza quem COMEÇA com a letra/termo digitado (ex: 'S' -> 'SEVERINO' antes de 'ADRIANA SILVA')
+    // Busca textual: prioriza quem COMEÇA com a busca
     return [...athletesList].sort((a, b) => {
-      const nomeA = (a.nome || '').trim().toLowerCase()
-      const nomeB = (b.nome || '').trim().toLowerCase()
+      const nomeA = normalizeSearchText(a.nome)
+      const nomeB = normalizeSearchText(b.nome)
 
-      // 1. Nomes cujo primeiro nome começa com a busca
       const startsA = nomeA.startsWith(q) ? 1 : 0
       const startsB = nomeB.startsWith(q) ? 1 : 0
       if (startsA !== startsB) return startsB - startsA
 
-      // 2. Nomes onde alguma palavra (sobrenome) começa com a busca
       const wordsA = nomeA.split(/\s+/).some((w) => w.startsWith(q)) ? 1 : 0
       const wordsB = nomeB.split(/\s+/).some((w) => w.startsWith(q)) ? 1 : 0
       if (wordsA !== wordsB) return wordsB - wordsA
 
-      // 3. Ordem alfabética pelo nome completo
-      return nomeA.localeCompare(nomeB, 'pt-BR')
+      return (a.nome || '').localeCompare(b.nome || '', 'pt-BR')
     })
   }
 
   // Filtered Athletes for Tab 2 (ordenados inteligentemente pela busca ou número)
   const filteredAthletes = useMemo(() => {
-    const q = atletaSearch.toLowerCase().trim()
-    const cleanDigits = q.replace(/[^\d]/g, '')
-    const isNumeric = /^\d+$/.test(q)
+    const rawQ = atletaSearch.trim()
+    const q = normalizeSearchText(rawQ)
+    const terms = q.split(/\s+/).filter(Boolean)
+    const cleanDigits = rawQ.replace(/[^\d]/g, '')
+    const isNumeric = /^\d+$/.test(rawQ)
 
     const matches = athletes.filter((a) => {
-      const nome = (a.nome || '').toLowerCase()
-      const numero = String(a.numero || '')
-      const doc = (a.doc || '').replace(/[^\d]/g, '')
+      const normNome = normalizeSearchText(a.nome)
+      const numero = String(a.numero || '').trim()
+      const normDoc = String(a.doc || '').replace(/[^\d]/g, '')
+      const normChip = normalizeSearchText(a.chip)
 
       const matchesSearch =
-        !q ||
+        terms.length === 0 ||
         (isNumeric
-          ? (numero.includes(q) || (cleanDigits && doc.includes(cleanDigits)))
-          : (nome.includes(q) || (cleanDigits && doc.includes(cleanDigits))))
+          ? (numero === rawQ || numero.includes(rawQ) || (cleanDigits && normDoc.includes(cleanDigits)) || normChip === rawQ)
+          : terms.every(
+              (t) =>
+                normNome.includes(t) ||
+                numero.includes(t) ||
+                (cleanDigits && normDoc.includes(t)) ||
+                normChip.includes(t)
+            ))
 
       const matchesFilter =
         atletaFilter === 'TODOS' ||
@@ -1707,7 +1727,7 @@ export default function OperacaoPage({
       return matchesSearch && matchesFilter
     })
 
-    return sortAthletesBySearchQuery(matches, q)
+    return sortAthletesBySearchQuery(matches, rawQ)
   }, [athletes, atletaSearch, atletaFilter])
 
   // Paginação da grade de atletas (10 por página). O reset para a página 1
@@ -1748,43 +1768,54 @@ export default function OperacaoPage({
     [visibleAthleteTableColumns]
   )
 
-  // Filtered Athletes for Tab 1 (Kit Search - prioriza quem começa com a letra digitada)
+  // Filtered Athletes for Tab 1 (Kit Search - traz tanto quem já recebeu kit quanto pendente)
   const searchResultsKit = useMemo(() => {
-    if (!kitSearch.trim()) return []
-    const q = kitSearch.toLowerCase().trim()
-    const cleanDigits = q.replace(/[^\d]/g, '')
-    const isNumeric = /^\d+$/.test(q)
+    const rawQ = kitSearch.trim()
+    if (!rawQ) return []
+    const normQ = normalizeSearchText(rawQ)
+    const terms = normQ.split(/\s+/).filter(Boolean)
+    const cleanDigits = rawQ.replace(/[^\d]/g, '')
+    const isNumeric = /^\d+$/.test(rawQ)
 
     const matches = athletes.filter((a) => {
-      if (a.status === 'ENTREGUE') return false
-      const nome = (a.nome || '').toLowerCase()
-      const numero = String(a.numero || '')
-      const doc = (a.doc || '').replace(/[^\d]/g, '')
+      const normNome = normalizeSearchText(a.nome)
+      const numero = String(a.numero || '').trim()
+      const normDoc = String(a.doc || '').replace(/[^\d]/g, '')
+      const normChip = normalizeSearchText(a.chip)
 
       if (isNumeric) {
-        return numero.includes(q) || (cleanDigits && doc.includes(cleanDigits))
+        if (numero === rawQ || numero.includes(rawQ)) return true
+        if (cleanDigits && normDoc.includes(cleanDigits)) return true
+        if (normChip === rawQ) return true
       }
-      return nome.includes(q) || (cleanDigits && doc.includes(cleanDigits))
+
+      return terms.every(
+        (t) =>
+          normNome.includes(t) ||
+          numero.includes(t) ||
+          (cleanDigits && normDoc.includes(t)) ||
+          normChip.includes(t)
+      )
     })
 
-    return sortAthletesBySearchQuery(matches, q)
+    return sortAthletesBySearchQuery(matches, rawQ)
   }, [athletes, kitSearch])
 
-  // Lista de entregas sempre ordenada por número de peito de forma crescente (1, 2, 3...)
-  const sortedDeliveries = useMemo(() => {
-    return [...deliveries].sort((a, b) => compareAthleteNumbers(a.id, b.id))
+  // Exibe apenas as 5 últimas entregas em ordem de recência (o mais recente no topo)
+  const recentDeliveries = useMemo(() => {
+    return deliveries.slice(0, 5)
   }, [deliveries])
 
-  const hasDeliveries = sortedDeliveries.length > 0
+  const hasDeliveries = recentDeliveries.length > 0
 
   function handleRefreshDeliveries() {
     setDeliveries((prev) => {
       const existingIds = new Set(prev.map((d) => String(d.id)))
-      const merged = [...prev]
+      const newlyAdded = []
 
       for (const a of athletes) {
         if (a.status === 'ENTREGUE' && !existingIds.has(String(a.numero))) {
-          merged.push({
+          newlyAdded.push({
             id: a.numero,
             name: a.nome,
             doc: a.doc,
@@ -1798,7 +1829,7 @@ export default function OperacaoPage({
         }
       }
 
-      return merged.sort((a, b) => compareAthleteNumbers(a.id, b.id))
+      return [...newlyAdded, ...prev]
     })
   }
 
@@ -2100,259 +2131,305 @@ export default function OperacaoPage({
                       />
                     </div>
 
-                    <div className="athlete-form-group">
-                      <label className="athlete-form-label">DOCUMENTO</label>
-                      <input
-                        type="text"
-                        className="athlete-form-input"
-                        value={detailForm.doc}
-                        onChange={(e) =>
-                          setDetailForm({ ...detailForm, doc: e.target.value })
-                        }
-                      />
-                    </div>
-
-                    <div className="athlete-form-group">
-                      <label className="athlete-form-label">SEXO</label>
-                      <select
-                        className="athlete-form-select"
-                        value={detailForm.sexo}
-                        onChange={(e) =>
-                          setDetailForm({ ...detailForm, sexo: e.target.value })
-                        }
-                      >
-                        <option value="Masculino">Masculino</option>
-                        <option value="Feminino">Feminino</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Linha 2: NASCIMENTO */}
-                  <div className="detail-form-row-4">
-                    <div className="athlete-form-group">
-                      <label className="athlete-form-label">NASCIMENTO</label>
-                      <div className="athlete-input-icon-wrap">
+                    {(activeColumnKeys.has('doc') || Boolean(detailForm.doc)) && (
+                      <div className="athlete-form-group">
+                        <label className="athlete-form-label">DOCUMENTO</label>
                         <input
                           type="text"
                           className="athlete-form-input"
-                          placeholder="dd/mm/aaaa"
-                          value={detailForm.nascimento}
+                          value={detailForm.doc}
                           onChange={(e) =>
-                            setDetailForm({
-                              ...detailForm,
-                              nascimento: e.target.value,
-                            })
+                            setDetailForm({ ...detailForm, doc: e.target.value })
                           }
                         />
-                        <span className="input-end-icon">
-                          <CalendarIcon />
-                        </span>
+                      </div>
+                    )}
+
+                    {(activeColumnKeys.has('sexo') || Boolean(detailForm.sexo)) && (
+                      <div className="athlete-form-group">
+                        <label className="athlete-form-label">SEXO</label>
+                        <select
+                          className="athlete-form-select"
+                          value={detailForm.sexo}
+                          onChange={(e) =>
+                            setDetailForm({ ...detailForm, sexo: e.target.value })
+                          }
+                        >
+                          <option value="Masculino">Masculino</option>
+                          <option value="Feminino">Feminino</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Linha 2: NASCIMENTO (se presente) */}
+                  {(activeColumnKeys.has('nascimento') || Boolean(detailForm.nascimento)) && (
+                    <div className="detail-form-row-4">
+                      <div className="athlete-form-group">
+                        <label className="athlete-form-label">NASCIMENTO</label>
+                        <div className="athlete-input-icon-wrap">
+                          <input
+                            type="text"
+                            className="athlete-form-input"
+                            placeholder="dd/mm/aaaa"
+                            value={detailForm.nascimento || ''}
+                            onChange={(e) =>
+                              setDetailForm({
+                                ...detailForm,
+                                nascimento: formatDateInput(e.target.value),
+                              })
+                            }
+                          />
+                          <span className="input-end-icon">
+                            <CalendarIcon />
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Linha 3: MODALIDADE, CATEGORIA, EQUIPE (+), NACIONALIDADE */}
                   <div className="detail-form-row-4">
-                    <div className="athlete-form-group">
-                      <label className="athlete-form-label">MODALIDADE</label>
-                      <select
-                        className="athlete-form-select"
-                        value={detailForm.modalidade}
-                        onChange={(e) =>
-                          setDetailForm({
-                            ...detailForm,
-                            modalidade: e.target.value,
-                          })
-                        }
-                      >
-                        {Array.from(new Set(['5 KM', '10 KM', '21 KM', ...modalidadeStats.map((m) => m.name), detailForm.modalidade].filter(Boolean))).map((m) => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="athlete-form-group">
-                      <label className="athlete-form-label">CATEGORIA</label>
-                      <select
-                        className="athlete-form-select"
-                        value={detailForm.categoria}
-                        onChange={(e) =>
-                          setDetailForm({
-                            ...detailForm,
-                            categoria: e.target.value,
-                          })
-                        }
-                      >
-                        <option value="GERAL">GERAL</option>
-                        <option value="8 - ALTO DO MOURA">8 - ALTO DO MOURA</option>
-                        <option value="79 - DEMAIS ATLETAS">79 - DEMAIS ATLETAS</option>
-                        <option value="14 - MORRO DO BOM JESUS">14 - MORRO DO BOM JESUS</option>
-                        <option value="2 - ATLETAS LOCAIS">2 - ATLETAS LOCAIS</option>
-                      </select>
-                    </div>
-
-                    <div className="athlete-form-group">
-                      <label className="athlete-form-label">EQUIPE</label>
-                      <div className="input-with-action-wrap">
+                    {(activeColumnKeys.has('modalidade') || Boolean(detailForm.modalidade)) && (
+                      <div className="athlete-form-group">
+                        <label className="athlete-form-label">MODALIDADE</label>
                         <select
                           className="athlete-form-select"
-                          value={detailForm.equipe}
+                          value={detailForm.modalidade}
                           onChange={(e) =>
-                            setDetailForm({ ...detailForm, equipe: e.target.value })
+                            setDetailForm({
+                              ...detailForm,
+                              modalidade: e.target.value,
+                            })
                           }
                         >
-                          <option value="—">—</option>
-                          <option value="BORA PRO CORRE">BORA PRO CORRE</option>
-                          <option value="BORAPROCORRE">BORAPROCORRE</option>
-                          <option value="FORMOSO PACE CLUBE">FORMOSO PACE CLUBE</option>
-                          <option value="BROCARUN">BROCARUN</option>
-                          <option value="SEM EQUIPE">SEM EQUIPE</option>
+                          {Array.from(new Set(['5 KM', '10 KM', '21 KM', ...modalidadeStats.map((m) => m.name), detailForm.modalidade].filter(Boolean))).map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
                         </select>
-                        <button
-                          type="button"
-                          className="btn-inline-plus"
-                          title="Nova Equipe"
-                        >
-                          +
-                        </button>
                       </div>
-                    </div>
+                    )}
 
-                    <div className="athlete-form-group">
-                      <label className="athlete-form-label">NACIONALIDADE</label>
-                      <select
-                        className="athlete-form-select"
-                        value={detailForm.nacionalidade}
-                        onChange={(e) =>
-                          setDetailForm({
-                            ...detailForm,
-                            nacionalidade: e.target.value,
-                          })
-                        }
-                      >
-                        <option value="BRASIL">BRASIL</option>
-                        <option value="OUTRO">OUTRO</option>
-                      </select>
-                    </div>
+                    {(activeColumnKeys.has('categoria') || Boolean(detailForm.categoria)) && (
+                      <div className="athlete-form-group">
+                        <label className="athlete-form-label">CATEGORIA</label>
+                        <select
+                          className="athlete-form-select"
+                          value={detailForm.categoria}
+                          onChange={(e) =>
+                            setDetailForm({
+                              ...detailForm,
+                              categoria: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="GERAL">GERAL</option>
+                          <option value="8 - ALTO DO MOURA">8 - ALTO DO MOURA</option>
+                          <option value="79 - DEMAIS ATLETAS">79 - DEMAIS ATLETAS</option>
+                          <option value="14 - MORRO DO BOM JESUS">14 - MORRO DO BOM JESUS</option>
+                          <option value="2 - ATLETAS LOCAIS">2 - ATLETAS LOCAIS</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {(activeColumnKeys.has('equipe') || Boolean(detailForm.equipe && detailForm.equipe !== '—' && detailForm.equipe !== 'SEM EQUIPE')) && (
+                      <div className="athlete-form-group">
+                        <label className="athlete-form-label">EQUIPE</label>
+                        <div className="input-with-action-wrap">
+                          <select
+                            className="athlete-form-select"
+                            value={detailForm.equipe}
+                            onChange={(e) =>
+                              setDetailForm({ ...detailForm, equipe: e.target.value })
+                            }
+                          >
+                            <option value="—">—</option>
+                            <option value="BORA PRO CORRE">BORA PRO CORRE</option>
+                            <option value="BORAPROCORRE">BORAPROCORRE</option>
+                            <option value="FORMOSO PACE CLUBE">FORMOSO PACE CLUBE</option>
+                            <option value="BROCARUN">BROCARUN</option>
+                            <option value="SEM EQUIPE">SEM EQUIPE</option>
+                          </select>
+                          <button
+                            type="button"
+                            className="btn-inline-plus"
+                            title="Nova Equipe"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeColumnKeys.has('nacionalidade') && (
+                      <div className="athlete-form-group">
+                        <label className="athlete-form-label">NACIONALIDADE</label>
+                        <select
+                          className="athlete-form-select"
+                          value={detailForm.nacionalidade}
+                          onChange={(e) =>
+                            setDetailForm({
+                              ...detailForm,
+                              nacionalidade: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="BRASIL">BRASIL</option>
+                          <option value="OUTRO">OUTRO</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Linha 4: KIT, CAMISETA, CHIPS */}
+                  {/* Linha 4: KIT, CAMISETA, CHIP */}
                   <div className="detail-form-row-kit-chips">
-                    <div className="athlete-form-group">
-                      <label className="athlete-form-label">KIT</label>
-                      <select
-                        className="athlete-form-select"
-                        value={detailForm.kit}
-                        onChange={(e) =>
-                          setDetailForm({ ...detailForm, kit: e.target.value })
-                        }
-                      >
-                        <option value="KIT ELITE">KIT ELITE</option>
-                        <option value="Kit Padrão">Kit Padrão</option>
-                        <option value="KIT ATLETA">KIT ATLETA</option>
-                      </select>
-                    </div>
+                    {(activeColumnKeys.has('kit') || Boolean(detailForm.kit)) && (
+                      <div className="athlete-form-group">
+                        <label className="athlete-form-label">KIT</label>
+                        <select
+                          className="athlete-form-select"
+                          value={detailForm.kit}
+                          onChange={(e) =>
+                            setDetailForm({ ...detailForm, kit: e.target.value })
+                          }
+                        >
+                          <option value="KIT ELITE">KIT ELITE</option>
+                          <option value="Kit Padrão">Kit Padrão</option>
+                          <option value="KIT ATLETA">KIT ATLETA</option>
+                        </select>
+                      </div>
+                    )}
 
-                    <div className="athlete-form-group">
-                      <label className="athlete-form-label">CAMISETA</label>
-                      <select
-                        className="athlete-form-select"
-                        value={detailForm.camiseta}
-                        onChange={(e) =>
-                          setDetailForm({
-                            ...detailForm,
-                            camiseta: e.target.value,
-                          })
-                        }
-                      >
-                        <option value="P">P</option>
-                        <option value="M">M</option>
-                        <option value="G">G</option>
-                        <option value="GG">GG</option>
-                        <option value="XG">XG</option>
-                      </select>
-                    </div>
+                    {(activeColumnKeys.has('camiseta') || Boolean(detailForm.camiseta)) && (
+                      <div className="athlete-form-group">
+                        <label className="athlete-form-label">CAMISETA</label>
+                        <select
+                          className="athlete-form-select"
+                          value={detailForm.camiseta}
+                          onChange={(e) =>
+                            setDetailForm({
+                              ...detailForm,
+                              camiseta: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="P">P</option>
+                          <option value="M">M</option>
+                          <option value="G">G</option>
+                          <option value="GG">GG</option>
+                          <option value="XG">XG</option>
+                        </select>
+                      </div>
+                    )}
 
                     <div className="athlete-form-group span-chips">
-                      <label className="athlete-form-label">CHIPS</label>
-                      <div className="chips-tag-field">
-                        {detailForm.chip ? (
-                          <span className="chip-pill-tag">
-                            <span>{detailForm.chip}</span>
-                          </span>
-                        ) : (
-                          <span className="chip-tag-input">Não associado</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Linha 5: MORADOR/VISITANTE, CONTATO */}
-                  <div className="detail-form-row-4">
-                    <div className="athlete-form-group">
-                      <label className="athlete-form-label">MORADOR/VISITANTE</label>
-                      <select
-                        className="athlete-form-select"
-                        value={detailForm.morador}
-                        onChange={(e) =>
-                          setDetailForm({
-                            ...detailForm,
-                            morador: e.target.value,
-                          })
-                        }
-                      >
-                        <option value="Morador">Morador</option>
-                        <option value="Visitante">Visitante</option>
-                      </select>
-                    </div>
-
-                    <div className="athlete-form-group">
-                      <label className="athlete-form-label">CONTATO</label>
+                      <label className="athlete-form-label">CHIP</label>
                       <input
                         type="text"
-                        className="athlete-form-input"
-                        placeholder="(00) 00000-0000"
-                        value={detailForm.contato}
+                        className={`athlete-form-input ${detailChipCollision ? 'input-error-border' : ''}`}
+                        placeholder="Número do chip"
+                        disabled={isOperator}
+                        value={detailForm.chip || ''}
                         onChange={(e) =>
                           setDetailForm({
                             ...detailForm,
-                            contato: e.target.value,
+                            chip: e.target.value,
                           })
                         }
                       />
+                      {detailChipCollision && (
+                        <span className="chip-collision-warning-msg">
+                          ⚠ Atenção: este chip já pertence a {detailChipCollision.nome} (Nº {detailChipCollision.numero})
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Linha de Campos Personalizados / PCD */}
+                  {/* Linha 5: MORADOR/VISITANTE, CONTATO, CIDADE (se presentes na planilha) */}
+                  {(activeColumnKeys.has('morador') || activeColumnKeys.has('contato') || activeColumnKeys.has('cidade')) && (
+                    <div className="detail-form-row-4">
+                      {activeColumnKeys.has('morador') && (
+                        <div className="athlete-form-group">
+                          <label className="athlete-form-label">MORADOR/VISITANTE</label>
+                          <select
+                            className="athlete-form-select"
+                            value={detailForm.morador}
+                            onChange={(e) =>
+                              setDetailForm({
+                                ...detailForm,
+                                morador: e.target.value,
+                              })
+                            }
+                          >
+                            <option value="Morador">Morador</option>
+                            <option value="Visitante">Visitante</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {(activeColumnKeys.has('contato') || Boolean(detailForm.contato)) && (
+                        <div className="athlete-form-group">
+                          <label className="athlete-form-label">CONTATO</label>
+                          <input
+                            type="text"
+                            className="athlete-form-input"
+                            placeholder="(00) 00000-0000"
+                            value={detailForm.contato}
+                            onChange={(e) =>
+                              setDetailForm({
+                                ...detailForm,
+                                contato: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      )}
+
+                      {(activeColumnKeys.has('cidade') || Boolean(detailForm.cidade)) && (
+                        <div className="athlete-form-group">
+                          <label className="athlete-form-label">CIDADE</label>
+                          <input
+                            type="text"
+                            className="athlete-form-input"
+                            placeholder="Cidade/UF"
+                            value={detailForm.cidade}
+                            onChange={(e) =>
+                              setDetailForm({
+                                ...detailForm,
+                                cidade: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Linha de Campos Personalizados / PCD (integrados sem badge de destaque) */}
                   {detailForm.customFields && Object.keys(detailForm.customFields).length > 0 && (
-                    <div className="athlete-custom-fields-box">
-                      <div className="custom-fields-header-title">
-                        <span className="badge-pcd-pill">CAMPOS EXTRAS & PCD DA PLANILHA</span>
-                      </div>
-                      <div className="detail-form-row-4">
-                        {Object.entries(detailForm.customFields).map(([k, v]) => (
-                          <div key={k} className="athlete-form-group">
-                            <label className="athlete-form-label">{k}</label>
-                            <input
-                              type="text"
-                              className="athlete-form-input"
-                              disabled={isOperator}
-                              value={v || ''}
-                              onChange={(e) => {
-                                const newVal = e.target.value
-                                setDetailForm({
-                                  ...detailForm,
-                                  customFields: {
-                                    ...detailForm.customFields,
-                                    [k]: newVal,
-                                  },
-                                  ...(k.toUpperCase().includes('PCD') ? { pcd: newVal } : {}),
-                                })
-                              }}
-                            />
-                          </div>
-                        ))}
-                      </div>
+                    <div className="detail-form-row-4" style={{ marginTop: '8px' }}>
+                      {Object.entries(detailForm.customFields).map(([k, v]) => (
+                        <div key={k} className="athlete-form-group">
+                          <label className="athlete-form-label">{k.toLocaleUpperCase('pt-BR')}</label>
+                          <input
+                            type="text"
+                            className="athlete-form-input"
+                            disabled={isOperator}
+                            value={v || ''}
+                            onChange={(e) => {
+                              const newVal = e.target.value
+                              setDetailForm({
+                                ...detailForm,
+                                customFields: {
+                                  ...detailForm.customFields,
+                                  [k]: newVal,
+                                },
+                                ...(k.toUpperCase().includes('PCD') ? { pcd: newVal } : {}),
+                              })
+                            }}
+                          />
+                        </div>
+                      ))}
                     </div>
                   )}
                   </fieldset>
@@ -2463,9 +2540,6 @@ export default function OperacaoPage({
                   <div className="ultimas-entregas-header">
                     <div className="ultimas-entregas-title-group">
                       <h3 className="section-heading">ÚLTIMAS ENTREGAS</h3>
-                      {sortedDeliveries.length > 0 && (
-                        <span className="deliveries-total-pill">{sortedDeliveries.length} entregas</span>
-                      )}
                     </div>
                     <button
                       type="button"
@@ -2482,65 +2556,27 @@ export default function OperacaoPage({
                       <div className="empty-message-box">
                         Nenhuma entrega registrada ainda.
                       </div>
-                    ) : (() => {
-                      const DELIVERIES_PER_PAGE = 20
-                      const totalDeliveriesPages = Math.max(1, Math.ceil(sortedDeliveries.length / DELIVERIES_PER_PAGE))
-                      const currentDeliveriesPage = Math.min(deliveriesPage, totalDeliveriesPages)
-                      const paginatedDeliveries = sortedDeliveries.slice(
-                        (currentDeliveriesPage - 1) * DELIVERIES_PER_PAGE,
-                        currentDeliveriesPage * DELIVERIES_PER_PAGE
-                      )
-
-                      return (
-                        <>
-                          <div className="deliveries-list">
-                            {paginatedDeliveries.map((item, idx) => (
-                              <div
-                                key={`${item.id}-${idx}`}
-                                className="delivery-item-row"
-                                onClick={() => handleOpenAthleteDetail(item.id)}
-                                title="Clique para ver dados completos e entrega deste atleta"
-                              >
-                                <div className="athlete-main">
-                                  <span className="athlete-peito">Nº {item.id}</span>
-                                  <span className="athlete-name highlight-link">{item.name}</span>
-                                  {item.doc && <span className="athlete-doc">— {item.doc}</span>}
-                                </div>
-                                <div className="delivery-tags">
-                                  <span className="tag-green">✓ ENTREGUE</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-
-                          {totalDeliveriesPages > 1 && (
-                            <div className="deliveries-pagination-controls">
-                              <span className="deliveries-page-indicator">
-                                Página {currentDeliveriesPage} de {totalDeliveriesPages} ({sortedDeliveries.length} no total)
-                              </span>
-                              <div className="deliveries-page-btn-group">
-                                <button
-                                  type="button"
-                                  className="btn-page-nav"
-                                  disabled={currentDeliveriesPage === 1}
-                                  onClick={() => setDeliveriesPage((p) => Math.max(1, p - 1))}
-                                >
-                                  Anterior
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn-page-nav"
-                                  disabled={currentDeliveriesPage === totalDeliveriesPages}
-                                  onClick={() => setDeliveriesPage((p) => Math.min(totalDeliveriesPages, p + 1))}
-                                >
-                                  Próxima
-                                </button>
-                              </div>
+                    ) : (
+                      <div className="deliveries-list">
+                        {recentDeliveries.map((item, idx) => (
+                          <div
+                            key={`${item.id}-${idx}`}
+                            className="delivery-item-row"
+                            onClick={() => handleOpenAthleteDetail(item.id)}
+                            title="Clique para ver dados completos e entrega deste atleta"
+                          >
+                            <div className="athlete-main">
+                              <span className="athlete-peito">Nº {item.id}</span>
+                              <span className="athlete-name highlight-link">{item.name}</span>
+                              {item.doc && <span className="athlete-doc">— {item.doc}</span>}
                             </div>
-                          )}
-                        </>
-                      )
-                    })()}
+                            <div className="delivery-tags">
+                              <span className="tag-green">✓ ENTREGUE</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </section>
               </>
@@ -3211,8 +3247,8 @@ export default function OperacaoPage({
               </div>
 
               <form className="modal-athlete-body modal-athlete-body-dynamic" onSubmit={handleCreateAthlete}>
-                {/* 1. CAMPOS PRINCIPAIS: NÚMERO & NOME COMPLETO */}
-                <div className="athlete-dynamic-grid-2">
+                {/* 1. CAMPOS PRINCIPAIS: NÚMERO, NOME COMPLETO & CHIP */}
+                <div className="athlete-dynamic-grid-3">
                   <div className="athlete-form-group">
                     <label className="athlete-form-label">
                       NÚMERO <span className="required-star">*</span>
@@ -3248,13 +3284,31 @@ export default function OperacaoPage({
                       required
                     />
                   </div>
+
+                  <div className="athlete-form-group">
+                    <label className="athlete-form-label">CHIP</label>
+                    <input
+                      type="text"
+                      className={`athlete-form-input ${addAthleteChipCollision ? 'input-error-border' : ''}`}
+                      placeholder="Digite o número do chip"
+                      value={athleteForm.chip || ''}
+                      onChange={(e) =>
+                        setAthleteForm((prev) => ({ ...prev, chip: e.target.value }))
+                      }
+                    />
+                    {addAthleteChipCollision && (
+                      <span className="chip-collision-warning-msg">
+                        ⚠ Este chip já está associado a {addAthleteChipCollision.nome} (Nº {addAthleteChipCollision.numero})
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* 2. DEMAIS COLUNAS PADRÃO DA TABELA ASSOCIADA */}
                 {availableStandardColumns.length > 0 && (
                   <div className="athlete-dynamic-grid">
                     {availableStandardColumns.map((col) => {
-                      if (col.key === 'numero' || col.key === 'nome') return null
+                      if (col.key === 'numero' || col.key === 'nome' || col.key === 'chip') return null
 
                       // Seletor de Camiseta com tamanhos detectados da base
                       if (col.key === 'camiseta') {
@@ -3316,7 +3370,7 @@ export default function OperacaoPage({
                         )
                       }
 
-                      // Campo de Nascimento com calendário
+                      // Campo de Nascimento com auto-formatação
                       if (col.key === 'nascimento') {
                         return (
                           <div key={col.key} className="athlete-form-group">
@@ -3328,7 +3382,10 @@ export default function OperacaoPage({
                                 placeholder="dd/mm/aaaa"
                                 value={athleteForm.nascimento || ''}
                                 onChange={(e) =>
-                                  setAthleteForm((prev) => ({ ...prev, nascimento: e.target.value }))
+                                  setAthleteForm((prev) => ({
+                                    ...prev,
+                                    nascimento: formatDateInput(e.target.value),
+                                  }))
                                 }
                               />
                               <span className="input-end-icon">
@@ -3339,7 +3396,7 @@ export default function OperacaoPage({
                         )
                       }
 
-                      // Campo genérico padrão (doc, chip, modalidade, categoria, kit, equipe, cidade, contato, nome_peito)
+                      // Campo genérico padrão (doc, modalidade, categoria, kit, equipe, cidade, contato, nome_peito)
                       return (
                         <div key={col.key} className="athlete-form-group">
                           <label className="athlete-form-label">{col.label}</label>
@@ -3360,32 +3417,27 @@ export default function OperacaoPage({
 
                 {/* 3. CAMPOS EXTRAS E PERSONALIZADOS DA TABELA ASSOCIADA (PCD, TAMANHO TÊNIS, ETC.) */}
                 {availableCustomColumns.length > 0 && (
-                  <div className="athlete-dynamic-custom-section">
-                    <div className="athlete-custom-section-header">
-                      <span className="badge-custom-cols">CAMPOS EXTRAS DA PLANILHA IMPORTADA</span>
-                    </div>
-                    <div className="athlete-dynamic-grid">
-                      {availableCustomColumns.map((col) => (
-                        <div key={col.key} className="athlete-form-group">
-                          <label className="athlete-form-label">{col.label}</label>
-                          <input
-                            type="text"
-                            className="athlete-form-input"
-                            placeholder={`Preencher ${col.label.toLowerCase()}`}
-                            value={athleteForm.customFields?.[col.customKey] || ''}
-                            onChange={(e) =>
-                              setAthleteForm((prev) => ({
-                                ...prev,
-                                customFields: {
-                                  ...(prev.customFields || {}),
-                                  [col.customKey]: e.target.value,
-                                },
-                              }))
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
+                  <div className="athlete-dynamic-grid" style={{ marginTop: '14px' }}>
+                    {availableCustomColumns.map((col) => (
+                      <div key={col.key} className="athlete-form-group">
+                        <label className="athlete-form-label">{col.label}</label>
+                        <input
+                          type="text"
+                          className="athlete-form-input"
+                          placeholder={`Preencher ${col.label.toLowerCase()}`}
+                          value={athleteForm.customFields?.[col.customKey] || ''}
+                          onChange={(e) =>
+                            setAthleteForm((prev) => ({
+                              ...prev,
+                              customFields: {
+                                ...(prev.customFields || {}),
+                                [col.customKey]: e.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    ))}
                   </div>
                 )}
 
