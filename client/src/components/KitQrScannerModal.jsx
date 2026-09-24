@@ -10,11 +10,11 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
   const [manualCode, setManualCode] = useState('')
   const [cameraMessage, setCameraMessage] = useState('Iniciando câmera…')
 
-  const [recipient, setRecipient] = useState(athlete?.entreguePara || athlete?.nome || '')
+  const [recipient, setRecipient] = useState(athlete?.entreguePara || '')
   const [prevAthlete, setPrevAthlete] = useState(athlete)
   if (athlete !== prevAthlete) {
     setPrevAthlete(athlete)
-    setRecipient(athlete?.entreguePara || athlete?.nome || '')
+    setRecipient(athlete?.entreguePara || '')
   }
 
   useEffect(() => { onReadRef.current = onRead }, [onRead])
@@ -179,7 +179,7 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
                 <input
                   type="text"
                   value={recipient}
-                  placeholder={athlete?.entreguePara || athlete?.nome || 'Nome de quem está retirando'}
+                  placeholder="Deixe em branco para o próprio atleta ou digite o nome do terceiro"
                   onChange={(e) => setRecipient(e.target.value)}
                   style={{
                     width: '100%',

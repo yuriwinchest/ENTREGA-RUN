@@ -1252,7 +1252,7 @@ export default function OperacaoPage({
       setScanFeedback('Este kit exato (mesmo número e chip) já foi associado a outro atleta. Atualize a tela e tente novamente.')
       return
     }
-    const cleanRecipient = typeof recipient === 'string' && recipient.trim() ? recipient.trim() : (source.entreguePara || source.nome || '')
+    const cleanRecipient = typeof recipient === 'string' && recipient.trim() ? recipient.trim() : (source.entreguePara || '')
     const updated = {
       ...source,
       numero: String(scannedKit.numero),
@@ -1724,22 +1724,20 @@ export default function OperacaoPage({
     setDetailActionInProgress(true)
     try {
       const sourceAthlete = selectedAthlete
-      const recipientName = String(
-        (detailForm && detailForm.entreguePara !== undefined ? detailForm.entreguePara : '') ||
+      const customRecipient = String(
+        (detailForm && detailForm.entreguePara ? detailForm.entreguePara : '') ||
         selectedAthlete.entreguePara ||
-        detailForm?.nome ||
-        selectedAthlete.nome ||
         ''
       ).trim()
 
       const athleteToDeliver = isOperator
         ? {
             ...selectedAthlete,
-            entreguePara: recipientName,
+            entreguePara: customRecipient,
           }
         : {
             ...(persistDetailDraft({ showFeedback: false }) || selectedAthlete),
-            entreguePara: recipientName,
+            entreguePara: customRecipient,
           }
       if (!athleteToDeliver) return
 
@@ -2219,8 +2217,8 @@ export default function OperacaoPage({
                       type="text"
                       className="athlete-form-input entregue-para-input"
                       disabled={detailForm.status === 'ENTREGUE' && isOperator}
-                      value={detailForm.entreguePara !== undefined ? detailForm.entreguePara : (detailForm.nome || '')}
-                      placeholder={detailForm.nome || 'Nome de quem está retirando'}
+                      value={detailForm.entreguePara || ''}
+                      placeholder="Deixe em branco para o próprio atleta ou digite o nome do terceiro"
                       onChange={(e) =>
                         setDetailForm({
                           ...detailForm,

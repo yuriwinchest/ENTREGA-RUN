@@ -1,5 +1,26 @@
 # Handoff
 
+## 2026-09-24 — Campo de Terceiro Vazio por Padrão e Validação da Lista Salva no Banco (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead).
+- **Pedido do Yuri (PO via texto e print de tela):**
+  1. *Campo de terceiro:* O campo "ENTREGUE PARA / RETIRADO POR" estava vindo preenchido automaticamente com o nome do atleta (ex: "ADAN SANTOS OLIVEIRA"). O PO solicitou deixá-lo **vazio por padrão** para que o operador só preencha se for um terceiro retirando.
+  2. *Verificação no banco:* Verificar se a lista que o PO importou agora salvou com sucesso no banco de dados.
+- **Verificação da Lista no Banco de Dados / Produção:**
+  - Realizada consulta na API de produção (`https://app.entregasrun.com.br/api/events`) e no Appwrite (`https://app.entregasrun.com.br/api/appwrite/status`):
+  - **Evento detectado:** `id: "event-1790229455271"`, nome `"TESTE"`, total de **430 atletas**.
+  - **Endpoint de atletas:** `https://app.entregasrun.com.br/api/events/event-1790229455271/athletes` retornou `ok: true`, com exatamente **430 atletas gravados** no servidor com todos os dados (primeiro atleta: `ADAN SANTOS OLIVEIRA`, número 1, chip 6456).
+  - **Appwrite:** Coleção `athletes` sincronizada e registrando contagem ativa no cluster Appwrite (`db.largadabrasil.com`).
+  - **Conclusão:** A lista persistiu perfeitamente no servidor e no banco de dados sem perdas.
+- **O que foi feito no campo de terceiro:**
+  1. `client/src/utils/athleteDetail.js`: removido o fallback que preenchia `entreguePara` com o nome do atleta tanto no rascunho (`buildAthleteDetailDraft`) quanto na normalização (`normalizeAthleteDetail`). O campo agora permanece estritamente `""` (vazio) quando não especificado um terceiro.
+  2. `client/src/components/KitQrScannerModal.jsx`: inicialização do estado `recipient` e `cleanRecipient` no modal de leitura QR Code alterada para string vazia `""`, e placeholder ajustado para `"Deixe em branco para o próprio atleta ou digite o nome do terceiro"`.
+  3. `client/src/components/OperacaoPage.jsx`: o input do card `👤 ENTREGUE PARA / RETIRADO POR` agora exibe `value={detailForm.entreguePara || ''}`, mantendo-se 100% em branco por padrão. Na entrega, se o operador deixar em branco, o sistema registra automaticamente a entrega para o próprio atleta (`tipo: 'ATLETA'`). Se o operador preencher um nome, registra como `tipo: 'TERCEIRO'`.
+- **Validação real executada:**
+  - `oxlint`: 0 warnings, 0 errors em 29 arquivos.
+  - `npm run build`: bundle compilado com sucesso (`index-DMX2FqwD.js`).
+- **Próximo passo:** Subir via `git push origin main` para acionamento do deploy na VPS.
+
 ## 2026-09-24 — Correção de Persistência de Planilhas de Atletas e Campo de Retirada por Terceiro (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead).
