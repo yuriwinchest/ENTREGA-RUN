@@ -642,3 +642,307 @@
   background: #ff6014;
   transform: translateY(-1px);
 }
+
+/* =========================================================
+   NOVOS COMPONENTES: SENHA, CREDENCIAIS & CÓPIA WHATSAPP
+   ========================================================= */
+
+.form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.form-label-row .form-label {
+  margin-bottom: 0;
+}
+
+.btn-inline-generate {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #fff7ed;
+  border: 1px solid #ffedd5;
+  border-radius: 6px;
+  color: #ea580c;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-inline-generate:hover {
+  background: #ea580c;
+  color: #ffffff;
+  border-color: #ea580c;
+}
+
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-input {
+  width: 100%;
+  padding-right: 44px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 14px !important;
+  letter-spacing: 0.5px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.password-toggle-btn:hover {
+  color: #0c142c;
+}
+
+.form-hint {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+.btn-user-cred-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #334155;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-user-cred-action:hover {
+  background: #0c142c;
+  color: #ffffff;
+  border-color: #0c142c;
+}
+
+/* Modais de Credenciais */
+.creds-modal-card {
+  max-width: 520px;
+}
+
+.modal-title-with-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modal-title-desc {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.creds-success-pill {
+  display: inline-block;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  width: fit-content;
+  margin-bottom: 2px;
+}
+
+.creds-instructions {
+  font-size: 13px;
+  color: #475569;
+  margin: 0 0 16px 0;
+  line-height: 1.45;
+}
+
+.credentials-box {
+  background: #0c142c;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(12, 20, 44, 0.18);
+}
+
+.cred-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cred-field-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.cred-field-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+}
+
+.cred-field-value {
+  font-size: 13.5px;
+  color: #ffffff;
+  text-align: right;
+  word-break: break-all;
+}
+
+.role-badge-val {
+  color: #38bdf8;
+}
+
+.email-value {
+  color: #f8fafc;
+  font-family: ui-monospace, monospace;
+}
+
+.password-row .pass-value {
+  color: #34d399;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+.password-display-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.password-toggle-btn-small {
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  color: #cbd5e1;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-toggle-btn-small:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.creds-actions-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+  width: 100%;
+}
+
+.btn-copy-creds-whatsapp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  background: #16a34a;
+  border: none;
+  border-radius: 12px;
+  color: #ffffff;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35);
+  transition: all 0.15s ease;
+}
+
+.btn-copy-creds-whatsapp:hover {
+  background: #15803d;
+  transform: translateY(-1px);
+}
+
+.btn-reset-password {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  background: #fff7ed;
+  border: 1.5px solid #ffedd5;
+  border-radius: 12px;
+  color: #ea580c;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-reset-password:hover {
+  background: #ea580c;
+  color: #ffffff;
+}
+
+.btn-creds-finish {
+  height: 42px;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 12px;
+  color: #0c142c;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-creds-finish:hover {
+  background: #e2e8f0;
+}
+
+.alert-feedback-success {
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  text-align: center;
+}
+

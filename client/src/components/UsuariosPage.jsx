@@ -1,5 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import Sidebar from './Sidebar.jsx'
+import {
+  apiFetchUsers,
+  apiCreateUser,
+  apiUpdateUser,
+  apiDeleteUser,
+} from '../utils/usersApi.js'
 import './UsuariosPage.css'
 
 function HelpCircleIcon() {
@@ -73,6 +79,51 @@ function CheckIcon() {
   )
 }
 
+function KeyIcon({ size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5L11 9l-1-1-1 1-1-1-1 1-1.5-1.5A6.5 6.5 0 1 0 16 14l2-2" />
+      <circle cx="7.5" cy="16.5" r="1.5" />
+    </svg>
+  )
+}
+
+function CopyIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect width="13" height="13" x="9" y="9" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  )
+}
+
+function EyeIcon({ off, size = 16 }) {
+  if (off) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+        <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+        <line x1="2" y1="2" x2="22" y2="22" />
+      </svg>
+    )
+  }
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+function SparklesIcon({ size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+    </svg>
+  )
+}
+
 const ROLE_OPTIONS = [
   {
     value: 'OPERADOR',
@@ -93,6 +144,19 @@ const ROLE_OPTIONS = [
     detail: 'Acesso total, gestão e novos usuários'
   }
 ]
+
+// Geração de senha amigável, memorável e de alta entropia (sem caracteres ambíguos)
+function generateEasySecurePassword() {
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz'
+  const special = ['@', '#', '!', '$', '%']
+  const randomYear = new Date().getFullYear()
+  const randomSpecial = special[Math.floor(Math.random() * special.length)]
+  let randomTail = ''
+  for (let i = 0; i < 4; i++) {
+    randomTail += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return `Run${randomYear}${randomSpecial}${randomTail}`
+}
 
 export default function UsuariosPage({
   user,
@@ -127,8 +191,9 @@ export default function UsuariosPage({
     }
     const defaultUser = {
       id: user?.id || 'admin_pacetime',
-      name: user?.name || 'FELIPE',
+      name: user?.name || 'FELIPE ADMIN',
       email: user?.email || 'pacetime@entregas.com',
+      password: '',
       role: user?.role || 'ADMIN',
       eventId: 'all',
       eventName: 'TODOS OS PROJETOS',
@@ -139,15 +204,39 @@ export default function UsuariosPage({
     return [defaultUser]
   })
 
+  // Sincroniza usuários com o servidor central
+  useEffect(() => {
+    let isMounted = true
+    apiFetchUsers().then((serverUsers) => {
+      if (isMounted && Array.isArray(serverUsers) && serverUsers.length > 0) {
+        setUsers(serverUsers)
+      }
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   const [showAddUserModal, setShowAddUserModal] = useState(false)
+  const [showPasswordInAddModal, setShowPasswordInAddModal] = useState(false)
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false)
   const [isEventDropdownOpen, setIsEventDropdownOpen] = useState(false)
   const roleDropdownRef = useRef(null)
   const eventDropdownRef = useRef(null)
 
+  // Credenciais geradas após criar usuário com sucesso (para copiar para WhatsApp)
+  const [createdUserCredentials, setCreatedUserCredentials] = useState(null)
+  const [copiedNotification, setCopiedNotification] = useState(false)
+
+  // Modal para ver/redefinir senha de usuário existente
+  const [userToManagePassword, setUserToManagePassword] = useState(null)
+  const [showManagePasswordEye, setShowManagePasswordEye] = useState(false)
+  const [managePasswordFeedback, setManagePasswordFeedback] = useState('')
+
   const [newUserForm, setNewUserForm] = useState(() => ({
     name: '',
     email: '',
+    password: generateEasySecurePassword(),
     role: 'OPERADOR',
     eventId: availableEvents[0]?.id || 'all',
     eventName: availableEvents[0]?.name || 'TODOS OS EVENTOS',
@@ -180,9 +269,33 @@ export default function UsuariosPage({
     }
   }, [users])
 
-  function handleAddUser(e) {
+  function handleOpenAddModal() {
+    setNewUserForm({
+      name: '',
+      email: '',
+      password: generateEasySecurePassword(),
+      role: 'OPERADOR',
+      eventId: availableEvents[0]?.id || 'all',
+      eventName: availableEvents[0]?.name || 'TODOS OS PROJETOS',
+    })
+    setShowPasswordInAddModal(false)
+    setShowAddUserModal(true)
+  }
+
+  function handleGenerateNewPasswordInForm() {
+    setNewUserForm((prev) => ({
+      ...prev,
+      password: generateEasySecurePassword(),
+    }))
+  }
+
+  async function handleAddUser(e) {
     e.preventDefault()
     if (!newUserForm.name.trim() || !newUserForm.email.trim()) return
+    if (!newUserForm.password || newUserForm.password.length < 6) {
+      alert('A senha deve ter no mínimo 6 caracteres.')
+      return
+    }
 
     const selectedEv = availableEvents.find((ev) => ev.id === newUserForm.eventId)
     const assignedName = newUserForm.eventId === 'all'
@@ -193,6 +306,7 @@ export default function UsuariosPage({
       id: `user-${Date.now()}`,
       name: newUserForm.name.trim().toUpperCase(),
       email: newUserForm.email.trim().toLowerCase(),
+      password: newUserForm.password.trim(),
       role: newUserForm.role,
       eventId: newUserForm.eventId,
       eventName: assignedName,
@@ -201,36 +315,75 @@ export default function UsuariosPage({
       avatar: newUserForm.name.trim().substring(0, 2).toUpperCase(),
     }
 
-    setUsers((prev) => [newUser, ...prev])
-    setNewUserForm({
-      name: '',
-      email: '',
-      role: 'OPERADOR',
-      eventId: availableEvents[0]?.id || 'all',
-      eventName: availableEvents[0]?.name || 'TODOS OS PROJETOS',
-    })
-    setIsRoleDropdownOpen(false)
-    setIsEventDropdownOpen(false)
+    // Salva no estado e no backend
+    setUsers((prev) => [newUser, ...prev.filter((u) => u.email !== newUser.email)])
+    apiCreateUser(newUser).catch(() => {})
+
     setShowAddUserModal(false)
+
+    // Abre imediatamente o modal com as credenciais prontas para o Yuri copiar para WhatsApp
+    setCreatedUserCredentials({
+      name: newUser.name,
+      email: newUser.email,
+      password: newUser.password,
+      role: newUser.role,
+      eventName: newUser.eventName,
+    })
   }
 
-  function handleToggleStatus(userId) {
+  async function handleToggleStatus(userId) {
+    const target = users.find((u) => u.id === userId)
+    if (!target) return
+    const nextStatus = target.status === 'ATIVO' ? 'INATIVO' : 'ATIVO'
+
     setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          return { ...u, status: u.status === 'ATIVO' ? 'INATIVO' : 'ATIVO' }
-        }
-        return u
-      })
+      prev.map((u) => (u.id === userId ? { ...u, status: nextStatus } : u))
     )
+    apiUpdateUser(userId, { status: nextStatus }).catch(() => {})
   }
 
-  function handleRemoveUser(userId) {
+  async function handleRemoveUser(userId) {
     if (userId === user?.id || userId === 'admin_pacetime') {
       alert('Não é possível remover o administrador principal.')
       return
     }
+    if (!window.confirm('Tem certeza que deseja remover este usuário?')) return
+
     setUsers((prev) => prev.filter((u) => u.id !== userId))
+    apiDeleteUser(userId).catch(() => {})
+  }
+
+  function handleCopyCredentials(creds) {
+    if (!creds) return
+    const systemUrl = typeof window !== 'undefined' ? window.location.origin : 'https://app.entregasrun.com.br'
+    const text = `🏃 *ENTREGAS RUN — DADOS DE ACESSO AO SISTEMA*
+Olá *${creds.name}*, seu login foi liberado!
+
+🔗 *Link de Acesso:* ${systemUrl}
+📧 *E-mail:* ${creds.email}
+🔑 *Senha:* ${creds.password}
+🏷️ *Função:* ${creds.role} (${creds.eventName || 'TODOS OS PROJETOS'})
+
+Guarde esta senha para acessar a operação de kits no celular ou computador.`
+
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedNotification(true)
+      setTimeout(() => setCopiedNotification(false), 3000)
+    }).catch(() => {
+      alert('Texto copiado!')
+    })
+  }
+
+  async function handleResetPasswordForUser(userId) {
+    const newPass = generateEasySecurePassword()
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, password: newPass } : u))
+    )
+    setUserToManagePassword((prev) => (prev ? { ...prev, password: newPass } : null))
+    setManagePasswordFeedback('✓ Nova senha gerada com sucesso!')
+    setTimeout(() => setManagePasswordFeedback(''), 3000)
+
+    apiUpdateUser(userId, { password: newPass }).catch(() => {})
   }
 
   return (
@@ -244,7 +397,7 @@ export default function UsuariosPage({
             <p className="usuarios-subtitle">
               Gerencie os usuários da operação e a função de cada um. Operador apenas entrega o kit; Supervisor entrega e pode alterar os dados do atleta; Admin tem acesso total.
               <br />
-              Somente o Admin pode criar, desativar ou remover usuários.
+              Crie logins com senha gerada automaticamente e envie facilmente para a equipe no WhatsApp.
             </p>
           </div>
 
@@ -261,10 +414,10 @@ export default function UsuariosPage({
             <button
               type="button"
               className="btn-primary-user"
-              onClick={() => setShowAddUserModal(true)}
+              onClick={handleOpenAddModal}
             >
               <PlusIcon />
-              <span>NOVO USUÁRIO</span>
+              <span>ADICIONAR USUÁRIO</span>
             </button>
           </div>
         </header>
@@ -305,6 +458,23 @@ export default function UsuariosPage({
                 <div className="user-card-actions">
                   <button
                     type="button"
+                    className="btn-user-cred-action"
+                    title="Ver ou redefinir senha do usuário"
+                    onClick={() => {
+                      setUserToManagePassword({
+                        ...item,
+                        password: item.password || generateEasySecurePassword(),
+                      })
+                      setShowManagePasswordEye(false)
+                      setManagePasswordFeedback('')
+                    }}
+                  >
+                    <KeyIcon size={14} />
+                    <span>SENHA</span>
+                  </button>
+
+                  <button
+                    type="button"
                     className="btn-deactivate"
                     onClick={() => handleToggleStatus(item.id)}
                   >
@@ -327,11 +497,15 @@ export default function UsuariosPage({
           ))}
         </section>
 
+        {/* MODAL 1: ADICIONAR NOVO USUÁRIO */}
         {showAddUserModal && (
-          <div className="modal-backdrop">
-            <div className="modal-card">
+          <div className="modal-backdrop" onClick={() => setShowAddUserModal(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h2 className="modal-title">NOVO USUÁRIO</h2>
+                <div className="modal-title-with-badge">
+                  <h2 className="modal-title">NOVO USUÁRIO</h2>
+                  <span className="modal-title-desc">Crie o acesso para o operador ou supervisor</span>
+                </div>
                 <button
                   type="button"
                   className="modal-close-btn"
@@ -356,7 +530,7 @@ export default function UsuariosPage({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">E-MAIL</label>
+                  <label className="form-label">E-MAIL (LOGIN DE ACESSO)</label>
                   <input
                     type="email"
                     className="form-input"
@@ -365,6 +539,43 @@ export default function UsuariosPage({
                     onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
                     required
                   />
+                </div>
+
+                {/* NOVO: CAMPO DE SENHA COM GERAÇÃO AUTOMÁTICA */}
+                <div className="form-group">
+                  <div className="form-label-row">
+                    <label className="form-label">SENHA DE ACESSO</label>
+                    <button
+                      type="button"
+                      className="btn-inline-generate"
+                      onClick={handleGenerateNewPasswordInForm}
+                      title="Gerar uma nova senha aleatória e segura"
+                    >
+                      <SparklesIcon size={13} />
+                      <span>GERAR SENHA</span>
+                    </button>
+                  </div>
+                  <div className="password-input-wrapper">
+                    <input
+                      type={showPasswordInAddModal ? 'text' : 'password'}
+                      className="form-input password-input"
+                      placeholder="Mínimo 6 caracteres"
+                      value={newUserForm.password}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowPasswordInAddModal((prev) => !prev)}
+                      title={showPasswordInAddModal ? 'Ocultar senha' : 'Ver senha'}
+                    >
+                      <EyeIcon off={!showPasswordInAddModal} size={17} />
+                    </button>
+                  </div>
+                  <span className="form-hint">
+                    Esta senha será usada pelo operador para entrar no sistema. Ao salvar, você poderá copiá-la.
+                  </span>
                 </div>
 
                 <div className="form-group" ref={roleDropdownRef}>
@@ -542,6 +753,159 @@ export default function UsuariosPage({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 2: CREDENCIAIS CRIADAS (ENTREGAR ACESSO AO USUÁRIO VIA WHATSAPP) */}
+        {createdUserCredentials && (
+          <div className="modal-backdrop" onClick={() => setCreatedUserCredentials(null)}>
+            <div className="modal-card creds-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <div className="modal-title-with-badge">
+                  <div className="creds-success-pill">✓ USUÁRIO CADASTRADO COM SUCESSO</div>
+                  <h2 className="modal-title">DADOS DE ACESSO AO SISTEMA</h2>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close-btn"
+                  onClick={() => setCreatedUserCredentials(null)}
+                  title="Fechar"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              <div className="modal-body creds-modal-body">
+                <p className="creds-instructions">
+                  Entregue estes dados para o usuário acessar a operação no celular ou computador:
+                </p>
+
+                <div className="credentials-box">
+                  <div className="cred-field-row">
+                    <span className="cred-field-label">NOME</span>
+                    <strong className="cred-field-value">{createdUserCredentials.name}</strong>
+                  </div>
+
+                  <div className="cred-field-row">
+                    <span className="cred-field-label">FUNÇÃO & PROJETO</span>
+                    <strong className="cred-field-value role-badge-val">
+                      {createdUserCredentials.role} ({createdUserCredentials.eventName})
+                    </strong>
+                  </div>
+
+                  <div className="cred-field-row highlight-row">
+                    <span className="cred-field-label">E-MAIL (LOGIN)</span>
+                    <strong className="cred-field-value email-value">{createdUserCredentials.email}</strong>
+                  </div>
+
+                  <div className="cred-field-row highlight-row password-row">
+                    <span className="cred-field-label">SENHA DE ACESSO</span>
+                    <strong className="cred-field-value pass-value">{createdUserCredentials.password}</strong>
+                  </div>
+                </div>
+
+                <div className="creds-actions-group">
+                  <button
+                    type="button"
+                    className="btn-copy-creds-whatsapp"
+                    onClick={() => handleCopyCredentials(createdUserCredentials)}
+                  >
+                    <CopyIcon size={18} />
+                    <span>{copiedNotification ? '✓ COPIADO PARA A ÁREA DE TRANSFERÊNCIA!' : 'COPIAR DADOS DE ACESSO (WHATSAPP)'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn-creds-finish"
+                    onClick={() => setCreatedUserCredentials(null)}
+                  >
+                    Concluir
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 3: VER / REDEFINIR SENHA DE USUÁRIO EXISTENTE */}
+        {userToManagePassword && (
+          <div className="modal-backdrop" onClick={() => setUserToManagePassword(null)}>
+            <div className="modal-card creds-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <div className="modal-title-with-badge">
+                  <h2 className="modal-title">CREDENCIAIS DE ACESSO</h2>
+                  <span className="modal-title-desc">{userToManagePassword.name} ({userToManagePassword.role})</span>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close-btn"
+                  onClick={() => setUserToManagePassword(null)}
+                  title="Fechar"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              <div className="modal-body creds-modal-body">
+                {managePasswordFeedback && (
+                  <div className="alert-feedback-success">{managePasswordFeedback}</div>
+                )}
+
+                <div className="credentials-box">
+                  <div className="cred-field-row">
+                    <span className="cred-field-label">E-MAIL</span>
+                    <strong className="cred-field-value">{userToManagePassword.email}</strong>
+                  </div>
+
+                  <div className="cred-field-row password-row">
+                    <span className="cred-field-label">SENHA ATUAL</span>
+                    <div className="password-display-group">
+                      <strong className="cred-field-value pass-value">
+                        {showManagePasswordEye
+                          ? userToManagePassword.password || '(Não definida)'
+                          : '••••••••••••'}
+                      </strong>
+                      <button
+                        type="button"
+                        className="password-toggle-btn-small"
+                        onClick={() => setShowManagePasswordEye((prev) => !prev)}
+                        title={showManagePasswordEye ? 'Ocultar' : 'Exibir'}
+                      >
+                        <EyeIcon off={!showManagePasswordEye} size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="creds-actions-group">
+                  <button
+                    type="button"
+                    className="btn-copy-creds-whatsapp"
+                    onClick={() => handleCopyCredentials(userToManagePassword)}
+                  >
+                    <CopyIcon size={18} />
+                    <span>{copiedNotification ? '✓ COPIADO!' : 'COPIAR ACESSO (WHATSAPP)'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn-reset-password"
+                    onClick={() => handleResetPasswordForUser(userToManagePassword.id)}
+                  >
+                    <SparklesIcon size={15} />
+                    <span>GERAR NOVA SENHA</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn-creds-finish"
+                    onClick={() => setUserToManagePassword(null)}
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

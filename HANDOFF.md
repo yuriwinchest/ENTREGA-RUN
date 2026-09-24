@@ -1,6 +1,41 @@
 # Handoff
 
-## 2026-09-23 — Exibição Completa de Colunas em Importações, Limpeza da Busca e Desfazer Total (Fase A)
+## 2026-09-23 — Gerenciamento de Usuários, Telão Completo sem Corte, Limpeza de Colunas, Otimização de Busca e Refatoração do Dashboard (Fase A)
+
+- **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
+- **Pedido do Yuri (PO via áudios e capturas de tela):**
+  1. *Gerenciamento de Usuários e Senhas*:
+     - No modal "ADICIONAR USUÁRIO", adicionar campo de senha com botão "🎲 GERAR SENHA" segura e legível, alternador de visualização e modal pós-criação com dados de acesso e botão de cópia formatada para WhatsApp.
+     - Botão "SENHA" em cada card de usuário para visualização, cópia rápida e redefinição de senha a qualquer momento.
+     - Persistência e autenticação no backend em `/api/users` e `/api/login` (com persistência em `/app/data/users.json` e fallback resiliente).
+  2. *Remoção de Colunas Fictícias*:
+     - Remoção de valores padrão fictícios (ex: "Visitante", "BRASIL") em `ImportarAtletasModal.jsx` e `AssociarPlanilhasModal.jsx`.
+     - `athleteTable.js` refatorado para exibir estritamente as colunas presentes no `savedSchema` da planilha importada + coluna `status`.
+  3. *Modal de Importação de Atletas (Etapa 2)*:
+     - Modal ampliado (`max-width: 1060px`, `max-height: 94vh`) com layout dos seletores de mapeamento em grade de 2 colunas para exibição clara sem corte e tabela de prévia com scroll interno suave.
+  4. *Operação de Entrega de Kits*:
+     - Remoção do botão `IMPRIMIR COMPROVANTE` na aba Entrega de Kit.
+     - Limpeza imediata do campo de busca ao clicar no atleta para abrir a ficha e ao concluir a entrega.
+     - Botão de limpeza rápida (✕) no campo de busca.
+     - Badges de identificação na busca: `✓ JÁ ENTREGUE` (verde) ou `FALTA ENTREGAR` (âmbar).
+     - Lista de Últimas Entregas paginada de 20 em 20 (`DELIVERIES_PER_PAGE = 20`) com formato simplificado (Nome + badge verde `✓ ENTREGUE`).
+  5. *Telão / Espelho Público*:
+     - Correção do corte da tela com transição para container responsivo com rolagem suave (`overflow-y: auto`, paddings balanceados).
+     - Remoção de redundâncias (nome repetido, modalidade repetida, kit repetido).
+     - Exibição de todos os dados do atleta: Doc/CPF, Cidade/UF, Nascimento/Idade, Categoria, Sexo, Equipe/Assessoria, Kit, Camiseta, Chip, Nome no Peito, PCD e campos customizados.
+     - Placa de número bem nítida e badge "AGUARDANDO LEITURA" no modo livre.
+  6. *Dashboard do Evento*:
+     - Visão Geral: remoção de Largada, Chegadas e Misto no topo (ficando Atletas, Masculino e Feminino); remoção do gráfico Distribuição de Largada; remoção de Chegadas por Intervalo de Tempo e Largaram Sem Finalizar.
+     - Transposição do painel "Equipes por Atletas Cadastrados" para dentro da Visão Geral, com dados calculados dinamicamente a partir dos atletas cadastrados e barras de proporção.
+     - Remoção da aba "Por Modalidade" (restando apenas "Visão Geral" e "Entrega de Kit").
+     - Preservação intacta da aba "Entrega de Kit".
+- **Arquivos alterados:** `client/src/App.jsx`, `client/src/components/AssociarPlanilhasModal.jsx`, `client/src/components/EspelhoPage.css`, `client/src/components/EspelhoPage.jsx`, `client/src/components/EventDashboardPage.css`, `client/src/components/EventDashboardPage.jsx`, `client/src/components/ImportarAtletasModal.css`, `client/src/components/ImportarAtletasModal.jsx`, `client/src/components/OperacaoPage.css`, `client/src/components/OperacaoPage.jsx`, `client/src/components/UsuariosPage.css`, `client/src/components/UsuariosPage.jsx`, `client/src/utils/athleteTable.js`, `client/src/utils/usersApi.js`, `server/server.js`, `HANDOFF.md`.
+- **Validação real:**
+  - `npm run lint --prefix client`: 0 avisos e 0 erros em 29 arquivos.
+  - `npm run build --prefix client`: compilação Vite concluída com sucesso (737ms).
+  - `node --check server/server.js`: sintaxe validada com sucesso sem erros.
+- **Riscos e pendências:** Nenhuma regressão detectada.
+- **Próximo passo:** Commit e push para o repositório remoto para acionamento do deploy na VPS e homologação pelo Yuri.
 
 - **Autor:** Antigravity/Gemini (agente de código na IDE Antigravity).
 - **Pedido do Yuri (PO via áudio/vídeo):**

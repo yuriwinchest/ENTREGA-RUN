@@ -219,15 +219,17 @@ export default function App() {
   }
 
   function handleLoginSuccess(userData) {
-    const adminUser = {
+    const loggedUser = {
       id: userData?.id || 'admin_pacetime',
       email: userData?.email || 'pacetime@entregas.com',
       name: userData?.name || 'Felipe Admin',
       role: userData?.role || 'ADMIN',
+      eventId: userData?.eventId || 'all',
+      eventName: userData?.eventName || 'TODOS OS PROJETOS',
     }
-    setUser(adminUser)
+    setUser(loggedUser)
     try {
-      localStorage.setItem('entregas_run_user', JSON.stringify(adminUser))
+      localStorage.setItem('entregas_run_user', JSON.stringify(loggedUser))
     } catch {
       // ignore
     }

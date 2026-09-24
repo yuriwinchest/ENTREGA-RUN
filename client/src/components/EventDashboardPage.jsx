@@ -22,15 +22,6 @@ function ArrowLeftIcon() {
 }
 
 
-function FlagIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-      <line x1="4" x2="4" y1="22" y2="15" />
-    </svg>
-  )
-}
-
 function UsersIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -91,7 +82,6 @@ export default function EventDashboardPage({
   const [hoveredModalidadeKit, setHoveredModalidadeKit] = useState(false)
   const [hoveredCamiseta, setHoveredCamiseta] = useState(null)
   const [hoveredKit, setHoveredKit] = useState(null)
-  const [hoveredCategoria, setHoveredCategoria] = useState(false)
 
   const athletes = (() => {
     try {
@@ -102,6 +92,53 @@ export default function EventDashboardPage({
       return []
     }
   })()
+
+  // Métricas calculadas dinamicamente
+  const totalCount = athletes.length > 0 ? athletes.length : (Number(event?.total_athletes || event?.total) || 430)
+  const mascCount = athletes.length > 0
+    ? athletes.filter((a) => (a.sexo || a.gender || '').toUpperCase().startsWith('M')).length
+    : 179
+  const femCount = athletes.length > 0
+    ? athletes.filter((a) => (a.sexo || a.gender || '').toUpperCase().startsWith('F')).length
+    : 251
+  const entreguesCount = athletes.length > 0
+    ? athletes.filter((a) => String(a.status || '').toUpperCase() === 'ENTREGUE' || Boolean(a.entregueEm)).length
+    : 361
+  const faltantesCount = Math.max(0, totalCount - entreguesCount)
+  const entreguesPct = totalCount > 0 ? ((entreguesCount / totalCount) * 100).toFixed(1) : '84.0'
+  const faltantesPct = totalCount > 0 ? ((faltantesCount / totalCount) * 100).toFixed(1) : '16.0'
+  const mascPct = totalCount > 0 ? ((mascCount / totalCount) * 100).toFixed(1) : '41.6'
+  const femPct = totalCount > 0 ? ((femCount / totalCount) * 100).toFixed(1) : '58.4'
+
+  // Equipes calculadas dinamicamente
+  const teamsData = (() => {
+    if (athletes.length > 0) {
+      const counts = {}
+      athletes.forEach((a) => {
+        const team = (a.equipe || a.assessoria || a.time || 'Sem Equipe').trim() || 'Sem Equipe'
+        counts[team] = (counts[team] || 0) + 1
+      })
+      const sorted = Object.entries(counts)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10)
+        .map((item, idx) => ({ rank: idx + 1, ...item }))
+      return sorted.length > 0 ? sorted : [{ rank: 1, name: 'Sem Equipe', count: athletes.length }]
+    }
+    return [
+      { rank: 1, name: 'Sem Equipe', count: 267 },
+      { rank: 2, name: 'BORA PRO CORRE', count: 55 },
+      { rank: 3, name: 'BORAPROCORRE', count: 15 },
+      { rank: 4, name: 'FORMOSO PACE CLUBE', count: 6 },
+      { rank: 5, name: 'BROCARUN', count: 6 },
+      { rank: 6, name: 'UNA-SE', count: 3 },
+      { rank: 7, name: 'FORMOSO PACE', count: 3 },
+      { rank: 8, name: 'SAO BENTO DO UNA', count: 3 },
+      { rank: 9, name: 'SANTA LUZIA', count: 3 },
+      { rank: 10, name: 'BORRA PRO CORRE', count: 2 },
+    ]
+  })()
+  const maxTeamCount = teamsData[0]?.count || 1
 
   return (
     <div className="event-dash-layout">
@@ -180,208 +217,180 @@ export default function EventDashboardPage({
           </div>
         ) : (
           <>
-            {/* 3 subtabs bar */}
+            {/* 2 subtabs bar */}
             <div className="event-tabs-bar">
-          <div className="event-tabs-pill">
-            <button
-              type="button"
-              className={`event-subtab-btn ${activeSubtab === 'geral' ? 'active' : ''}`}
-              onClick={() => setActiveSubtab('geral')}
-            >
-              📊 Visão Geral
-            </button>
+              <div className="event-tabs-pill">
+                <button
+                  type="button"
+                  className={`event-subtab-btn ${activeSubtab === 'geral' ? 'active' : ''}`}
+                  onClick={() => setActiveSubtab('geral')}
+                >
+                  📊 Visão Geral
+                </button>
 
-            <button
-              type="button"
-              className={`event-subtab-btn ${activeSubtab === 'modalidade' ? 'active' : ''}`}
-              onClick={() => setActiveSubtab('modalidade')}
-            >
-              🚩 Por Modalidade
-            </button>
-
-            <button
-              type="button"
-              className={`event-subtab-btn ${activeSubtab === 'entrega' ? 'active' : ''}`}
-              onClick={() => setActiveSubtab('entrega')}
-            >
-              📦 Entrega de Kit
-            </button>
-          </div>
-        </div>
-
-        {/* TAB 1: VISÃO GERAL */}
-        {activeSubtab === 'geral' && (
-          <div className="event-dash-body">
-            {/* Top 6 metrics */}
-            <div className="dash-six-metrics">
-              <div className="dash-stat-card blue">
-                <div className="dash-stat-label"><UsersIcon /> Atletas</div>
-                <div className="dash-stat-val">430</div>
-              </div>
-
-              <div className="dash-stat-card amber">
-                <div className="dash-stat-label"><FlagIcon /> Largada</div>
-                <div className="dash-stat-val">0</div>
-              </div>
-
-              <div className="dash-stat-card green">
-                <div className="dash-stat-label"><FlagIcon /> Chegadas</div>
-                <div className="dash-stat-val">0</div>
-              </div>
-
-              <div className="dash-stat-card blue">
-                <div className="dash-stat-label"><UsersIcon /> Masculino</div>
-                <div className="dash-stat-val">179</div>
-              </div>
-
-              <div className="dash-stat-card pink">
-                <div className="dash-stat-label"><UsersIcon /> Feminino</div>
-                <div className="dash-stat-val">251</div>
-              </div>
-
-              <div className="dash-stat-card purple">
-                <div className="dash-stat-label"><UsersIcon /> Misto</div>
-                <div className="dash-stat-val">0</div>
+                <button
+                  type="button"
+                  className={`event-subtab-btn ${activeSubtab === 'entrega' ? 'active' : ''}`}
+                  onClick={() => setActiveSubtab('entrega')}
+                >
+                  📦 Entrega de Kit
+                </button>
               </div>
             </div>
 
-            {/* 3 Donut / status charts */}
-            <div className="dash-three-charts">
-              <div className="dash-chart-card">
-                <h3 className="dash-chart-title">Distribuição por Status</h3>
-                <div className="donut-wrap interactive-chart-box">
-                  <svg width="140" height="140" viewBox="0 0 42 42">
-                    <circle
-                      cx="21"
-                      cy="21"
-                      r="15.9"
-                      fill="transparent"
-                      stroke="#ff5200"
-                      strokeWidth={hoveredStatus === 'pendente' ? '7.5' : '5.5'}
-                      strokeDasharray="16 84"
-                      strokeDashoffset="25"
-                      style={{ cursor: 'pointer', transition: 'stroke-width 0.15s ease' }}
-                      onMouseEnter={() => setHoveredStatus('pendente')}
-                      onMouseLeave={() => setHoveredStatus(null)}
-                    />
-                    <circle
-                      cx="21"
-                      cy="21"
-                      r="15.9"
-                      fill="transparent"
-                      stroke="#10b981"
-                      strokeWidth={hoveredStatus === 'entregue' ? '7.5' : '5.5'}
-                      strokeDasharray="84 16"
-                      strokeDashoffset="109"
-                      style={{ cursor: 'pointer', transition: 'stroke-width 0.15s ease' }}
-                      onMouseEnter={() => setHoveredStatus('entregue')}
-                      onMouseLeave={() => setHoveredStatus(null)}
-                    />
-                  </svg>
-                  {hoveredStatus && (
-                    <div className="chart-floating-tooltip donut-tooltip">
-                      <div className="tooltip-title">{hoveredStatus === 'entregue' ? 'Status: Entregue' : 'Status: Pendente'}</div>
-                      <div className={`tooltip-row ${hoveredStatus}`}>
-                        <span>{hoveredStatus === 'entregue' ? '361 kits' : '69 kits'}</span>
-                        <span>{hoveredStatus === 'entregue' ? '84.0%' : '16.0%'}</span>
-                      </div>
-                    </div>
-                  )}
-                  <div className="donut-legend">
-                    <span
-                      className="legend-item"
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={() => setHoveredStatus('entregue')}
-                      onMouseLeave={() => setHoveredStatus(null)}
-                    >
-                      <span className="legend-square" style={{ background: '#10b981' }} />
-                      Entregue
-                    </span>
-                    <span
-                      className="legend-item"
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={() => setHoveredStatus('pendente')}
-                      onMouseLeave={() => setHoveredStatus(null)}
-                    >
-                      <span className="legend-square" style={{ background: '#ff5200' }} />
-                      Pendente
-                    </span>
+            {/* TAB 1: VISÃO GERAL */}
+            {activeSubtab === 'geral' && (
+              <div className="event-dash-body">
+                {/* Top 3 metrics */}
+                <div className="dash-three-metrics">
+                  <div className="dash-stat-card blue">
+                    <div className="dash-stat-label"><UsersIcon /> Atletas</div>
+                    <div className="dash-stat-val">{totalCount}</div>
+                  </div>
+
+                  <div className="dash-stat-card blue">
+                    <div className="dash-stat-label"><UsersIcon /> Masculino</div>
+                    <div className="dash-stat-val">{mascCount}</div>
+                    <span className="dash-stat-sub">{mascPct}%</span>
+                  </div>
+
+                  <div className="dash-stat-card pink">
+                    <div className="dash-stat-label"><UsersIcon /> Feminino</div>
+                    <div className="dash-stat-val">{femCount}</div>
+                    <span className="dash-stat-sub">{femPct}%</span>
                   </div>
                 </div>
-              </div>
 
-              <div className="dash-chart-card">
-                <h3 className="dash-chart-title">Distribuição por Gênero</h3>
-                <div className="donut-wrap interactive-chart-box">
-                  <svg width="140" height="140" viewBox="0 0 42 42">
-                    <circle
-                      cx="21"
-                      cy="21"
-                      r="15.9"
-                      fill="transparent"
-                      stroke="#2196f3"
-                      strokeWidth={hoveredGender === 'masc' ? '7.5' : '5.5'}
-                      strokeDasharray="42 58"
-                      strokeDashoffset="25"
-                      style={{ cursor: 'pointer', transition: 'stroke-width 0.15s ease' }}
-                      onMouseEnter={() => setHoveredGender('masc')}
-                      onMouseLeave={() => setHoveredGender(null)}
-                    />
-                    <circle
-                      cx="21"
-                      cy="21"
-                      r="15.9"
-                      fill="transparent"
-                      stroke="#e91e63"
-                      strokeWidth={hoveredGender === 'fem' ? '7.5' : '5.5'}
-                      strokeDasharray="58 42"
-                      strokeDashoffset="83"
-                      style={{ cursor: 'pointer', transition: 'stroke-width 0.15s ease' }}
-                      onMouseEnter={() => setHoveredGender('fem')}
-                      onMouseLeave={() => setHoveredGender(null)}
-                    />
-                    <text x="28" y="16" fill="#2196f3" fontSize="3" fontWeight="bold">42%</text>
-                    <text x="14" y="32" fill="#e91e63" fontSize="3" fontWeight="bold">58%</text>
-                  </svg>
-                  {hoveredGender && (
-                    <div className="chart-floating-tooltip donut-tooltip">
-                      <div className="tooltip-title">{hoveredGender === 'fem' ? 'Gênero: Feminino' : 'Gênero: Masculino'}</div>
-                      <div className={`tooltip-row ${hoveredGender === 'fem' ? 'female' : 'male'}`}>
-                        <span>{hoveredGender === 'fem' ? '251 atletas' : '179 atletas'}</span>
-                        <span>{hoveredGender === 'fem' ? '58.4%' : '41.6%'}</span>
+                {/* 2 Donut / status charts */}
+                <div className="dash-two-charts">
+                  <div className="dash-chart-card">
+                    <h3 className="dash-chart-title">Distribuição por Status</h3>
+                    <div className="donut-wrap interactive-chart-box">
+                      <svg width="140" height="140" viewBox="0 0 42 42">
+                        <circle
+                          cx="21"
+                          cy="21"
+                          r="15.9"
+                          fill="transparent"
+                          stroke="#ff5200"
+                          strokeWidth={hoveredStatus === 'pendente' ? '7.5' : '5.5'}
+                          strokeDasharray={`${Math.round(Number(faltantesPct))} ${100 - Math.round(Number(faltantesPct))}`}
+                          strokeDashoffset="25"
+                          style={{ cursor: 'pointer', transition: 'stroke-width 0.15s ease' }}
+                          onMouseEnter={() => setHoveredStatus('pendente')}
+                          onMouseLeave={() => setHoveredStatus(null)}
+                        />
+                        <circle
+                          cx="21"
+                          cy="21"
+                          r="15.9"
+                          fill="transparent"
+                          stroke="#10b981"
+                          strokeWidth={hoveredStatus === 'entregue' ? '7.5' : '5.5'}
+                          strokeDasharray={`${Math.round(Number(entreguesPct))} ${100 - Math.round(Number(entreguesPct))}`}
+                          strokeDashoffset={`${100 - Math.round(Number(entreguesPct)) + 25}`}
+                          style={{ cursor: 'pointer', transition: 'stroke-width 0.15s ease' }}
+                          onMouseEnter={() => setHoveredStatus('entregue')}
+                          onMouseLeave={() => setHoveredStatus(null)}
+                        />
+                      </svg>
+                      {hoveredStatus && (
+                        <div className="chart-floating-tooltip donut-tooltip">
+                          <div className="tooltip-title">{hoveredStatus === 'entregue' ? 'Status: Entregue' : 'Status: Pendente'}</div>
+                          <div className={`tooltip-row ${hoveredStatus}`}>
+                            <span>{hoveredStatus === 'entregue' ? `${entreguesCount} kits` : `${faltantesCount} kits`}</span>
+                            <span>{hoveredStatus === 'entregue' ? `${entreguesPct}%` : `${faltantesPct}%`}</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="donut-legend">
+                        <span
+                          className="legend-item"
+                          style={{ cursor: 'pointer' }}
+                          onMouseEnter={() => setHoveredStatus('entregue')}
+                          onMouseLeave={() => setHoveredStatus(null)}
+                        >
+                          <span className="legend-square" style={{ background: '#10b981' }} />
+                          Entregue ({entreguesPct}%)
+                        </span>
+                        <span
+                          className="legend-item"
+                          style={{ cursor: 'pointer' }}
+                          onMouseEnter={() => setHoveredStatus('pendente')}
+                          onMouseLeave={() => setHoveredStatus(null)}
+                        >
+                          <span className="legend-square" style={{ background: '#ff5200' }} />
+                          Pendente ({faltantesPct}%)
+                        </span>
                       </div>
                     </div>
-                  )}
-                  <div className="donut-legend">
-                    <span
-                      className="legend-item"
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={() => setHoveredGender('masc')}
-                      onMouseLeave={() => setHoveredGender(null)}
-                    >
-                      <span className="legend-square" style={{ background: '#2196f3' }} />
-                      Masculino
-                    </span>
-                    <span
-                      className="legend-item"
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={() => setHoveredGender('fem')}
-                      onMouseLeave={() => setHoveredGender(null)}
-                    >
-                      <span className="legend-square" style={{ background: '#e91e63' }} />
-                      Feminino
-                    </span>
+                  </div>
+
+                  <div className="dash-chart-card">
+                    <h3 className="dash-chart-title">Distribuição por Gênero</h3>
+                    <div className="donut-wrap interactive-chart-box">
+                      <svg width="140" height="140" viewBox="0 0 42 42">
+                        <circle
+                          cx="21"
+                          cy="21"
+                          r="15.9"
+                          fill="transparent"
+                          stroke="#2196f3"
+                          strokeWidth={hoveredGender === 'masc' ? '7.5' : '5.5'}
+                          strokeDasharray={`${Math.round(Number(mascPct))} ${100 - Math.round(Number(mascPct))}`}
+                          strokeDashoffset="25"
+                          style={{ cursor: 'pointer', transition: 'stroke-width 0.15s ease' }}
+                          onMouseEnter={() => setHoveredGender('masc')}
+                          onMouseLeave={() => setHoveredGender(null)}
+                        />
+                        <circle
+                          cx="21"
+                          cy="21"
+                          r="15.9"
+                          fill="transparent"
+                          stroke="#e91e63"
+                          strokeWidth={hoveredGender === 'fem' ? '7.5' : '5.5'}
+                          strokeDasharray={`${Math.round(Number(femPct))} ${100 - Math.round(Number(femPct))}`}
+                          strokeDashoffset={`${100 - Math.round(Number(femPct)) + 25}`}
+                          style={{ cursor: 'pointer', transition: 'stroke-width 0.15s ease' }}
+                          onMouseEnter={() => setHoveredGender('fem')}
+                          onMouseLeave={() => setHoveredGender(null)}
+                        />
+                        <text x="28" y="16" fill="#2196f3" fontSize="3" fontWeight="bold">{Math.round(Number(mascPct))}%</text>
+                        <text x="14" y="32" fill="#e91e63" fontSize="3" fontWeight="bold">{Math.round(Number(femPct))}%</text>
+                      </svg>
+                      {hoveredGender && (
+                        <div className="chart-floating-tooltip donut-tooltip">
+                          <div className="tooltip-title">{hoveredGender === 'fem' ? 'Gênero: Feminino' : 'Gênero: Masculino'}</div>
+                          <div className={`tooltip-row ${hoveredGender === 'fem' ? 'female' : 'male'}`}>
+                            <span>{hoveredGender === 'fem' ? `${femCount} atletas` : `${mascCount} atletas`}</span>
+                            <span>{hoveredGender === 'fem' ? `${femPct}%` : `${mascPct}%`}</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="donut-legend">
+                        <span
+                          className="legend-item"
+                          style={{ cursor: 'pointer' }}
+                          onMouseEnter={() => setHoveredGender('masc')}
+                          onMouseLeave={() => setHoveredGender(null)}
+                        >
+                          <span className="legend-square" style={{ background: '#2196f3' }} />
+                          Masculino ({mascPct}%)
+                        </span>
+                        <span
+                          className="legend-item"
+                          style={{ cursor: 'pointer' }}
+                          onMouseEnter={() => setHoveredGender('fem')}
+                          onMouseLeave={() => setHoveredGender(null)}
+                        >
+                          <span className="legend-square" style={{ background: '#e91e63' }} />
+                          Feminino ({femPct}%)
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="dash-chart-card">
-                <h3 className="dash-chart-title">Distribuição de Largada</h3>
-                <div className="chart-empty-msg">
-                  Sem dados suficientes ainda
-                </div>
-              </div>
-            </div>
 
             {/* Faixa etária */}
             <div className="dash-chart-card">
@@ -624,219 +633,39 @@ export default function EventDashboardPage({
               </div>
             </div>
 
-            {/* Chegadas por intervalo */}
+            {/* Equipes por Atletas Cadastrados */}
             <div className="dash-chart-card">
-              <h3 className="dash-chart-title">Chegadas por Intervalo de Tempo</h3>
-              <div className="chart-empty-msg">
-                Nenhuma chegada registrada
-              </div>
-            </div>
-
-            {/* Largaram sem finalizar */}
-            <div className="dash-chart-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <h3 className="dash-chart-title" style={{ margin: 0 }}>Largaram Sem Finalizar</h3>
-                <span className="category-filter-chip" style={{ padding: '2px 8px', fontSize: 10 }}>0 Atletas</span>
-              </div>
-              <div className="chart-empty-msg">
-                Sem dados suficientes ainda
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: POR MODALIDADE */}
-        {activeSubtab === 'modalidade' && (
-          <div className="event-dash-body">
-            <span className="category-filter-chip">✓ 5 KM</span>
-
-            {/* 6 metrics */}
-            <div className="dash-six-metrics">
-              <div className="dash-stat-card blue">
-                <div className="dash-stat-label"><UsersIcon /> Atletas</div>
-                <div className="dash-stat-val">430</div>
-              </div>
-
-              <div className="dash-stat-card amber">
-                <div className="dash-stat-label"><FlagIcon /> Largada</div>
-                <div className="dash-stat-val">0</div>
-              </div>
-
-              <div className="dash-stat-card green">
-                <div className="dash-stat-label"><FlagIcon /> Chegadas</div>
-                <div className="dash-stat-val">0</div>
-              </div>
-
-              <div className="dash-stat-card blue">
-                <div className="dash-stat-label"><UsersIcon /> Masculino</div>
-                <div className="dash-stat-val">179</div>
-              </div>
-
-              <div className="dash-stat-card pink">
-                <div className="dash-stat-label"><UsersIcon /> Feminino</div>
-                <div className="dash-stat-val">251</div>
-              </div>
-
-              <div className="dash-stat-card purple">
-                <div className="dash-stat-label"><UsersIcon /> Misto</div>
-                <div className="dash-stat-val">0</div>
-              </div>
-            </div>
-
-            {/* Estatísticas de tempo */}
-            <div className="dash-chart-card">
-              <h3 className="dash-chart-title">Estatísticas de Tempo</h3>
-              <div className="time-stats-grid">
-                <div className="time-stat-col">
-                  <span className="time-stat-gender male">♂ Masculino</span>
-                  <div className="time-stat-row">
-                    <span>🏆 Primeiro Atleta</span>
-                    <span>00:00:00</span>
-                  </div>
-                  <div className="time-stat-row">
-                    <span>🚩 Último Atleta</span>
-                    <span>00:00:00</span>
-                  </div>
-                  <div className="time-stat-row">
-                    <span>📊 Tempo Médio</span>
-                    <span>00:00:00</span>
-                  </div>
-                </div>
-
-                <div className="time-stat-col">
-                  <span className="time-stat-gender female">♀ Feminino</span>
-                  <div className="time-stat-row">
-                    <span>🏆 Primeiro Atleta</span>
-                    <span>00:00:00</span>
-                  </div>
-                  <div className="time-stat-row">
-                    <span>🚩 Último Atleta</span>
-                    <span>00:00:00</span>
-                  </div>
-                  <div className="time-stat-row">
-                    <span>📊 Tempo Médio</span>
-                    <span>00:00:00</span>
-                  </div>
-                </div>
-
-                <div className="time-stat-col">
-                  <span className="time-stat-gender mixed">⚥ Misto</span>
-                  <div className="time-stat-row">
-                    <span>🏆 Primeiro Atleta</span>
-                    <span>00:00:00</span>
-                  </div>
-                  <div className="time-stat-row">
-                    <span>🚩 Último Atleta</span>
-                    <span>00:00:00</span>
-                  </div>
-                  <div className="time-stat-row">
-                    <span>📊 Tempo Médio</span>
-                    <span>00:00:00</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Atletas por modalidade e categoria */}
-            <div className="dash-chart-card">
-              <h3 className="dash-chart-title">Atletas por Modalidade e Categoria</h3>
-              <div className="interactive-chart-box">
-                <svg width="100%" height="200" viewBox="0 0 600 200" preserveAspectRatio="none">
-                  <line x1="40" y1="30" x2="560" y2="30" stroke="#f1f5f9" strokeDasharray="4" />
-                  <line x1="40" y1="75" x2="560" y2="75" stroke="#f1f5f9" strokeDasharray="4" />
-                  <line x1="40" y1="120" x2="560" y2="120" stroke="#f1f5f9" strokeDasharray="4" />
-                  <line x1="40" y1="165" x2="560" y2="165" stroke="#e2e8f0" />
-                  <text x="15" y="34" fill="#94a3b8" fontSize="11">600</text>
-                  <text x="15" y="79" fill="#94a3b8" fontSize="11">450</text>
-                  <text x="15" y="124" fill="#94a3b8" fontSize="11">300</text>
-                  <text x="15" y="169" fill="#94a3b8" fontSize="11">150</text>
-                  <text x="26" y="190" fill="#94a3b8" fontSize="11">0</text>
-
-                  {/* Single wide teal bar with interactive hover */}
-                  <rect
-                    x="180"
-                    y="80"
-                    width="300"
-                    height="85"
-                    fill={hoveredCategoria ? '#2dd4bf' : '#42b9b7'}
-                    rx="3"
-                    style={{ cursor: 'pointer', transition: 'fill 0.15s ease' }}
-                    onMouseEnter={() => setHoveredCategoria(true)}
-                    onMouseLeave={() => setHoveredCategoria(false)}
-                  />
-                  <text x="310" y="185" fill="#64748b" fontSize="11">GERAL</text>
-                </svg>
-                {hoveredCategoria && (
-                  <div
-                    className="chart-floating-tooltip"
-                    style={{ left: '50%', top: '25px', transform: 'translateX(-50%)' }}
-                  >
-                    <div className="tooltip-title">Categoria: GERAL</div>
-                    <div className="tooltip-row male">
-                      <span>Total :</span>
-                      <span>430 atletas</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Equipes */}
-            <div className="highlights-grid">
-              <div className="dash-chart-card">
-                <h3 className="dash-chart-title flex-title">
-                  <UsersIcon />
-                  <span>Equipes por Atletas Cadastrados</span>
-                </h3>
-                <div className="teams-list">
-                  {[
-                    { rank: 1, name: 'Sem Equipe', count: 267 },
-                    { rank: 2, name: 'BORA PRO CORRE', count: 55 },
-                    { rank: 3, name: 'BORAPROCORRE', count: 15 },
-                    { rank: 4, name: 'FORMOSO PACE CLUBE', count: 6 },
-                    { rank: 5, name: 'BROCARUN', count: 6 },
-                    { rank: 6, name: 'UNA-SE', count: 3 },
-                    { rank: 7, name: 'FORMOSO PACE', count: 3 },
-                    { rank: 8, name: 'SAO BENTO DO UNA', count: 3 },
-                    { rank: 9, name: 'SANTA LUZIA', count: 3 },
-                    { rank: 10, name: 'BORRA PRO CORRE', count: 2 },
-                  ].map((team) => {
-                    const pct = Math.max(1.2, (team.count / 267) * 100)
-                    return (
-                      <div key={team.rank} className="team-progress-row">
-                        <div className="team-info-row">
-                          <div className="team-left">
-                            <span className="team-rank">{team.rank}</span>
-                            <span className="team-name">{team.name}</span>
-                          </div>
-                          <span className="team-count">{team.count}</span>
+              <h3 className="dash-chart-title flex-title">
+                <UsersIcon />
+                <span>Equipes por Atletas Cadastrados</span>
+              </h3>
+              <div className="teams-list">
+                {teamsData.map((team) => {
+                  const pct = Math.max(1.2, (team.count / maxTeamCount) * 100)
+                  return (
+                    <div key={`${team.rank}-${team.name}`} className="team-progress-row">
+                      <div className="team-info-row">
+                        <div className="team-left">
+                          <span className="team-rank">{team.rank}</span>
+                          <span className="team-name">{team.name}</span>
                         </div>
-                        <div className="team-bar-track">
-                          <div
-                            className="team-bar-fill"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
+                        <span className="team-count">{team.count} {team.count === 1 ? 'atleta' : 'atletas'}</span>
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="dash-chart-card">
-                <h3 className="dash-chart-title flex-title green">
-                  <FlagIcon />
-                  <span>Equipes por Finalizados</span>
-                </h3>
-                <div className="chart-empty-msg">
-                  Nenhuma equipe registrada
-                </div>
+                      <div className="team-bar-track">
+                        <div
+                          className="team-bar-fill"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 3: ENTREGA DE KIT */}
+        {/* TAB 2: ENTREGA DE KIT */}
         {activeSubtab === 'entrega' && (
           <div className="event-dash-body">
             {/* Top 3 metrics */}

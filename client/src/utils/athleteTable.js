@@ -109,8 +109,48 @@ export function mergeAthleteColumnSchemas(current = [], incoming = []) {
 }
 
 export function getAthleteTableColumns(athletes = [], savedSchema = []) {
+  // Se existe um schema explícito gravado pela importação da planilha,
+  // a grade exibe ESTRITAMENTE as colunas da planilha (sem inventar colunas).
+  if (Array.isArray(savedSchema) && savedSchema.length > 0) {
+    const schemaKeys = new Set(savedSchema.map((c) => normalizeColumnKey(c.key)))
+
+    const columns = [...savedSchema]
+
+    // Garante que número e nome apareçam se existirem atletas
+    if (!schemaKeys.has('numero')) {
+      columns.unshift({ key: 'numero', label: 'NÚMERO', required: true, type: 'standard' })
+      schemaKeys.add('numero')
+    }
+    if (!schemaKeys.has('nome')) {
+      const numIdx = columns.findIndex((c) => c.key === 'numero')
+      columns.splice(numIdx + 1, 0, { key: 'nome', label: 'NOME', required: true, type: 'standard' })
+      schemaKeys.add('nome')
+    }
+
+    // Adiciona STATUS operacional no final se não estiver presente
+    if (!schemaKeys.has('status')) {
+      columns.push({ key: 'status', label: 'STATUS', type: 'standard' })
+    }
+
+    return columns
+  }
+
+  // Fallback para eventos sem schema salvo: apenas colunas que realmente possuem dados válidos
+  // (ignora colunas fictícias como morador/nacionalidade se todos forem apenas o default falso)
+  const isDefaultFictitious = (key) => {
+    if (key === 'morador') {
+      return athletes.every((a) => !a.morador || a.morador === 'Visitante' || a.morador === 'Morador')
+    }
+    if (key === 'nacionalidade') {
+      return athletes.every((a) => !a.nacionalidade || a.nacionalidade === 'BRASIL')
+    }
+    return false
+  }
+
   const standard = STANDARD_COLUMNS.filter(
-    (column) => column.required || athletes.some((athlete) => hasValue(athlete?.[column.key]))
+    (column) =>
+      column.required ||
+      (athletes.some((athlete) => hasValue(athlete?.[column.key])) && !isDefaultFictitious(column.key))
   ).map((column) => ({ ...column, type: 'standard' }))
 
   const customKeys = []
@@ -127,16 +167,13 @@ export function getAthleteTableColumns(athletes = [], savedSchema = []) {
   })
 
   const discoveredCustom = customKeys.map((key) => ({
-      key: `custom:${key}`,
-      customKey: key,
-      label: key.toLocaleUpperCase('pt-BR'),
-      type: 'custom',
-    }))
+    key: `custom:${key}`,
+    customKey: key,
+    label: key.toLocaleUpperCase('pt-BR'),
+    type: 'custom',
+  }))
 
-  return mergeAthleteColumnSchemas(
-    standard,
-    mergeAthleteColumnSchemas(savedSchema, discoveredCustom)
-  )
+  return mergeAthleteColumnSchemas(standard, discoveredCustom)
 }
 
 const COLUMN_WIDTHS = {

@@ -456,6 +456,8 @@ export default function OperacaoPage({
     if (currentEvent.id && Array.isArray(kits)) localStorage.setItem(`entregas_run_kits_${currentEvent.id}`, JSON.stringify(kits))
   }, [kits, currentEvent.id])
 
+  const [deliveriesPage, setDeliveriesPage] = useState(1)
+
   const [athleteColumnSchema, setAthleteColumnSchema] = useState(() => {
     try {
       if (!currentEvent.id) return []
@@ -1042,6 +1044,7 @@ export default function OperacaoPage({
 
   // Open Athlete Detail View
   function handleOpenAthleteDetail(athleteId) {
+    setKitSearch('')
     const athlete = athletes.find(
       (a) => String(a.numero) === String(athleteId) || String(a.id) === String(athleteId)
     )
@@ -1586,6 +1589,7 @@ export default function OperacaoPage({
       if (!auditRecord) return
 
       closeAthleteDetail({ force: true })
+      setKitSearch('')
     } finally {
       window.setTimeout(() => {
         detailActionLockRef.current = false
@@ -1595,7 +1599,7 @@ export default function OperacaoPage({
   }
 
   // Abre modal do comprovante (2 vias) para um atleta ou registro de auditoria
-  function handleOpenComprovante(target) {
+  function _handleOpenComprovante(target) {
     if (!target) return
     if (target.comprovanteId) {
       setSelectedComprovante(target)
@@ -1919,15 +1923,6 @@ export default function OperacaoPage({
                 <div className="athlete-detail-actions-bar">
                   {detailForm.status === 'ENTREGUE' ? (
                     <>
-                      <button
-                        type="button"
-                        className="btn-detail-print"
-                        onClick={() => handleOpenComprovante(selectedAthlete || detailForm)}
-                        title="Imprimir comprovante de entrega (2 Vias)"
-                      >
-                        <PrinterIcon />
-                        <span>IMPRIMIR COMPROVANTE</span>
-                      </button>
                       {!isOperator && (
                         <button
                           type="button"
@@ -2403,6 +2398,16 @@ export default function OperacaoPage({
                       value={kitSearch}
                       onChange={(e) => setKitSearch(e.target.value)}
                     />
+                    {kitSearch && (
+                      <button
+                        type="button"
+                        className="btn-clear-search-x"
+                        onClick={() => setKitSearch('')}
+                        title="Limpar busca"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -2437,9 +2442,13 @@ export default function OperacaoPage({
                                   {athlete.doc ? `CPF ${athlete.doc}` : '—'}
                                 </span>
                               </div>
-                              {isEntregue && (
+                              {isEntregue ? (
                                 <span className="badge-kit-status-entregue">
-                                  ✓ KIT ENTREGUE
+                                  ✓ JÁ ENTREGUE
+                                </span>
+                              ) : (
+                                <span className="badge-kit-status-pendente">
+                                  FALTA ENTREGAR
                                 </span>
                               )}
                             </div>
@@ -2452,7 +2461,12 @@ export default function OperacaoPage({
 
                 <section className="ultimas-entregas-section">
                   <div className="ultimas-entregas-header">
-                    <h3 className="section-heading">ÚLTIMAS ENTREGAS</h3>
+                    <div className="ultimas-entregas-title-group">
+                      <h3 className="section-heading">ÚLTIMAS ENTREGAS</h3>
+                      {sortedDeliveries.length > 0 && (
+                        <span className="deliveries-total-pill">{sortedDeliveries.length} entregas</span>
+                      )}
+                    </div>
                     <button
                       type="button"
                       className="refresh-btn"
@@ -2468,29 +2482,65 @@ export default function OperacaoPage({
                       <div className="empty-message-box">
                         Nenhuma entrega registrada ainda.
                       </div>
-                    ) : (
-                      <div className="deliveries-list">
-                        {sortedDeliveries.map((item, idx) => (
-                          <div
-                            key={`${item.id}-${idx}`}
-                            className="delivery-item-row"
-                            onClick={() => handleOpenAthleteDetail(item.id)}
-                            title="Clique para ver dados completos e entrega deste atleta"
-                          >
-                            <div className="athlete-main">
-                              <span className="athlete-peito">Nº {item.id}</span>
-                              <span className="athlete-name highlight-link">{item.name}</span>
-                              <span className="athlete-doc">— {item.doc}</span>
-                            </div>
-                            <div className="delivery-tags">
-                              <span className="tag-gray">{item.category}</span>
-                              <span className="tag-gray">CAMISETA {item.size}</span>
-                              <span className="tag-green">ENTREGUE</span>
-                            </div>
+                    ) : (() => {
+                      const DELIVERIES_PER_PAGE = 20
+                      const totalDeliveriesPages = Math.max(1, Math.ceil(sortedDeliveries.length / DELIVERIES_PER_PAGE))
+                      const currentDeliveriesPage = Math.min(deliveriesPage, totalDeliveriesPages)
+                      const paginatedDeliveries = sortedDeliveries.slice(
+                        (currentDeliveriesPage - 1) * DELIVERIES_PER_PAGE,
+                        currentDeliveriesPage * DELIVERIES_PER_PAGE
+                      )
+
+                      return (
+                        <>
+                          <div className="deliveries-list">
+                            {paginatedDeliveries.map((item, idx) => (
+                              <div
+                                key={`${item.id}-${idx}`}
+                                className="delivery-item-row"
+                                onClick={() => handleOpenAthleteDetail(item.id)}
+                                title="Clique para ver dados completos e entrega deste atleta"
+                              >
+                                <div className="athlete-main">
+                                  <span className="athlete-peito">Nº {item.id}</span>
+                                  <span className="athlete-name highlight-link">{item.name}</span>
+                                  {item.doc && <span className="athlete-doc">— {item.doc}</span>}
+                                </div>
+                                <div className="delivery-tags">
+                                  <span className="tag-green">✓ ENTREGUE</span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
+
+                          {totalDeliveriesPages > 1 && (
+                            <div className="deliveries-pagination-controls">
+                              <span className="deliveries-page-indicator">
+                                Página {currentDeliveriesPage} de {totalDeliveriesPages} ({sortedDeliveries.length} no total)
+                              </span>
+                              <div className="deliveries-page-btn-group">
+                                <button
+                                  type="button"
+                                  className="btn-page-nav"
+                                  disabled={currentDeliveriesPage === 1}
+                                  onClick={() => setDeliveriesPage((p) => Math.max(1, p - 1))}
+                                >
+                                  Anterior
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-page-nav"
+                                  disabled={currentDeliveriesPage === totalDeliveriesPages}
+                                  onClick={() => setDeliveriesPage((p) => Math.min(totalDeliveriesPages, p + 1))}
+                                >
+                                  Próxima
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                 </section>
               </>

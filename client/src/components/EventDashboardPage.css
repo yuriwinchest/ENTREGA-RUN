@@ -146,6 +146,19 @@
   gap: 16px;
 }
 
+.dash-three-metrics,
+.dash-three-charts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.dash-two-charts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
 .dash-stat-card {
   border-radius: 16px;
   padding: 20px 22px;

@@ -10,6 +10,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 3001)
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data')
 const EVENTS_FILE = path.join(DATA_DIR, 'events.json')
+const USERS_FILE = path.join(DATA_DIR, 'users.json')
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'pacetime@entregas.com').toLowerCase().trim()
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'WgP2ZhkCXQ!7'
 
 try {
   if (!fs.existsSync(DATA_DIR)) {
@@ -115,13 +118,22 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req
             ? {
                 numero: String(atleta.numero ?? '').slice(0, 30),
                 nome: String(atleta.nome ?? '').slice(0, 120),
+                nome_peito: String(atleta.nome_peito ?? '').slice(0, 80),
+                doc: String(atleta.doc ?? '').slice(0, 50),
                 modalidade: String(atleta.modalidade ?? '').slice(0, 60),
                 categoria: String(atleta.categoria ?? '').slice(0, 60),
-                camiseta: String(atleta.camiseta ?? '').slice(0, 10),
+                camiseta: String(atleta.camiseta ?? '').slice(0, 20),
                 kit: String(atleta.kit ?? '').slice(0, 80),
                 chip: String(atleta.chip ?? '').slice(0, 60),
                 sexo: String(atleta.sexo ?? '').slice(0, 20),
                 equipe: String(atleta.equipe ?? '').slice(0, 80),
+                cidade: String(atleta.cidade ?? '').slice(0, 80),
+                nascimento: String(atleta.nascimento ?? '').slice(0, 30),
+                morador: String(atleta.morador ?? '').slice(0, 40),
+                contato: String(atleta.contato ?? '').slice(0, 60),
+                nacionalidade: String(atleta.nacionalidade ?? '').slice(0, 40),
+                pcd: String(atleta.pcd ?? '').slice(0, 60),
+                customFields: atleta.customFields && typeof atleta.customFields === 'object' ? atleta.customFields : {},
               }
             : null,
     config: sanitizeEspelhoConfig(body.config) ?? previous?.config ?? null,
@@ -616,10 +628,171 @@ app.get('/api/public/events/:eventId/athletes/:numero', publicValidateLimiter, (
   })
 })
 
-const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'pacetime@entregas.com').toLowerCase().trim()
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'WgP2ZhkCXQ!7'
+// ============================================================
+// PERSISTÊNCIA CENTRALIZADA DE USUÁRIOS
+// Salva operadores e supervisores no volume Docker (/app/data/users.json).
+// Permite criar usuários com senha gerada e login em qualquer dispositivo.
+// ============================================================
+function readUsersFromDisk() {
+  const defaultAdmin = {
+    id: 'admin_pacetime',
+    name: 'Felipe Admin',
+    email: ADMIN_EMAIL,
+    password: ADMIN_PASSWORD,
+    role: 'ADMIN',
+    eventId: 'all',
+    eventName: 'TODOS OS PROJETOS',
+    status: 'ATIVO',
+    deliveries: 0,
+    avatar: 'FA',
+    createdAt: new Date().toISOString(),
+  }
 
-// Autenticação do Administrador Geral e Operadores
+  const candidates = [
+    USERS_FILE,
+    '/tmp/entregas-run-data/users.json',
+  ]
+
+  for (const filePath of candidates) {
+    try {
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, 'utf-8')
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasAdmin = parsed.some((u) => u.email && u.email.toLowerCase() === ADMIN_EMAIL)
+          return hasAdmin ? parsed : [defaultAdmin, ...parsed]
+        }
+      }
+    } catch (err) {
+      console.error(`[server] Erro ao ler ${filePath}:`, err)
+    }
+  }
+
+  return [defaultAdmin]
+}
+
+let inMemoryUsers = readUsersFromDisk()
+
+function writeUsersToDisk(users) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true })
+    }
+    const tempFile = `${USERS_FILE}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`
+    fs.writeFileSync(tempFile, JSON.stringify(users, null, 2), 'utf-8')
+    fs.renameSync(tempFile, USERS_FILE)
+  } catch (err) {
+    console.error('[server] Erro ao salvar users.json em DATA_DIR:', err)
+  }
+
+  try {
+    const fallbackDir = '/tmp/entregas-run-data'
+    if (!fs.existsSync(fallbackDir)) {
+      fs.mkdirSync(fallbackDir, { recursive: true })
+    }
+    const tempFb = path.join(fallbackDir, `users.${Date.now()}.tmp`)
+    const targetFb = path.join(fallbackDir, 'users.json')
+    fs.writeFileSync(tempFb, JSON.stringify(users, null, 2), 'utf-8')
+    fs.renameSync(tempFb, targetFb)
+  } catch {}
+}
+
+// GET /api/users — Lista usuários cadastrados (para gestão pelo Admin)
+app.get('/api/users', (_req, res) => {
+  res.json({ ok: true, users: inMemoryUsers })
+})
+
+// POST /api/users — Cria ou atualiza usuário com senha gerada
+app.post('/api/users', (req, res) => {
+  const body = req.body || {}
+  const name = String(body.name || '').trim().toUpperCase()
+  const email = String(body.email || '').trim().toLowerCase()
+  const password = String(body.password || '').trim()
+  const role = ['ADMIN', 'SUPERVISOR', 'OPERADOR'].includes(body.role) ? body.role : 'OPERADOR'
+  const eventId = String(body.eventId || 'all').trim()
+  const eventName = String(body.eventName || 'TODOS OS PROJETOS').trim()
+
+  if (!name || !email || !EMAIL_RE.test(email)) {
+    return res.status(400).json({ ok: false, message: 'Nome e e-mail válido são obrigatórios.' })
+  }
+  if (!password || password.length < 6) {
+    return res.status(400).json({ ok: false, message: 'Senha deve ter pelo menos 6 caracteres.' })
+  }
+
+  const existingIdx = inMemoryUsers.findIndex((u) => u.email && u.email.toLowerCase() === email)
+  const newUser = {
+    id: body.id || (existingIdx >= 0 ? inMemoryUsers[existingIdx].id : `user-${Date.now()}`),
+    name,
+    email,
+    password,
+    role,
+    eventId,
+    eventName,
+    status: body.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
+    deliveries: Number(body.deliveries || 0),
+    avatar: name.substring(0, 2).toUpperCase(),
+    updatedAt: Date.now(),
+  }
+
+  if (existingIdx >= 0) {
+    inMemoryUsers[existingIdx] = { ...inMemoryUsers[existingIdx], ...newUser }
+  } else {
+    inMemoryUsers.unshift(newUser)
+  }
+
+  writeUsersToDisk(inMemoryUsers)
+  res.status(201).json({ ok: true, user: newUser })
+})
+
+// PUT /api/users/:id — Atualiza usuário (dados, função ou redefinição de senha)
+app.put('/api/users/:id', (req, res) => {
+  const userId = String(req.params.id || '').trim()
+  const idx = inMemoryUsers.findIndex((u) => u.id === userId)
+  if (idx === -1) {
+    return res.status(404).json({ ok: false, message: 'Usuário não encontrado.' })
+  }
+
+  const current = inMemoryUsers[idx]
+  const body = req.body || {}
+
+  const updated = {
+    ...current,
+    name: body.name ? String(body.name).trim().toUpperCase() : current.name,
+    role: body.role && ['ADMIN', 'SUPERVISOR', 'OPERADOR'].includes(body.role) ? body.role : current.role,
+    eventId: body.eventId !== undefined ? String(body.eventId) : current.eventId,
+    eventName: body.eventName !== undefined ? String(body.eventName) : current.eventName,
+    status: body.status && ['ATIVO', 'INATIVO'].includes(body.status) ? body.status : current.status,
+    deliveries: typeof body.deliveries === 'number' ? body.deliveries : current.deliveries,
+    updatedAt: Date.now(),
+  }
+
+  if (body.password && typeof body.password === 'string' && body.password.trim().length >= 6) {
+    updated.password = body.password.trim()
+  }
+
+  inMemoryUsers[idx] = updated
+  writeUsersToDisk(inMemoryUsers)
+  res.json({ ok: true, user: updated })
+})
+
+// DELETE /api/users/:id — Remove usuário
+app.delete('/api/users/:id', (req, res) => {
+  const userId = String(req.params.id || '').trim()
+  if (userId === 'admin_pacetime' || userId === inMemoryUsers.find(u => u.email === ADMIN_EMAIL)?.id) {
+    return res.status(400).json({ ok: false, message: 'Não é possível remover o administrador principal.' })
+  }
+
+  const idx = inMemoryUsers.findIndex((u) => u.id === userId)
+  if (idx === -1) {
+    return res.status(404).json({ ok: false, message: 'Usuário não encontrado.' })
+  }
+
+  inMemoryUsers.splice(idx, 1)
+  writeUsersToDisk(inMemoryUsers)
+  res.json({ ok: true, message: 'Usuário removido com sucesso.' })
+})
+
+// Autenticação do Administrador Geral, Operadores e Usuários cadastrados
 app.post('/api/login', loginLimiter, (req, res) => {
   const { email, password } = req.body || {}
 
@@ -632,7 +805,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
 
   const normalizedEmail = email.trim().toLowerCase()
 
-  // Administrador Geral
+  // 1. Administrador Geral (Padrão ou via ENV)
   if (normalizedEmail === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
     return res.json({
       ok: true,
@@ -641,12 +814,38 @@ app.post('/api/login', loginLimiter, (req, res) => {
         name: 'Felipe Admin',
         email: normalizedEmail,
         role: 'ADMIN',
+        eventId: 'all',
+        eventName: 'TODOS OS PROJETOS',
       },
     })
   }
 
-  // Operadores de homologação com a mesma chave ou senha específica
-  const operators = {
+  // 2. Usuários cadastrados no sistema (Operadores, Supervisores, Admins)
+  const foundUser = inMemoryUsers.find(
+    (u) => u.email && u.email.toLowerCase() === normalizedEmail && u.password === password
+  )
+  if (foundUser) {
+    if (foundUser.status === 'INATIVO') {
+      return res.status(403).json({
+        ok: false,
+        message: 'Usuário desativado. Entre em contato com o administrador.',
+      })
+    }
+    return res.json({
+      ok: true,
+      user: {
+        id: foundUser.id,
+        name: foundUser.name,
+        email: foundUser.email,
+        role: foundUser.role || 'OPERADOR',
+        eventId: foundUser.eventId || 'all',
+        eventName: foundUser.eventName || 'TODOS OS PROJETOS',
+      },
+    })
+  }
+
+  // 3. Operadores de homologação com a senha geral (retrocompatibilidade)
+  const legacyOperators = {
     'agner.israel@entregas.com': 'Agner Israel',
     'agner.araujo@entregas.com': 'Agner Araujo',
     'entregas1@entregas.com': 'Entregas 01',
@@ -654,14 +853,16 @@ app.post('/api/login', loginLimiter, (req, res) => {
     'entregas3@entregas.com': 'Entregas 03',
   }
 
-  if (operators[normalizedEmail] && password === ADMIN_PASSWORD) {
+  if (legacyOperators[normalizedEmail] && password === ADMIN_PASSWORD) {
     return res.json({
       ok: true,
       user: {
         id: normalizedEmail.split('@')[0],
-        name: operators[normalizedEmail],
+        name: legacyOperators[normalizedEmail],
         email: normalizedEmail,
         role: 'OPERADOR',
+        eventId: 'all',
+        eventName: 'TODOS OS PROJETOS',
       },
     })
   }

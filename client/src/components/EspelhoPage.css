@@ -8,10 +8,11 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 44px 56px 40px;
+  padding: clamp(16px, 2.5vh, 32px) clamp(20px, 3.5vw, 48px);
   position: fixed;
   inset: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   user-select: none;
   font-family: Montserrat, Inter, system-ui, -apple-system, sans-serif;
   transition: background-color 0.2s ease;
@@ -227,9 +228,31 @@
 
 .espelho-athlete-modalidade {
   font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: clamp(12px, 1.5vw, 19px);
+  font-size: clamp(12px, 1.4vw, 18px);
   font-weight: 900;
   letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.espelho-numero-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  padding: clamp(8px, 1.4vh, 16px) clamp(24px, 4vw, 54px);
+  border-radius: 20px;
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.espelho-numero-label {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: clamp(9px, 0.9vw, 12px);
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  color: rgba(255, 255, 255, 0.65);
   text-transform: uppercase;
 }
 
@@ -237,7 +260,7 @@
   margin: 0;
   font-family: Montserrat, Inter, system-ui, sans-serif;
   font-weight: 900;
-  line-height: 1;
+  line-height: 0.95;
   letter-spacing: 1px;
   text-shadow: 0 6px 28px rgba(0, 0, 0, 0.45);
 }
@@ -245,11 +268,27 @@
 .espelho-athlete-nome {
   margin: 0;
   font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: clamp(18px, 2.6vw, 34px);
+  font-size: clamp(18px, 2.4vw, 32px);
   font-weight: 900;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
   word-break: break-word;
+}
+
+.espelho-badge-aguardando {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  background: rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+  border-radius: 999px;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: clamp(11px, 1.1vw, 14px);
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
 }
 
 .espelho-athlete-chips-row {

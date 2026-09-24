@@ -104,14 +104,26 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
 
   function athleteInfoRows() {
     if (!atleta) return []
-    return [
-      { label: 'NOME', value: atleta.nome },
-      { label: 'MODALIDADE', value: [atleta.modalidade, atleta.categoria].filter(Boolean).join(' • ') },
-      { label: 'KIT', value: atleta.kit },
-      { label: 'CHIP', value: atleta.chip },
+    const rows = [
+      { label: 'DOCUMENTO / CPF', value: atleta.doc || atleta.cpf },
+      { label: 'CIDADE / UF', value: atleta.cidade },
+      { label: 'NASCIMENTO', value: atleta.nascimento || (atleta.idade ? `${atleta.idade} anos` : '') },
+      { label: 'CATEGORIA', value: atleta.categoria },
       { label: 'SEXO', value: atleta.sexo },
-      { label: 'EQUIPE', value: atleta.equipe },
-    ].filter((row) => row.value && String(row.value).trim() !== '')
+      { label: 'EQUIPE / ASSESSORIA', value: atleta.equipe },
+      { label: 'NOME NO PEITO', value: atleta.nome_peito },
+      { label: 'PCD / OBSERVAÇÃO', value: atleta.pcd },
+    ]
+
+    if (atleta.customFields && typeof atleta.customFields === 'object') {
+      Object.entries(atleta.customFields).forEach(([key, val]) => {
+        if (val && String(val).trim() !== '') {
+          rows.push({ label: key.toUpperCase(), value: String(val) })
+        }
+      })
+    }
+
+    return rows.filter((row) => row.value && String(row.value).trim() !== '' && String(row.value).trim() !== '—')
   }
 
   return (
@@ -165,36 +177,39 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
               </span>
             </div>
 
-            <h2
-              className="espelho-athlete-numero"
-              style={{
-                color: config.texto || '#ffffff',
-                fontSize: `clamp(72px, ${14 * fontScale}vw, ${220 * fontScale}px)`,
-              }}
-            >
-              {atleta.numero || '—'}
-            </h2>
+            <div className="espelho-numero-box">
+              <span className="espelho-numero-label">NÚMERO DE PEITO</span>
+              <h2
+                className="espelho-athlete-numero"
+                style={{
+                  color: config.texto || '#ffffff',
+                  fontSize: `clamp(64px, ${11 * fontScale}vw, ${160 * fontScale}px)`,
+                }}
+              >
+                {atleta.numero || '—'}
+              </h2>
+            </div>
 
             {atleta.nome && (
-              <p
+              <h3
                 className="espelho-athlete-nome"
                 style={{ color: config.texto || '#ffffff' }}
               >
                 {atleta.nome}
-              </p>
+              </h3>
             )}
 
             <div className="espelho-athlete-chips-row">
-              {atleta.camiseta && (
-                <div className="espelho-athlete-chip">
-                  <strong className="espelho-athlete-chip-value">{atleta.camiseta}</strong>
-                  <span className="espelho-athlete-chip-label">CAMISETA</span>
-                </div>
-              )}
               {atleta.kit && (
                 <div className="espelho-athlete-chip">
                   <strong className="espelho-athlete-chip-value">{atleta.kit}</strong>
                   <span className="espelho-athlete-chip-label">KIT</span>
+                </div>
+              )}
+              {atleta.camiseta && (
+                <div className="espelho-athlete-chip">
+                  <strong className="espelho-athlete-chip-value">{atleta.camiseta}</strong>
+                  <span className="espelho-athlete-chip-label">CAMISETA</span>
                 </div>
               )}
               {atleta.chip && (
@@ -224,18 +239,19 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
           </div>
         ) : (
           <div className="espelho-hero-box">
+            <span className="espelho-badge-aguardando">AGUARDANDO LEITURA</span>
             <h2
               className="espelho-hero-headline"
               style={{
                 color: config.texto || '#ffffff',
-                fontSize: `clamp(34px, ${6.2 * fontScale}vw, ${96 * fontScale}px)`,
+                fontSize: `clamp(32px, ${5.5 * fontScale}vw, ${88 * fontScale}px)`,
               }}
             >
               {config.mensagem?.toUpperCase() || 'GUICHÊ DISPONÍVEL'}
             </h2>
 
             <p className="espelho-hero-subheadline">
-              AGUARDANDO ATLETA
+              APRESENTE SEU DOCUMENTO NO BALCÃO
             </p>
           </div>
         )}
