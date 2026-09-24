@@ -1902,6 +1902,14 @@
   align-items: stretch;
 }
 
+.athlete-detail-cards-grid.cards-count-2 {
+  grid-template-columns: 2.2fr 1fr;
+}
+
+.athlete-detail-cards-grid.cards-count-1 {
+  grid-template-columns: 1fr;
+}
+
 /* Card 1: Número e Modalidade */
 .card-bib-highlight {
   background: #ffffff;

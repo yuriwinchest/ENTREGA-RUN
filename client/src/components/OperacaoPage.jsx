@@ -325,7 +325,7 @@ const INITIAL_ATHLETE_FORM = {
   categoria: 'GERAL',
   equipe: '',
   camiseta: 'M',
-  kit: 'Kit Padrão',
+  kit: '',
   numero: '',
   chip: '',
 }
@@ -611,7 +611,6 @@ export default function OperacaoPage({
       const val = String(a.kit || '').trim()
       if (val && val !== '—') unique.add(val)
     })
-    if (unique.size === 0) return ['Kit Padrão', 'KIT ATLETA', 'KIT ELITE']
     return Array.from(unique)
   }, [athletes])
 
@@ -684,7 +683,7 @@ export default function OperacaoPage({
       modalidade: athletes[0]?.modalidade || '5 KM',
       categoria: athletes[0]?.categoria || 'GERAL',
       camiseta: shirtOptions[0] || 'M',
-      kit: athletes[0]?.kit || 'Kit Padrão',
+      kit: athletes[0]?.kit || '',
       equipe: '',
       cidade: '',
       morador: 'Morador',
@@ -721,7 +720,7 @@ export default function OperacaoPage({
               doc: a.doc,
               category: a.categoria || 'GERAL',
               size: a.camiseta || 'M',
-              kit: a.kit || 'Kit Padrão',
+              kit: a.kit || '',
               time: a.entregueEm || 'Entregue',
               dataHora: a.entregueEm || new Date().toLocaleString('pt-BR'),
             })
@@ -898,9 +897,9 @@ export default function OperacaoPage({
               operadorNome: athlete.entreguePor || user?.name || 'Felipe Admin',
               operadorEmail: user?.email || 'pacetime@entregas.com',
               pontoEntrega: 'Guichê Principal',
-              kit: athlete.kit || 'Kit Padrão',
-              camiseta: athlete.camiseta || 'M',
-              modalidade: athlete.modalidade || '5 KM',
+              kit: athlete.kit || '',
+              camiseta: athlete.camiseta || '',
+              modalidade: athlete.modalidade || '',
               status: 'ENTREGUE',
               eventId: currentEvent.id,
             })
@@ -961,9 +960,9 @@ export default function OperacaoPage({
             operadorNome: athlete.entreguePor || user?.name || 'Felipe Admin',
             operadorEmail: user?.email || 'pacetime@entregas.com',
             pontoEntrega: 'Guichê Principal',
-            kit: athlete.kit || 'Kit Padrão',
-            camiseta: athlete.camiseta || 'M',
-            modalidade: athlete.modalidade || '5 KM',
+            kit: athlete.kit || '',
+            camiseta: athlete.camiseta || '',
+            modalidade: athlete.modalidade || '',
             status: 'ENTREGUE',
             eventId: currentEvent.id,
           })
@@ -1023,7 +1022,7 @@ export default function OperacaoPage({
               doc: a.doc,
               category: a.categoria || 'GERAL',
               size: a.camiseta || 'M',
-              kit: a.kit || 'Kit Padrão',
+              kit: a.kit || '',
               time: a.entregueEm || 'Entregue',
               dataHora: a.entregueEm || new Date().toLocaleString('pt-BR'),
             })
@@ -1536,7 +1535,7 @@ export default function OperacaoPage({
       categoria: (athleteForm.categoria || 'GERAL').trim(),
       equipe: athleteForm.equipe?.trim() ? athleteForm.equipe.trim().toUpperCase() : 'SEM EQUIPE',
       camiseta: athleteForm.camiseta || 'M',
-      kit: (athleteForm.kit || 'Kit Padrão').trim(),
+      kit: (athleteForm.kit || '').trim(),
       chip: (athleteForm.chip || '').trim(),
       cidade: (athleteForm.cidade || '').trim(),
       morador: (athleteForm.morador || 'Morador').trim(),
@@ -1660,9 +1659,9 @@ export default function OperacaoPage({
       operadorNome: opName,
       operadorEmail: opEmail,
       pontoEntrega: 'Guichê Principal',
-      kit: athlete.kit || 'Kit Padrão',
-      camiseta: athlete.camiseta || 'M',
-      modalidade: athlete.modalidade || '5 KM',
+      kit: athlete.kit || '',
+      camiseta: athlete.camiseta || '',
+      modalidade: athlete.modalidade || '',
       status: 'ENTREGUE',
       eventId: currentEvent.id,
     }
@@ -1898,7 +1897,7 @@ export default function OperacaoPage({
             doc: a.doc,
             category: a.categoria || 'GERAL',
             size: a.camiseta || 'M',
-            kit: a.kit || 'Kit Padrão',
+            kit: a.kit || '',
             time: a.entregueEm || 'Entregue',
             dataHora: a.entregueEm || new Date().toLocaleString('pt-BR'),
           })
@@ -2125,34 +2124,46 @@ export default function OperacaoPage({
                   </div>
                 )}
 
-                {/* 2. Três Cards de Destaque */}
-                <div className="athlete-detail-cards-grid">
-                  {/* Card 1: Modalidade / Categoria + Número + Chip */}
-                  <div className="card-bib-highlight">
-                    <div className="bib-header">
-                      <span className="bib-modalidade">{detailForm.modalidade || '5 KM'}</span>
-                      <span className="bib-categoria">{detailForm.categoria || 'GERAL'}</span>
-                    </div>
-                    <div className="bib-center">
-                      <span className={`bib-number ${!detailForm.numero ? 'bib-number-empty' : ''}`}>{detailForm.numero || 'Não associado'}</span>
-                    </div>
-                    <div className="bib-footer">
-                      <span className="bib-chip">{detailForm.chip || 'Não associado'}</span>
-                    </div>
-                  </div>
+                {/* 2. Cards de Destaque Superiores */}
+                {(() => {
+                  const hasShirtCard = Boolean(activeColumnKeys.has('camiseta') || (detailForm.camiseta && detailForm.camiseta !== '—' && detailForm.camiseta.trim() !== ''))
+                  const hasKitCard = Boolean(activeColumnKeys.has('kit') || (detailForm.kit && detailForm.kit !== '—' && detailForm.kit.trim() !== ''))
+                  const count = 1 + (hasShirtCard ? 1 : 0) + (hasKitCard ? 1 : 0)
 
-                  {/* Card 2: Camiseta */}
-                  <div className="card-shirt-highlight">
-                    <span className="shirt-size">{detailForm.camiseta || 'M'}</span>
-                    <span className="shirt-label">CAMISETA</span>
-                  </div>
+                  return (
+                    <div className={`athlete-detail-cards-grid cards-count-${count}`}>
+                      {/* Card 1: Modalidade / Categoria + Número + Chip */}
+                      <div className="card-bib-highlight">
+                        <div className="bib-header">
+                          <span className="bib-modalidade">{detailForm.modalidade || '—'}</span>
+                          <span className="bib-categoria">{detailForm.categoria || '—'}</span>
+                        </div>
+                        <div className="bib-center">
+                          <span className={`bib-number ${!detailForm.numero ? 'bib-number-empty' : ''}`}>{detailForm.numero || 'Não associado'}</span>
+                        </div>
+                        <div className="bib-footer">
+                          <span className="bib-chip">{detailForm.chip || 'Não associado'}</span>
+                        </div>
+                      </div>
 
-                  {/* Card 3: Kit */}
-                  <div className="card-kit-highlight">
-                    <span className="kit-name">{detailForm.kit || 'KIT ELITE'}</span>
-                    <span className="kit-label">KIT</span>
-                  </div>
-                </div>
+                      {/* Card 2: Camiseta */}
+                      {hasShirtCard && (
+                        <div className="card-shirt-highlight">
+                          <span className="shirt-size">{detailForm.camiseta || '—'}</span>
+                          <span className="shirt-label">CAMISETA</span>
+                        </div>
+                      )}
+
+                      {/* Card 3: Kit (exibido apenas se a planilha/evento possuir coluna ou valor de kit) */}
+                      {hasKitCard && (
+                        <div className="card-kit-highlight">
+                          <span className="kit-name">{detailForm.kit || '—'}</span>
+                          <span className="kit-label">KIT</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {/* 3. Metadados de Entrega (Pills à direita) */}
                 {detailForm.status === 'ENTREGUE' && (
@@ -2354,7 +2365,7 @@ export default function OperacaoPage({
 
                   {/* Linha 4: KIT, CAMISETA, CHIP */}
                   <div className="detail-form-row-kit-chips">
-                    {(activeColumnKeys.has('kit') || Boolean(detailForm.kit)) && (
+                    {(activeColumnKeys.has('kit') || Boolean(detailForm.kit && detailForm.kit !== '—' && detailForm.kit.trim() !== '')) && (
                       <div className="athlete-form-group">
                         <label className="athlete-form-label">KIT</label>
                         <select
@@ -2364,6 +2375,7 @@ export default function OperacaoPage({
                             setDetailForm({ ...detailForm, kit: e.target.value })
                           }
                         >
+                          <option value="">— Selecione —</option>
                           {Array.from(new Set([...kitOptions, detailForm.kit].filter(Boolean))).map((k) => (
                             <option key={k} value={k}>{k}</option>
                           ))}
@@ -2481,7 +2493,7 @@ export default function OperacaoPage({
                         const detectedOpts = customColumnOptionsMap[k] || []
                         const isPcd = k.toUpperCase().includes('PCD')
                         const finalOpts = isPcd
-                          ? Array.from(new Set([...detectedOpts, 'NÃO', 'SIM', 'MEMBROS INFERIORES', 'MEMBROS SUPERIORES', 'VISUAL', 'AUDITIVO', 'INTELECTUAL'].filter(Boolean)))
+                          ? Array.from(new Set([...detectedOpts, 'NÃO', 'SIM'].filter(Boolean)))
                           : detectedOpts
 
                         return (
@@ -3512,11 +3524,12 @@ export default function OperacaoPage({
                             <label className="athlete-form-label">{col.label}</label>
                             <select
                               className="athlete-form-select"
-                              value={athleteForm.kit || kitOptions[0] || 'Kit Padrão'}
+                              value={athleteForm.kit || ''}
                               onChange={(e) =>
                                 setAthleteForm((prev) => ({ ...prev, kit: e.target.value }))
                               }
                             >
+                              <option value="">— Selecione Kit —</option>
                               {kitOptions.map((opt) => (
                                 <option key={opt} value={opt}>{opt}</option>
                               ))}
@@ -3610,7 +3623,7 @@ export default function OperacaoPage({
                       const detectedOpts = customColumnOptionsMap[col.customKey] || []
                       const isPcd = col.customKey.toUpperCase().includes('PCD') || col.label.toUpperCase().includes('PCD')
                       const finalOpts = isPcd
-                        ? Array.from(new Set([...detectedOpts, 'NÃO', 'SIM', 'MEMBROS INFERIORES', 'MEMBROS SUPERIORES', 'VISUAL', 'AUDITIVO', 'INTELECTUAL'].filter(Boolean)))
+                        ? Array.from(new Set([...detectedOpts, 'NÃO', 'SIM'].filter(Boolean)))
                         : detectedOpts
 
                       return (

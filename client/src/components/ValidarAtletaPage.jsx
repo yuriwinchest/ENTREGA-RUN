@@ -187,10 +187,12 @@ export default function ValidarAtletaPage({ eventId, numero }) {
                 <span className="detail-item-value highlight-shirt">{athlete.camiseta || '—'}</span>
               </div>
 
-              <div className="validar-detail-item">
-                <span className="detail-item-label">KIT</span>
-                <span className="detail-item-value">{athlete.kit || 'Kit Padrão'}</span>
-              </div>
+              {athlete.kit && (
+                <div className="validar-detail-item">
+                  <span className="detail-item-label">KIT</span>
+                  <span className="detail-item-value">{athlete.kit}</span>
+                </div>
+              )}
 
               {athlete.chip && (
                 <div className="validar-detail-item">

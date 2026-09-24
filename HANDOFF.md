@@ -1,5 +1,23 @@
 # Handoff
 
+## 2026-09-24 — Alinhamento Estrito com a Planilha: Opções de PCD (SIM/NÃO) e Ocultação do Painel de KITS (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead).
+- **Pedido do Yuri (PO via áudio e capturas de tela):**
+  1. No formulário do atleta, as opções do campo PCD devem ser estritamente SIM ou NÃO (e as que vierem da planilha), eliminando opções inventadas de deficiência (MEMBROS INFERIORES, VISUAL, etc.).
+  2. Todos os campos ao clicar no atleta devem refletir exatamente o que está na planilha, sem adicionar coisas a mais.
+  3. No painel superior de destaque da ficha do atleta (ao lado da camisa e número de peito), o card de KIT não pode ser exibido se a tabela não tiver a coluna/dado de kit, e nunca deve inventar nomes como "KIT ATLETA", "KIT ELITE" ou "Kit Padrão".
+- **Arquivos alterados:** `client/src/components/OperacaoPage.jsx`, `client/src/components/OperacaoPage.css`, `client/src/components/ValidarAtletaPage.jsx`, `HANDOFF.md`.
+- **O que foi feito:**
+  1. **PCD estrito (SIM/NÃO):** Removidos `'MEMBROS INFERIORES'`, `'MEMBROS SUPERIORES'`, `'VISUAL'`, `'AUDITIVO'`, `'INTELECTUAL'` do seletor em `OperacaoPage.jsx` (tanto na ficha do atleta quanto no modal de novo atleta). O seletor agora exibe estritamente `SIM` / `NÃO` e os valores detectados na planilha.
+  2. **Eliminação de Kits Inventados:** Removido o fallback `['Kit Padrão', 'KIT ATLETA', 'KIT ELITE']` de `kitOptions`. Eliminadas todas as injeções automáticas de `'Kit Padrão'` e `'KIT ELITE'`.
+  3. **Cards Superiores Dinâmicos:** O card de KIT no topo da ficha do atleta agora é condicional (`hasKitCard`): só é renderizado se o evento ou atleta realmente possuir dados de kit na planilha. Se não houver kit, o card não é exibido. O grid foi adaptado no CSS (`.cards-count-2`, `.cards-count-1`) para acomodar bib e camiseta perfeitamente sem espaços vazios.
+  4. **Página de Validação:** Campo de kit em `ValidarAtletaPage.jsx` agora só renderiza se o atleta possuir kit registrado.
+- **Validação real executada:**
+  - `oxlint`: 0 warnings, 0 errors em 29 arquivos.
+  - `npm run build`: bundle compilado com sucesso (`index-Xokgz7yB.js`, `index-BhGlw0Xt.css`).
+- **Próximo passo:** Subir alterações via GitHub Actions e verificar produção.
+
 ## 2026-09-24 — Correção do Botão Avançar para Pré-Visualização no Modal Importar Atletas e Kits (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead).
