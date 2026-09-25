@@ -343,9 +343,9 @@ export default function OperacaoPage({
   const userRole = user?.role || 'ADMIN'
   const isOperator = userRole === 'OPERADOR'
   const isSubAdmin = userRole === 'SUB_ADMIN'
-  const isAdmin = userRole === 'ADMIN'
-  const canEditAthlete = userRole === 'ADMIN' || userRole === 'SUPERVISOR'
-  const canUndo = userRole === 'ADMIN' || userRole === 'SUPERVISOR'
+  const isAdmin = userRole === 'ADMIN' || isSubAdmin
+  const canEditAthlete = isAdmin || userRole === 'SUPERVISOR'
+  const canUndo = isAdmin || userRole === 'SUPERVISOR'
 
   const [activeTab, setActiveTab] = useState('entrega')
   const effectiveTab = (!isAdmin && activeTab === 'auditoria') ? 'entrega' : activeTab
@@ -2271,12 +2271,6 @@ export default function OperacaoPage({
                     <span>🔒 Perfil Operador: consulta e entrega de kit liberadas. Alteração de dados cadastrais reservada ao Supervisor.</span>
                   </div>
                 )}
-                {isSubAdmin && (
-                  <div className="operator-permission-notice">
-                    <span>🔒 Perfil Sub-Admin: entrega de kit e gestão liberadas. Alteração cadastral de atleta reservada ao Supervisor/Admin.</span>
-                  </div>
-                )}
-
                 {/* 4. Formulário Completo de Dados do Atleta */}
                 <form className="athlete-detail-form-card" onSubmit={handleSaveDetail}>
                   <fieldset disabled={!canEditAthlete} className="athlete-detail-fieldset">

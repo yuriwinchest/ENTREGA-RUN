@@ -1,5 +1,13 @@
 # Handoff
 
+## 2026-09-25 — Senha manual e permissões de usuários do Sub-Admin (Fase A)
+
+- **Autor:** Codex/Tony (GPT-6). Esta entrada descreve somente alterações feitas por este agente no checkout isolado `codex/admin-roles-passwords`.
+- **Pedido:** O administrador digita a senha na criação e na redefinição; a senha salva deve continuar válida. O Sub-Admin acessa auditoria, gerencia usuários e exclui somente os usuários que ele criou. O Yuri esclareceu que a regra de autoria para exclusão se aplica somente a usuários, não a eventos.
+- **Arquivos alterados:** `server/server.js`, `server/passwords.js`, `server/admin-users.test.mjs`, `client/src/components/UsuariosPage.jsx`, `client/src/components/OperacaoPage.jsx`, `client/src/utils/usersApi.js` e este `HANDOFF.md`.
+- **Implementação:** O servidor salva senhas novas e redefinidas como hash scrypt, usa a senha persistida no login, registra `createdBy` no servidor e valida a autoria na exclusão por Sub-Admin. Criação, edição e exclusão só atualizam a tela após confirmação da API. O formulário deixa a senha em branco para digitação manual e remove a geração automática. A lista de usuários vem do servidor, sem cache local legado de senhas. A aba Auditoria e edição da ficha ficam acessíveis ao Sub-Admin. Eventos continuam com a política de exclusão anterior.
+- **Validação real:** `node --test server/admin-users.test.mjs` passou em base temporária, incluindo criação, autenticação, bloqueio de exclusão alheia, redefinição e login após reiniciar o servidor; `npm run build --prefix client`, `npm run lint --prefix client`, `node --check server/server.js` e `git diff --check` passaram. A homologação no navegador pelo Yuri e o estado da VPS ainda não foram verificados.
+- **Riscos/pendências:** Senhas legadas em texto puro permanecem no arquivo até serem redefinidas; nenhuma migração automática modifica a base no startup. O arquivo `users.json` continua sendo a persistência do cadastro de usuários neste fluxo; não houve migração para Appwrite nesta alteração. O envio/deploy depende da integração com as alterações simultâneas de outras abas e da verificação do pipeline, healthcheck e rollback. Próximo passo: integrar a branch sem sobrescrever as alterações do Gemini, revisar o diff final e submeter para homologação.
 ## 2026-09-25 — Ajustes do Fluxo de Associação de Kits e Retorno à Lista sem Mensagens Indevidas (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead & Frontend).
@@ -1783,3 +1791,4 @@
   - `npm run lint --prefix client`: 0 erros e 0 avisos.
   - `npm run build --prefix client`: 127 módulos construídos em 1.17s.
 - **Próximo passo**: Yuri homologar as telas e rotacionar a chave no dashboard da TypeSafe se desejar.
+

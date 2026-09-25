@@ -28,7 +28,7 @@ export async function apiFetchUsers() {
     const data = await res.json()
     return data.ok && Array.isArray(data.users) ? data.users : []
   } catch (err) {
-    console.warn('[usersApi] Falha ao carregar usuários do servidor, usando fallback local:', err)
+    console.warn('[usersApi] Falha ao carregar usuários do servidor:', err)
     return null
   }
 }
