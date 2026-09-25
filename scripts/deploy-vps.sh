@@ -92,6 +92,28 @@ docker build -t "$IMAGE" "$BUILD_DIR"
 
 PREVIOUS_IMAGE="$(docker inspect -f '{{.Image}}' "$SERVICE")"
 docker tag "$PREVIOUS_IMAGE" "$ROLLBACK_IMAGE"
+
+# Capture the live event files immediately before replacing the container.
+# The volume survives image rollback; this archive is for recovery, never an
+# automatic restore that could erase deliveries made after the snapshot.
+[[ -f "$APP_DIR/data/events.json" ]] || {
+  echo 'Cadastro de eventos ausente; deploy cancelado.' >&2
+  exit 1
+}
+DATA_BACKUP="$BACKUP_DIR/data-before-$SHORT_SHA-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+tar -C "$APP_DIR" -czf "$DATA_BACKUP" data
+tar -tzf "$DATA_BACKUP" >/dev/null
+for file in "$APP_DIR/data/users.json" "$APP_DIR/data/events.json" "$APP_DIR"/data/athletes_*.json; do
+  [[ -f "$file" ]] || continue
+  archive_path="data/${file##*/}"
+  source_hash="$(sha256sum "$file" | awk '{print $1}')"
+  backup_hash="$(tar -xOzf "$DATA_BACKUP" "$archive_path" | sha256sum | awk '{print $1}')"
+  [[ "$source_hash" == "$backup_hash" ]] || {
+    echo "Snapshot inconsistente para $archive_path; deploy cancelado." >&2
+    exit 1
+  }
+done
+echo 'Snapshot privado de eventos, atletas e usuários conferido por hash.'
 cat > "$OVERRIDE_FILE" <<EOF
 services:
   $SERVICE:

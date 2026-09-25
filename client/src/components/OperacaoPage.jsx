@@ -531,10 +531,17 @@ export default function OperacaoPage({
   const didMountAthletesAutosaveRef = useRef(false)
   const athletesAutosaveTimerRef = useRef(null)
   const athleteSaveQueueRef = useRef(Promise.resolve())
+  const serverHydratedRef = useRef(false)
+  const savingAthletesRef = useRef(0)
+  const selectedAthleteRef = useRef(selectedAthlete)
+  const pendingKitDecisionRef = useRef(pendingKitDecision)
+  useEffect(() => { selectedAthleteRef.current = selectedAthlete }, [selectedAthlete])
+  useEffect(() => { pendingKitDecisionRef.current = pendingKitDecision }, [pendingKitDecision])
   const saveAthletesInOrder = useCallback((...args) => {
+    savingAthletesRef.current += 1
     const save = athleteSaveQueueRef.current.then(() => apiSaveAthletes(...args))
     athleteSaveQueueRef.current = save.catch(() => false)
-    return save
+    return save.finally(() => { savingAthletesRef.current -= 1 })
   }, [])
 
   function cancelAthletesAutosave() {
@@ -595,7 +602,7 @@ export default function OperacaoPage({
       return undefined
     }
 
-    if (currentEvent.id && Array.isArray(athletes) && athletes.length > 0) {
+    if (serverHydratedRef.current && currentEvent.id && Array.isArray(athletes) && athletes.length > 0) {
       setAthletesSync((prev) => (prev.state === 'saving' ? prev : { state: 'saving', at: Date.now() }))
       const timer = setTimeout(() => {
         athletesAutosaveTimerRef.current = null
@@ -615,7 +622,9 @@ export default function OperacaoPage({
         if (athletesAutosaveTimerRef.current === timer) athletesAutosaveTimerRef.current = null
       }
     }
-  }, [athletes, athleteColumnSchema, kits, originalSheet, currentEvent.id, saveAthletesInOrder])
+    // Schema e kits são persistidos junto das ações explícitas de importação.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [athletes, currentEvent.id, saveAthletesInOrder])
 
   useEffect(() => {
     try {
@@ -630,43 +639,40 @@ export default function OperacaoPage({
     }
   }, [athleteColumnSchema, currentEvent.id])
 
-  // Cura divergência nos dois sentidos:
-  // - este navegador tem lista e o servidor está zerado => empurra local p/ servidor
-  // - este navegador está zerado e o servidor tem lista => puxa do servidor
+  // O servidor é a fonte da lista; o cache do navegador serve apenas para
+  // exibir dados enquanto a consulta inicial termina.
   useEffect(() => {
     let isMounted = true
     if (!currentEvent.id) return () => { isMounted = false }
-    if (athletes.length === 0) {
-      apiFetchAthletes(currentEvent.id).then((result) => {
-        if (isMounted && result) {
-          if (Array.isArray(result.athletes) && result.athletes.length > 0) {
-            setAthletes(result.athletes)
-          }
-          if (Array.isArray(result.kits)) setKits(result.kits)
-          if (Array.isArray(result.schema) && result.schema.length > 0) {
-            setAthleteColumnSchema(result.schema)
-          }
-          if (result.originalSheet) {
-            setOriginalSheet(result.originalSheet)
-          }
-        }
-      })
-    } else {
-      apiFetchAthletes(currentEvent.id).then((result) => {
-        if (!isMounted) return
-        if (result && Array.isArray(result.athletes) && result.athletes.length === 0) {
-          saveAthletesInOrder(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet)
-            .then((saved) => {
-              if (isMounted) setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
-            })
-            .catch(() => {
-              if (isMounted) setAthletesSync({ state: 'error', at: Date.now() })
-            })
-        }
-      })
+    let busy = false
+    const refresh = async () => {
+      if (busy || savingAthletesRef.current > 0 || associationLockRef.current || decisionLockRef.current ||
+        (serverHydratedRef.current && (selectedAthleteRef.current || pendingKitDecisionRef.current))) return
+      busy = true
+      const result = await apiFetchAthletes(currentEvent.id)
+      busy = false
+      if (!isMounted) return
+      if (!result || !Array.isArray(result.athletes)) {
+        setAthletesSync({ state: 'error', at: Date.now() })
+        return
+      }
+      serverHydratedRef.current = true
+      skipNextAthletesAutosaveRef.current = true
+      setAthletes(result.athletes)
+      if (Array.isArray(result.kits)) setKits(result.kits)
+      if (Array.isArray(result.schema)) setAthleteColumnSchema(result.schema)
+      setOriginalSheet(result.originalSheet || null)
+      setAthletesSync({ state: 'ok', at: Date.now() })
     }
+    void refresh()
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'hidden') void refresh()
+    }, 10000)
+    window.addEventListener('focus', refresh)
     return () => {
       isMounted = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentEvent.id])
@@ -878,7 +884,7 @@ export default function OperacaoPage({
 
   // Synchronize event metrics with parent state / localStorage
   useEffect(() => {
-    if (!currentEvent.id || !onUpdateEvent) return
+    if (!serverHydratedRef.current || !currentEvent.id || !onUpdateEvent) return
     if (
       currentEvent.total !== totalAthletes ||
       currentEvent.entregues !== deliveredAthletes ||
@@ -1673,6 +1679,7 @@ export default function OperacaoPage({
       matchesAthleteReference(a, athleteRef) ? updatedAthlete : a
     )
 
+    skipNextAthletesAutosaveRef.current = true
     setAthletes(nextAthletes)
 
     // Remove das entregas ativas se estava entregue
@@ -1707,7 +1714,7 @@ export default function OperacaoPage({
 
     // Persistência no backend / volume
     if (currentEvent?.id && !skipServerSave) {
-      saveAthletesInOrder(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet)
+      saveAthletesInOrder(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet, { undoAthleteId: String(athleteRef.id || '') })
         .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
         .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
     }
@@ -2005,7 +2012,8 @@ export default function OperacaoPage({
         setPendingKitDecision(nextDecision)
       }
       const saved = await saveAthletesInOrder(
-        currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet
+        currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet,
+        nextDecision.resolution === 'undo' ? { undoAthleteId: String(pendingKitDecision.athleteId || '') } : {}
       )
       setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
       if (!saved) {

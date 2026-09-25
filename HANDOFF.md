@@ -1,5 +1,15 @@
 # Handoff
 
+## 2026-09-25 — Sincronização segura da Corrida da Renascença (Fase B)
+
+- **Autor:** Codex/Tony (GPT-6). Revisão de disponibilidade de Vitor executada por agente delegado, somente leitura.
+- **Pedido:** corrigir a lista divergente entre navegadores durante a entrega de kits, preservar as entregas em andamento e evitar interrupção do sistema ao publicar.
+- **Arquivos alterados:** `client/src/components/OperacaoPage.jsx`, `client/src/utils/eventsApi.js`, `server/server.js`, `server/athleteSync.js`, `server/athleteSync.test.mjs`, `server/athleteSync.http.test.mjs` e `scripts/deploy-vps.sh`.
+- **Implementação:** a tela passa a carregar e atualizar a lista do servidor sem reenviar o cache antigo; durante evento em operação, o servidor conserva entregas e associações já salvas quando recebe uma planilha antiga. O desfazer intencional envia a identificação do atleta e a reversão de entrega exige supervisor/admin. As métricas de evento são calculadas a partir dos atletas persistidos. Escritas assíncronas no Appwrite são serializadas e condensadas por evento. O script de deploy cria e verifica um snapshot privado dos dados do volume imediatamente antes da troca de imagem.
+- **Validação real:** backup privado local criptografado com DPAPI e conferido por SHA-256 da corrida ativa (353 atletas, 69 entregues no instante da captura); consulta posterior de produção confirmou saúde e 353 atletas, 73 entregues, enquanto o resumo antigo ainda indicava zero. Teste HTTP local com 301 atletas e dois clientes, inclusive upload em partes, passou; testes unitários e teste existente de usuários passaram (5 no total). Dois contextos reais do Chrome atualizaram a lista central sem POST da planilha antiga. Lint, build, verificação de sintaxe do script Bash e `git diff --check` passaram; o lint ainda reporta três avisos preexistentes em `OperacaoPage.jsx`.
+- **Risco/pendência:** código ainda não publicado na VPS. O deploy atual recria o único contêiner e derruba as sessões em memória, logo não atende ao requisito de operação contínua durante a corrida; o snapshot do script só será executado se houver publicação. O backup DPAPI é uma cópia pontual fora do repositório, não substitui snapshot da VPS imediatamente antes da troca. Appwrite continua como espelho assíncrono, não como transação primária.
+- **Próximo passo:** manter o PR como rascunho sem merge; preparar uma troca sem indisponibilidade e sem escritores simultâneos, ou combinar janela curta com os operadores após a corrida, com snapshot novo, healthcheck e rollback sem restaurar dados antigos sobre entregas recentes. Yuri homologa o fluxo no navegador depois da publicação segura.
+
 ## 2026-09-25 — Isolamento Estrito de Eventos por Usuário e Reatribuição de Operadores (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead, Crowley Segurança, Vitor Infra/SRE & Fullstack).
