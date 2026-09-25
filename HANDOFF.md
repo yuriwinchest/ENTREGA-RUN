@@ -1,5 +1,14 @@
 # Handoff
 
+## 2026-09-25 — Publicação verificada do painel de entregas do superadmin (Fase B)
+
+- **Autor:** Codex/Tony (GPT-6). Pedido: publicar o PR #5 após autorização do Yuri e conferir a integridade da Corrida da Renascença.
+- **Arquivos alterados nesta etapa:** apenas `HANDOFF.md`; o código da correção foi mesclado no PR #5 (`cd9b757dd4f4`) e publicado pelo GitHub Actions run `36194835276`.
+- **Validação real:** antes do merge, duas leituras deram 353 atletas e 132 entregas com o mesmo hash; backup privado DPAPI foi gravado, lido de volta e conferido por SHA-256. Appwrite tinha 353 atletas e 132 entregas. CI, preflight e deploy passaram. O script na VPS conferiu hashes do snapshot, saúde do contêiner, integridade de 2 eventos, 8755 atletas e 132 entregas no volume, e todos os registros anteriores pela API.
+- **Verificação pública após o deploy:** `/api/health` saudável; Corrida da Renascença com 353 atletas e 132 entregas, sem nenhuma das 132 entregas anteriores ausente ou alterada em número, chip, horário, operador e destinatário. O resumo do evento e o Appwrite também mostraram 132. O HTML público referencia exatamente o mesmo arquivo JS gerado pelo build local da correção.
+- **Riscos/pendências:** o teste de interface com API controlada confirmou polling e botão para o superadmin; o login real e a atualização visual no dispositivo do Yuri ainda dependem de homologação. O backup DPAPI e o snapshot da VPS são cópias pontuais; o espelho Appwrite é assíncrono. O ID da Renascença continua exigido pelo gate de deploy e precisará ser revisto quando o evento for removido.
+- **Próximo passo:** Yuri e a equipe entram novamente, conferem “Últimas entregas” e Auditoria e relatam qualquer divergência com horário e evento. Esta entrada documental permanece na branch isolada após o merge para evitar um segundo deploy em produção.
+
 ## 2026-09-25 — Corrigir últimas entregas do superadmin (Fase B)
 
 - **Autor:** Codex/Tony (GPT-6); investigação independente somente leitura feita por agente Codex de UI.
