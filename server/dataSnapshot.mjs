@@ -19,12 +19,37 @@ function athleteIdentity(athlete) {
   return crypto.createHash('sha256').update(key).digest('hex')
 }
 
+export function deliveredContentHash(athlete) {
+  const fields = ['numero', 'chip', 'entregueEm', 'entreguePor', 'entreguePara']
+  const content = fields.map((field) => String(athlete[field] ?? ''))
+  return crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex')
+}
+
+function deliveredProofs(athletes) {
+  const confirmed = athletes.filter(delivered)
+  const content = {}
+  for (const athlete of confirmed) {
+    const id = athleteIdentity(athlete)
+    if (content[id]) throw new Error('Identidade duplicada entre atletas entregues.')
+    content[id] = deliveredContentHash(athlete)
+  }
+  return {
+    deliveredCount: confirmed.length,
+    deliveredIds: Object.keys(content).sort(),
+    deliveredContent: content,
+  }
+}
+
 export function captureSnapshot(dataDir) {
   const events = readJson(path.join(dataDir, 'events.json'))
   if (!Array.isArray(events)) throw new Error('events.json inválido.')
   const files = fs.readdirSync(dataDir).filter((file) => safeFile.test(file)).sort()
+  const requiredEventId = String(process.env.REQUIRED_EVENT_ID || '').trim()
+  if (requiredEventId && !events.some((event) => String(event.id) === requiredEventId)) {
+    throw new Error(`Evento obrigatório ausente: ${requiredEventId}`)
+  }
   const active = events.filter((event) => event?.status === 'EM OPERAÇÃO' && Number(event.total) > 0)
-  for (const event of active) {
+  for (const event of [...active, ...events.filter((item) => String(item.id) === requiredEventId)]) {
     const file = `athletes_${String(event.id || '').replace(/[^\w-]/g, '').slice(0, 64)}.json`
     if (!files.includes(file)) throw new Error(`Planilha de evento ativo ausente: ${file}`)
   }
@@ -32,11 +57,10 @@ export function captureSnapshot(dataDir) {
   for (const file of files) {
     const data = readJson(path.join(dataDir, file))
     if (!Array.isArray(data?.athletes)) throw new Error(`Lista de atletas inválida: ${file}`)
-    const deliveredAthletes = data.athletes.filter(delivered)
+    const proofs = deliveredProofs(data.athletes)
     athletesByFile[file] = {
       total: data.athletes.length,
-      deliveredCount: deliveredAthletes.length,
-      deliveredIds: [...new Set(deliveredAthletes.map(athleteIdentity))].sort(),
+      ...proofs,
     }
   }
   return { version: 1, eventIds: events.map((event) => String(event.id)).sort(), athletesByFile }
@@ -61,6 +85,10 @@ export function verifySnapshot(before, dataDir) {
     if (!previous.deliveredIds.every((id) => currentIds.has(id))) {
       throw new Error(`Entrega confirmada deixou de constar: ${file}`)
     }
+    if (!previous.deliveredContent || previous.deliveredIds.some((id) =>
+      previous.deliveredContent[id] !== current.deliveredContent[id])) {
+      throw new Error(`Dados de entrega confirmada mudaram: ${file}`)
+    }
   }
   return after
 }
@@ -80,11 +108,15 @@ export async function verifyApiSnapshot(before, baseUrl = 'http://127.0.0.1:3001
     if (!response.ok) throw new Error(`API de atletas indisponível: ${eventId}`)
     const body = await response.json()
     if (!Array.isArray(body.athletes)) throw new Error(`Resposta de atletas inválida: ${eventId}`)
-    const deliveredAthletes = body.athletes.filter(delivered)
-    const deliveredIds = new Set(deliveredAthletes.map(athleteIdentity))
-    if (body.athletes.length < previous.total || deliveredAthletes.length < previous.deliveredCount ||
+    const proofs = deliveredProofs(body.athletes)
+    const deliveredIds = new Set(proofs.deliveredIds)
+    if (body.athletes.length < previous.total || proofs.deliveredCount < previous.deliveredCount ||
       !previous.deliveredIds.every((id) => deliveredIds.has(id))) {
       throw new Error(`API perdeu atletas ou entregas confirmadas: ${eventId}`)
+    }
+    if (!previous.deliveredContent || previous.deliveredIds.some((id) =>
+      previous.deliveredContent[id] !== proofs.deliveredContent[id])) {
+      throw new Error(`API alterou dados de entrega confirmada: ${eventId}`)
     }
   }
 }

@@ -1001,16 +1001,18 @@ app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
 
   const curEv = inMemoryEvents.find((e) => e.id === safeEventId)
   const existing = loadAthletesForEvent(safeEventId)
+  const protectExisting = curEv?.status === 'EM OPERAÇÃO' ||
+    existing?.athletes?.some((athlete) => String(athlete.status || '').toUpperCase() === 'ENTREGUE')
   const safeUndoId = String(undoAthleteId || '').slice(0, 64)
   const undoTarget = existing?.athletes?.find((athlete) => String(athlete.id) === safeUndoId)
   const canUndoDelivery = session?.role === 'ADMIN' || session?.role === 'SUPERVISOR'
   if (undoTarget?.status === 'ENTREGUE' && !canUndoDelivery) {
     return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
   }
-  const safeAthletes = curEv?.status === 'EM OPERAÇÃO'
+  const safeAthletes = protectExisting
     ? mergeActiveAthletes(existing?.athletes, athletes, { undoAthleteId: safeUndoId, canUndoDelivery })
     : athletes
-  const safeSchema = curEv?.status === 'EM OPERAÇÃO' && existing?.schema?.length
+  const safeSchema = protectExisting && existing?.schema?.length
     ? existing.schema : schema
   const success = saveAthletesForEvent(safeEventId, safeAthletes, safeSchema, kitsToSave, originalSheet)
   if (!success) {
@@ -1081,16 +1083,18 @@ app.post('/api/events/:eventId/athletes/chunks', athletesJsonParser, (req, res) 
   const merged = upload.chunks.flat()
   const curEvChunk = inMemoryEvents.find((e) => e.id === safeEventId)
   const existingChunk = loadAthletesForEvent(safeEventId)
+  const protectExistingChunk = curEvChunk?.status === 'EM OPERAÇÃO' ||
+    existingChunk?.athletes?.some((athlete) => String(athlete.status || '').toUpperCase() === 'ENTREGUE')
   const undoTargetChunk = existingChunk?.athletes?.find((athlete) => String(athlete.id) === upload.undoAthleteId)
   const canUndoDelivery = session?.role === 'ADMIN' || session?.role === 'SUPERVISOR'
   if (undoTargetChunk?.status === 'ENTREGUE' && !canUndoDelivery) {
     athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
     return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
   }
-  const safeMerged = curEvChunk?.status === 'EM OPERAÇÃO'
+  const safeMerged = protectExistingChunk
     ? mergeActiveAthletes(existingChunk?.athletes, merged, { undoAthleteId: upload.undoAthleteId, canUndoDelivery })
     : merged
-  const safeSchema = curEvChunk?.status === 'EM OPERAÇÃO' && existingChunk?.schema?.length
+  const safeSchema = protectExistingChunk && existingChunk?.schema?.length
     ? existingChunk.schema : upload.schema
   const success = saveAthletesForEvent(safeEventId, safeMerged, safeSchema, upload.kits, upload.originalSheet)
   athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)

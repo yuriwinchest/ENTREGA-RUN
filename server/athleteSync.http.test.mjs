@@ -85,6 +85,11 @@ test('two old clients can deliver without erasing each other, including chunk up
     await request('PUT', `/api/events/${eventId}`, { entregues: 0, pendentes: 301 })
     const afterStaleMetadata = await request('GET', '/api/events')
     assert.equal(afterStaleMetadata.body.events.find((item) => item.id === eventId).entregues, 2)
+
+    await request('PUT', `/api/events/${eventId}`, { status: 'FINALIZADO' })
+    assert.equal((await request('POST', route, { athletes: original })).status, 200)
+    const afterFinalizedStaleWrite = await request('GET', route)
+    assert.equal(afterFinalizedStaleWrite.body.athletes.filter((athlete) => athlete.status === 'ENTREGUE').length, 2)
   } finally {
     child.kill()
     fs.rmSync(dataDir, { recursive: true, force: true })

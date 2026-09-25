@@ -11,6 +11,7 @@ APP_DIR=/opt/entregas-run
 BACKUP_DIR="$APP_DIR/backups"
 COMPOSE_FILE="$APP_DIR/docker-compose.yml"
 SERVICE=entregas-run-web
+CRITICAL_EVENT_ID=event-1790318665638
 SHORT_SHA="${DEPLOY_SHA:0:12}"
 IMAGE="entregas-run:release-$SHORT_SHA"
 ROLLBACK_IMAGE="entregas-run:rollback-$SHORT_SHA"
@@ -103,22 +104,27 @@ docker tag "$PREVIOUS_IMAGE" "$ROLLBACK_IMAGE"
 DATA_BACKUP="$BACKUP_DIR/data-before-$SHORT_SHA-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
 tar -C "$APP_DIR" -czf "$DATA_BACKUP" data
 tar -tzf "$DATA_BACKUP" >/dev/null
-for file in "$APP_DIR/data/users.json" "$APP_DIR/data/events.json" "$APP_DIR"/data/athletes_*.json; do
-  [[ -f "$file" ]] || continue
-  archive_path="data/${file##*/}"
-  source_hash="$(sha256sum "$file" | awk '{print $1}')"
-  backup_hash="$(tar -xOzf "$DATA_BACKUP" "$archive_path" | sha256sum | awk '{print $1}')"
-  [[ "$source_hash" == "$backup_hash" ]] || {
-    echo "Snapshot inconsistente para $archive_path; deploy cancelado." >&2
-    exit 1
-  }
-done
+verify_backup_hashes() {
+  for file in "$APP_DIR/data/users.json" "$APP_DIR/data/events.json" "$APP_DIR"/data/athletes_*.json; do
+    [[ -f "$file" ]] || continue
+    archive_path="data/${file##*/}"
+    source_hash="$(sha256sum "$file" | awk '{print $1}')"
+    backup_hash="$(tar -xOzf "$DATA_BACKUP" "$archive_path" | sha256sum | awk '{print $1}')"
+    [[ "$source_hash" == "$backup_hash" ]] || {
+      echo "Snapshot inconsistente para $archive_path; deploy cancelado." >&2
+      exit 1
+    }
+  done
+}
+verify_backup_hashes
 echo 'Snapshot privado de eventos, atletas e usuários conferido por hash.'
 MANIFEST_FILE="$BACKUP_DIR/data-before-$SHORT_SHA-$(date -u +%Y%m%dT%H%M%SZ).manifest.json"
-docker run --rm --network none --read-only \
+docker run --rm --network none --read-only -e "REQUIRED_EVENT_ID=$CRITICAL_EVENT_ID" \
   --mount "type=bind,src=$APP_DIR/data,dst=/app/data,readonly" \
   "$IMAGE" node server/dataSnapshot.mjs capture > "$MANIFEST_FILE"
 [[ -s "$MANIFEST_FILE" ]] || { echo 'Manifesto de integridade vazio; deploy cancelado.' >&2; exit 1; }
+sleep 3
+verify_backup_hashes
 echo 'Manifesto privado de atletas e entregas criado.'
 cat > "$OVERRIDE_FILE" <<EOF
 services:
@@ -143,8 +149,8 @@ for attempt in $(seq 1 20); do
 done
 [[ "$HEALTHY" == 1 ]] || { echo 'Healthcheck não ficou saudável.' >&2; exit 1; }
 
-docker run --rm -i --network none --read-only \
+docker run --rm -i --network none --read-only -e "REQUIRED_EVENT_ID=$CRITICAL_EVENT_ID" \
   --mount "type=bind,src=$APP_DIR/data,dst=/app/data,readonly" \
   "$IMAGE" node server/dataSnapshot.mjs verify /dev/stdin < "$MANIFEST_FILE"
-docker exec -i "$SERVICE" node server/dataSnapshot.mjs verify-api /dev/stdin < "$MANIFEST_FILE"
+docker exec -i -e "REQUIRED_EVENT_ID=$CRITICAL_EVENT_ID" "$SERVICE" node server/dataSnapshot.mjs verify-api /dev/stdin < "$MANIFEST_FILE"
 DEPLOY_OK=1
