@@ -37,7 +37,7 @@ jobs:
         run: |
           npm ci
           node --check server.js
-          node --test admin-users.test.mjs
+          node --test admin-users.test.mjs athleteSync.test.mjs athleteSync.http.test.mjs dataSnapshot.test.mjs
 
       - name: Validar Script de Deploy
         run: bash -n scripts/deploy-vps.sh
@@ -73,6 +73,7 @@ jobs:
             docker inspect entregas-run-web >/dev/null
             docker compose version
             curl --silent --fail --max-time 5 http://127.0.0.1:3050/api/health >/dev/null
+            docker exec entregas-run-web node -e 'const fs=require("fs"); const id="event-1790318665638"; const events=JSON.parse(fs.readFileSync("/app/data/events.json","utf8")); const data=JSON.parse(fs.readFileSync(`/app/data/athletes_${id}.json`,"utf8")); if(!Array.isArray(events)||!events.some(e=>e.id===id)||!Array.isArray(data.athletes)||data.athletes.length<300) process.exit(1); console.log(`active_event_athletes=${data.athletes.length} delivered=${data.athletes.filter(a=>a.status==="ENTREGUE").length}`)'
             df -P . | awk 'NR==2 {gsub(/%/, "", $5); print "disk_used_percent=" $5; if ($5 >= 80) exit 1}'
             echo 'VPS preflight OK'
 

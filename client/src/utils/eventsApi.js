@@ -133,12 +133,12 @@ export async function apiFetchAthletes(eventId) {
   }
 }
 
-export async function apiSaveAthletes(eventId, athletes, schema = [], kits, originalSheet) {
+export async function apiSaveAthletes(eventId, athletes, schema = [], kits, originalSheet, options = {}) {
   if (!eventId || !Array.isArray(athletes)) return false
   // Listas grandes (ex: 1.011 atletas) vão fatiadas para não estourar
   // o payload único e permitir retry por fatia no servidor.
   if (athletes.length > 300) {
-    return apiSaveAthletesChunked(eventId, athletes, schema, kits, 250, originalSheet)
+    return apiSaveAthletesChunked(eventId, athletes, schema, kits, 250, originalSheet, options)
   }
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes`, {
@@ -151,6 +151,7 @@ export async function apiSaveAthletes(eventId, athletes, schema = [], kits, orig
         schema,
         ...(kits === undefined ? {} : { kits }),
         ...(originalSheet === undefined ? {} : { originalSheet }),
+        ...(options.undoAthleteId ? { undoAthleteId: options.undoAthleteId } : {}),
       }),
     })
     if (!res.ok) return false
@@ -162,7 +163,7 @@ export async function apiSaveAthletes(eventId, athletes, schema = [], kits, orig
   }
 }
 
-export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kits, chunkSize = 250, originalSheet) {
+export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kits, chunkSize = 250, originalSheet, options = {}) {
   if (!eventId || !Array.isArray(athletes)) return false
   const uploadId = `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
   const totalChunks = Math.max(1, Math.ceil(athletes.length / chunkSize))
@@ -184,6 +185,7 @@ export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kit
                 schema,
                 ...(kits === undefined ? {} : { kits }),
                 ...(originalSheet === undefined ? {} : { originalSheet }),
+                ...(options.undoAthleteId ? { undoAthleteId: options.undoAthleteId } : {}),
               }
             : {}),
         }),
@@ -191,7 +193,7 @@ export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kit
       if (!res.ok) {
         // Servidor antigo sem rota de chunks: cai para o POST único
         if (res.status === 404 && totalChunks > 1) {
-          return apiSaveAthletesSingle(eventId, athletes, schema, kits, originalSheet)
+          return apiSaveAthletesSingle(eventId, athletes, schema, kits, originalSheet, options)
         }
         return false
       }
@@ -205,7 +207,7 @@ export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kit
   }
 }
 
-async function apiSaveAthletesSingle(eventId, athletes, schema = [], kits, originalSheet) {
+async function apiSaveAthletesSingle(eventId, athletes, schema = [], kits, originalSheet, options = {}) {
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes`, {
       method: 'POST',
@@ -217,6 +219,7 @@ async function apiSaveAthletesSingle(eventId, athletes, schema = [], kits, origi
         schema,
         ...(kits === undefined ? {} : { kits }),
         ...(originalSheet === undefined ? {} : { originalSheet }),
+        ...(options.undoAthleteId ? { undoAthleteId: options.undoAthleteId } : {}),
       }),
     })
     if (!res.ok) return false

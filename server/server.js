@@ -7,6 +7,7 @@ import express from 'express'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { hashPassword, verifyPassword } from './passwords.js'
+import { eventMetrics, mergeActiveAthletes } from './athleteSync.js'
 import {
   appwriteStatus,
   deleteEventFromAppwrite,
@@ -625,17 +626,53 @@ function sanitizeEventPayload(raw, isUpdate = false) {
 }
 
 // GET /api/events — Retorna os eventos persistidos (filtrados por permissão do usuário)
+const eventMirrors = new Map()
+
+function mirrorEventToAppwrite(event) {
+  let mirror = eventMirrors.get(event.id)
+  if (!mirror) {
+    mirror = { running: false, latest: null }
+    eventMirrors.set(event.id, mirror)
+  }
+  mirror.latest = { ...event }
+  if (mirror.running) return
+  mirror.running = true
+  void (async () => {
+    try {
+      while (mirror.latest) {
+        const snapshot = mirror.latest
+        mirror.latest = null
+        const result = await persistEventToAppwrite(snapshot)
+        if (!result.ok && !result.skipped) {
+          console.warn(`[server] Espelho do evento ${event.id} incompleto no Appwrite.`)
+        }
+      }
+    } catch (err) {
+      console.error(`[server] Erro no espelho do evento ${event.id}:`, err)
+    } finally {
+      mirror.running = false
+      if (mirror.latest) mirrorEventToAppwrite(mirror.latest)
+    }
+  })()
+}
+
 app.get('/api/events', (req, res) => {
+  const events = inMemoryEvents.map((event) => {
+    const athletes = loadAthletesForEvent(event.id)?.athletes
+    return Array.isArray(athletes) && athletes.length > 0
+      ? { ...event, ...eventMetrics(athletes) }
+      : event
+  })
   const session = getSessionFromReq(req)
   if (session && session.role !== 'ADMIN' && session.eventId && session.eventId !== 'all') {
-    const userEvents = inMemoryEvents.filter((e) => e.id === session.eventId)
+    const userEvents = events.filter((e) => e.id === session.eventId)
     return res.json({ ok: true, events: userEvents })
   }
   if (session && session.role === 'OPERADOR' && (!session.eventId || session.eventId === 'all')) {
-    const fallback = inMemoryEvents.length > 0 ? [inMemoryEvents[0]] : []
+    const fallback = events.length > 0 ? [events[0]] : []
     return res.json({ ok: true, events: fallback })
   }
-  res.json({ ok: true, events: inMemoryEvents })
+  res.json({ ok: true, events })
 })
 
 // POST /api/events — Cria novo evento
@@ -668,7 +705,7 @@ app.post('/api/events', (req, res) => {
   }
 
   writeEventsToDisk(inMemoryEvents)
-  void persistEventToAppwrite(newEvent)
+  mirrorEventToAppwrite(newEvent)
   res.status(201).json({ ok: true, event: newEvent })
 })
 
@@ -707,10 +744,14 @@ app.put('/api/events/:eventId', (req, res) => {
     concl: typeof body.concl === 'string' ? body.concl.slice(0, 10) : current.concl,
     updatedAt: Date.now(),
   }
+  const persistedAthletes = loadAthletesForEvent(eventId)?.athletes
+  if (Array.isArray(persistedAthletes) && persistedAthletes.length > 0) {
+    Object.assign(updated, eventMetrics(persistedAthletes))
+  }
 
   inMemoryEvents[index] = updated
   writeEventsToDisk(inMemoryEvents)
-  void persistEventToAppwrite(updated)
+  mirrorEventToAppwrite(updated)
   res.json({ ok: true, event: updated })
 })
 
@@ -761,7 +802,7 @@ app.post('/api/events/sync', (req, res) => {
   if (changed) {
     writeEventsToDisk(inMemoryEvents)
     for (const ev of inMemoryEvents) {
-      void persistEventToAppwrite(ev)
+      mirrorEventToAppwrite(ev)
     }
   }
   res.json({ ok: true, events: inMemoryEvents })
@@ -780,6 +821,35 @@ function getAthletesFilePath(eventId) {
 }
 
 const athletesCache = new Map()
+const athleteMirrors = new Map()
+
+function mirrorAthletesToAppwrite(eventId, athletes) {
+  let mirror = athleteMirrors.get(eventId)
+  if (!mirror) {
+    mirror = { running: false, latest: null }
+    athleteMirrors.set(eventId, mirror)
+  }
+  mirror.latest = athletes
+  if (mirror.running) return
+  mirror.running = true
+  void (async () => {
+    try {
+      while (mirror.latest) {
+        const snapshot = mirror.latest
+        mirror.latest = null
+        const result = await persistAthletesToAppwrite(eventId, snapshot)
+        if ((!result.ok && !result.skipped) || result.errorCount > 0) {
+          console.warn(`[server] Espelho Appwrite incompleto para evento ${eventId}.`)
+        }
+      }
+    } catch (err) {
+      console.error(`[server] Erro no espelho Appwrite para evento ${eventId}:`, err)
+    } finally {
+      mirror.running = false
+      if (mirror.latest) mirrorAthletesToAppwrite(eventId, mirror.latest)
+    }
+  })()
+}
 
 function loadAthletesForEvent(eventId) {
   const safeId = String(eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
@@ -911,7 +981,7 @@ app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
     }
   }
 
-  const { athletes, schema, kits, originalSheet } = req.body || {}
+  const { athletes, schema, kits, originalSheet, undoAthleteId } = req.body || {}
 
   if (!Array.isArray(athletes)) {
     return res.status(400).json({ ok: false, message: 'Lista de atletas inválida.' })
@@ -929,20 +999,32 @@ app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
     }
   }
 
-  const success = saveAthletesForEvent(safeEventId, athletes, schema, kitsToSave, originalSheet)
-  void persistAthletesToAppwrite(safeEventId, athletes)
   const curEv = inMemoryEvents.find((e) => e.id === safeEventId)
-  if (curEv) {
-    curEv.total = athletes.length
-    curEv.pendentes = Math.max(0, athletes.length - (curEv.entregues || 0))
-    writeEventsToDisk(inMemoryEvents)
-    void persistEventToAppwrite(curEv)
+  const existing = loadAthletesForEvent(safeEventId)
+  const protectExisting = curEv?.status === 'EM OPERAÇÃO' ||
+    existing?.athletes?.some((athlete) => String(athlete.status || '').toUpperCase() === 'ENTREGUE')
+  const safeUndoId = String(undoAthleteId || '').slice(0, 64)
+  const undoTarget = existing?.athletes?.find((athlete) => String(athlete.id) === safeUndoId)
+  const canUndoDelivery = session?.role === 'ADMIN' || session?.role === 'SUPERVISOR'
+  if (undoTarget?.status === 'ENTREGUE' && !canUndoDelivery) {
+    return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
   }
+  const safeAthletes = protectExisting
+    ? mergeActiveAthletes(existing?.athletes, athletes, { undoAthleteId: safeUndoId, canUndoDelivery })
+    : athletes
+  const safeSchema = protectExisting && existing?.schema?.length
+    ? existing.schema : schema
+  const success = saveAthletesForEvent(safeEventId, safeAthletes, safeSchema, kitsToSave, originalSheet)
   if (!success) {
     return res.status(500).json({ ok: false, message: 'Erro ao persistir atletas.' })
   }
-
-  res.json({ ok: true, count: athletes.length, ...(kitsWarning ? { kitsWarning } : {}) })
+  mirrorAthletesToAppwrite(safeEventId, safeAthletes)
+  if (curEv) {
+    Object.assign(curEv, eventMetrics(safeAthletes))
+    writeEventsToDisk(inMemoryEvents)
+    mirrorEventToAppwrite(curEv)
+  }
+  res.json({ ok: true, count: safeAthletes.length, ...(kitsWarning ? { kitsWarning } : {}) })
 })
 
 // POST /api/events/:eventId/athletes/chunks — upload fatiado p/ listas grandes
@@ -961,7 +1043,7 @@ app.post('/api/events/:eventId/athletes/chunks', athletesJsonParser, (req, res) 
     }
   }
 
-  const { uploadId, chunkIndex, totalChunks, athletesChunk, schema, kits, originalSheet } = req.body || {}
+  const { uploadId, chunkIndex, totalChunks, athletesChunk, schema, kits, originalSheet, undoAthleteId } = req.body || {}
   const safeUploadId = String(uploadId || '').replace(/[^\w-]/g, '').slice(0, 64)
   const idx = Number(chunkIndex)
   const total = Number(totalChunks)
@@ -975,7 +1057,7 @@ app.post('/api/events/:eventId/athletes/chunks', athletesJsonParser, (req, res) 
 
   let upload = athleteChunkUploads.get(`${safeEventId}:${safeUploadId}`)
   if (!upload) {
-    upload = { chunks: new Array(total).fill(null), totalChunks: total, schema: [], kits: undefined, originalSheet: undefined, received: 0, updatedAt: Date.now() }
+    upload = { chunks: new Array(total).fill(null), totalChunks: total, schema: [], kits: undefined, originalSheet: undefined, undoAthleteId: '', received: 0, updatedAt: Date.now() }
     athleteChunkUploads.set(`${safeEventId}:${safeUploadId}`, upload)
   }
   if (upload.totalChunks !== total) {
@@ -992,26 +1074,40 @@ app.post('/api/events/:eventId/athletes/chunks', athletesJsonParser, (req, res) 
   if (originalSheet !== undefined) {
     upload.originalSheet = originalSheet
   }
+  if (undoAthleteId !== undefined) upload.undoAthleteId = String(undoAthleteId || '').slice(0, 64)
 
   if (upload.received < upload.totalChunks) {
     return res.json({ ok: true, received: upload.received, totalChunks: upload.totalChunks, done: false })
   }
 
   const merged = upload.chunks.flat()
-  const success = saveAthletesForEvent(safeEventId, merged, upload.schema, upload.kits, upload.originalSheet)
-  void persistAthletesToAppwrite(safeEventId, merged)
   const curEvChunk = inMemoryEvents.find((e) => e.id === safeEventId)
-  if (curEvChunk) {
-    curEvChunk.total = merged.length
-    curEvChunk.pendentes = Math.max(0, merged.length - (curEvChunk.entregues || 0))
-    writeEventsToDisk(inMemoryEvents)
-    void persistEventToAppwrite(curEvChunk)
+  const existingChunk = loadAthletesForEvent(safeEventId)
+  const protectExistingChunk = curEvChunk?.status === 'EM OPERAÇÃO' ||
+    existingChunk?.athletes?.some((athlete) => String(athlete.status || '').toUpperCase() === 'ENTREGUE')
+  const undoTargetChunk = existingChunk?.athletes?.find((athlete) => String(athlete.id) === upload.undoAthleteId)
+  const canUndoDelivery = session?.role === 'ADMIN' || session?.role === 'SUPERVISOR'
+  if (undoTargetChunk?.status === 'ENTREGUE' && !canUndoDelivery) {
+    athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
+    return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
   }
+  const safeMerged = protectExistingChunk
+    ? mergeActiveAthletes(existingChunk?.athletes, merged, { undoAthleteId: upload.undoAthleteId, canUndoDelivery })
+    : merged
+  const safeSchema = protectExistingChunk && existingChunk?.schema?.length
+    ? existingChunk.schema : upload.schema
+  const success = saveAthletesForEvent(safeEventId, safeMerged, safeSchema, upload.kits, upload.originalSheet)
   athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
   if (!success) {
     return res.status(500).json({ ok: false, message: 'Erro ao persistir atletas fatiados.' })
   }
-  res.json({ ok: true, count: merged.length, done: true })
+  mirrorAthletesToAppwrite(safeEventId, safeMerged)
+  if (curEvChunk) {
+    Object.assign(curEvChunk, eventMetrics(safeMerged))
+    writeEventsToDisk(inMemoryEvents)
+    mirrorEventToAppwrite(curEvChunk)
+  }
+  res.json({ ok: true, count: safeMerged.length, done: true })
 })
 
 setInterval(() => {
@@ -1070,7 +1166,7 @@ app.put('/api/events/:eventId/athletes/:numero/status', express.json(), (req, re
     evStatus.pendentes = Math.max(0, (evStatus.total || data.athletes.length) - deliveredCount)
     evStatus.concl = evStatus.total > 0 ? `${((deliveredCount / evStatus.total) * 100).toFixed(1)}%` : '0.0%'
     writeEventsToDisk(inMemoryEvents)
-    void persistEventToAppwrite(evStatus)
+    mirrorEventToAppwrite(evStatus)
   }
   res.json({ ok: true, athlete: data.athletes[idx] })
 })
