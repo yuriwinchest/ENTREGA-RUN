@@ -42,6 +42,12 @@ jobs:
       - name: Validar Script de Deploy
         run: bash -n scripts/deploy-vps.sh
 
+      - name: Validar imagem com arquivos de origem restritos
+        run: |
+          chmod -R go-rwx server
+          docker build --quiet -t entregas-run:ci-permissions .
+          docker run --rm --network none -e ADMIN_PASSWORD=ci-test-123456 --entrypoint sh entregas-run:ci-permissions -c 'node server/server.js & pid=$!; sleep 2; wget -qO- http://127.0.0.1:3001/api/health >/dev/null; kill "$pid"'
+
   preflight:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: validate

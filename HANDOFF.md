@@ -1,5 +1,13 @@
 # Handoff
 
+## 2026-09-25 — Diagnóstico isolado do deploy administrativo (Fase A)
+
+- **Autor:** Codex/Tony (GPT-6).
+- **Pedido/contexto:** Após o merge de PR #1 (`304b3b9`), a CI e o preflight passaram, mas a imagem nova não respondeu ao healthcheck em 40s. O script executou rollback para a imagem anterior; o log do job não registrou falha no rollback.
+- **Diagnóstico confirmado:** Build da mesma imagem no Docker local e `GET /api/health` dentro de container isolado responderam `ok:true`. No teste isolado da VPS, o container saiu antes de 3s. Com logs retidos, o Node mostrou `EACCES: permission denied, open '/app/server/server.js'`. O script de deploy cria o worktree com `umask 077`; o `COPY server/` preservava permissões restritas e deixava os arquivos com dono root, enquanto o processo roda como usuário node.
+- **Correção candidata:** `Dockerfile` usa `COPY --chown=node:node server/ ./server/`. A CI em `.github/workflows/deploy.yml` torna o diretório `server` inacessível a grupo/outros antes do build, inicia a imagem como usuário node e exige resposta do healthcheck. O teste diagnóstico na VPS foi removido do preflight após isolar a causa.
+- **Risco/próximo passo:** Validar a imagem restrita na CI e repetir o deploy somente com os gates e rollback existentes. Não testar restauração de dados no container de produção.
+
 ## 2026-09-25 — Senha manual e permissões de usuários do Sub-Admin (Fase A)
 
 - **Autor:** Codex/Tony (GPT-6). Esta entrada descreve somente alterações feitas por este agente no checkout isolado `codex/admin-roles-passwords`.
