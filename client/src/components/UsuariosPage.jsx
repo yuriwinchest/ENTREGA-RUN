@@ -359,7 +359,7 @@ export default function UsuariosPage({
       alert('Gere uma nova senha antes de copiar o acesso.')
       return
     }
-    const systemUrl = typeof window !== 'undefined' ? window.location.origin : 'https://app.entregasrun.com.br'
+    const systemUrl = typeof window !== 'undefined' ? window.location.origin : 'https://entregasrunning.com.br'
     const text = `🏃 *ENTREGAS RUN — DADOS DE ACESSO AO SISTEMA*
 Olá *${creds.name}*, seu login foi liberado!
 

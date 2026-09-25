@@ -76,3 +76,27 @@ jobs:
 
             echo "=== DEPLOY CONCLUÍDO COM SUCESSO! ==="
             docker ps --filter name=entregas-run-web --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+            # Configuração de Domínio no Caddyfile (Vitor / SRE)
+            echo "Verificando configuração do novo domínio no Caddy..."
+            if [ -f /etc/caddy/Caddyfile ]; then
+              if ! grep -q "entregasrunning.com.br" /etc/caddy/Caddyfile; then
+                echo "Adicionando entregasrunning.com.br e www ao Caddyfile..."
+                cat << 'EOF' >> /etc/caddy/Caddyfile
+
+entregasrunning.com.br, www.entregasrunning.com.br {
+    reverse_proxy 127.0.0.1:3050
+}
+EOF
+                caddy validate --config /etc/caddy/Caddyfile && (systemctl reload caddy || caddy reload || true)
+                echo "Caddy recarregado com o novo domínio!"
+              else
+                echo "Domínio entregasrunning.com.br já configurado no Caddyfile."
+              fi
+            fi
+
+            # Fallback para Caddy em container Docker
+            CADDY_CONTAINER=$(docker ps -q --filter name=caddy)
+            if [ -n "$CADDY_CONTAINER" ]; then
+              docker exec "$CADDY_CONTAINER" caddy reload || true
+            fi

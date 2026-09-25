@@ -1,5 +1,23 @@
 # Handoff
 
+## 2026-09-24 — Apontamento do Novo Domínio Oficial ENTREGASRUNNING.COM.BR (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Vitor / SRE).
+- **Demanda do Yuri (PO via áudio e capturas de tela):** Realizar o apontamento definitivo do novo domínio oficial `entregasrunning.com.br` comprado no Registro.br para a VPS de produção (`179.198.97.28`). O sistema deve rodar diretamente no domínio principal (sem necessidade de subdomínio `app`).
+- **Ações realizadas:**
+  1. **DNS no Registro.br:**
+     - Ativado Modo Avançado na zona de DNS do domínio `entregasrunning.com.br`.
+     - Criadas entradas do Tipo A para o domínio raiz (`entregasrunning.com.br` -> `179.198.97.28`) e para o `www` (`www.entregasrunning.com.br` -> `179.198.97.28`).
+     - Alterações salvas com sucesso no painel do Registro.br.
+  2. **Configuração de Proxy Reverso & SSL Automático (VPS / Caddy):**
+     - Workflow de deploy atualizado para incluir blocos de `entregasrunning.com.br` e `www.entregasrunning.com.br` apontando para o container Docker `127.0.0.1:3050`.
+     - Recarregamento do Caddy via systemd/Docker para emissão automática de certificado SSL HTTPS Let's Encrypt assim que a propagação do DNS for concluída.
+  3. **Frontend:**
+     - Atualizado fallback de URL base em `UsuariosPage.jsx` para `https://entregasrunning.com.br`.
+- **Validação real:**
+  - `npm run build`: bundle compilado com sucesso em 1.45s (`index-B0s9VUfA.js`).
+- **Próximo passo:** Subir via `git push origin main` para a VPS provisionar o novo domínio no Caddy e monitorar a propagação mundial do DNS.
+
 ## 2026-09-24 — Campo de Terceiro Vazio por Padrão e Validação da Lista Salva no Banco (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead).
