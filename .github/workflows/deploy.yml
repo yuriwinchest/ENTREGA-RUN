@@ -37,7 +37,7 @@ jobs:
         run: |
           npm ci
           node --check server.js
-          node --test admin-users.test.mjs
+          node --test admin-users.test.mjs athleteSync.test.mjs athleteSync.http.test.mjs dataSnapshot.test.mjs
 
       - name: Validar Script de Deploy
         run: bash -n scripts/deploy-vps.sh
