@@ -71,8 +71,8 @@ jobs:
             image=entregas-run:release-304b3b94c1f9
             candidate=entregas-run-diagnostic-${{ github.run_id }}
             docker image inspect "$image" >/dev/null
-            docker run -d --rm --name "$candidate" --network none --memory 256m --cpus 0.5 --mount type=bind,source=/opt/entregas-run/data,target=/app/data,readonly -e ADMIN_PASSWORD=diagnostic-test-123456 "$image" >/dev/null
-            trap 'docker stop "$candidate" >/dev/null 2>&1 || true' EXIT
+            docker run -d --name "$candidate" --network none --memory 256m --cpus 0.5 --mount type=bind,source=/opt/entregas-run/data,target=/app/data,readonly -e ADMIN_PASSWORD=diagnostic-test-123456 "$image" >/dev/null
+            trap 'docker rm -f "$candidate" >/dev/null 2>&1 || true' EXIT
             sleep 3
             if docker exec "$candidate" wget -qO- http://127.0.0.1:3001/api/health >/dev/null; then
               echo 'Imagem candidata saudável em container isolado.'

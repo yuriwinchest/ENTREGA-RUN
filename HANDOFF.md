@@ -5,7 +5,7 @@
 - **Autor:** Codex/Tony (GPT-6).
 - **Pedido/contexto:** Após o merge de PR #1 (`304b3b9`), a CI e o preflight passaram, mas a imagem nova não respondeu ao healthcheck em 40s. O script executou rollback para a imagem anterior; o log do job não registrou falha no rollback.
 - **Alterações nesta branch diagnóstica:** `.github/workflows/deploy.yml` adiciona ao preflight de PR um teste da imagem candidata já construída em container efêmero com rede desativada, memória/CPU limitadas e volume de dados montado somente para leitura. O container é encerrado ao final. Este `HANDOFF.md` registra a autoria e a evidência.
-- **Validação real até aqui:** Build da mesma imagem no Docker local e `GET /api/health` dentro de container isolado responderam `ok:true`. O teste isolado na VPS ainda não foi executado nesta entrada.
+- **Validação real até aqui:** Build da mesma imagem no Docker local e `GET /api/health` dentro de container isolado responderam `ok:true`. No teste isolado da VPS, o container saiu antes de 3s e o healthcheck falhou; a opção `--rm` apagou os logs junto com o container. A alteração seguinte retém temporariamente o container para ler somente as últimas 40 linhas do log e remove exatamente o container diagnóstico ao sair.
 - **Risco/próximo passo:** Diagnosticar diferença entre ambiente isolado e Compose da VPS antes de nova troca do serviço. Não testar restauração de dados no container de produção.
 
 ## 2026-09-25 — Senha manual e permissões de usuários do Sub-Admin (Fase A)
