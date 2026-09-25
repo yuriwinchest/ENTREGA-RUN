@@ -624,13 +624,27 @@ function sanitizeEventPayload(raw, isUpdate = false) {
   }
 }
 
-// GET /api/events — Retorna todos os eventos persistidos em memória central
-app.get('/api/events', (_req, res) => {
+// GET /api/events — Retorna os eventos persistidos (filtrados por permissão do usuário)
+app.get('/api/events', (req, res) => {
+  const session = getSessionFromReq(req)
+  if (session && session.role !== 'ADMIN' && session.eventId && session.eventId !== 'all') {
+    const userEvents = inMemoryEvents.filter((e) => e.id === session.eventId)
+    return res.json({ ok: true, events: userEvents })
+  }
+  if (session && session.role === 'OPERADOR' && (!session.eventId || session.eventId === 'all')) {
+    const fallback = inMemoryEvents.length > 0 ? [inMemoryEvents[0]] : []
+    return res.json({ ok: true, events: fallback })
+  }
   res.json({ ok: true, events: inMemoryEvents })
 })
 
 // POST /api/events — Cria novo evento
 app.post('/api/events', (req, res) => {
+  const session = getSessionFromReq(req)
+  if (session && session.role === 'OPERADOR') {
+    return res.status(403).json({ ok: false, message: 'Operador não tem permissão para criar eventos.' })
+  }
+
   const sanitized = sanitizeEventPayload(req.body, false)
   if (!sanitized) {
     return res.status(400).json({ ok: false, message: 'Dados inválidos para criação do evento.' })
@@ -661,6 +675,14 @@ app.post('/api/events', (req, res) => {
 // PUT /api/events/:eventId — Atualiza dados e status do evento
 app.put('/api/events/:eventId', (req, res) => {
   const eventId = String(req.params.eventId || '').trim().slice(0, 64)
+  const session = getSessionFromReq(req)
+  if (session && session.role === 'OPERADOR') {
+    return res.status(403).json({ ok: false, message: 'Operador não tem permissão para alterar eventos.' })
+  }
+  if (session && session.role === 'SUB_ADMIN' && session.eventId !== 'all' && session.eventId !== eventId) {
+    return res.status(403).json({ ok: false, message: 'Sub-Admin só pode alterar o evento atribuído a ele.' })
+  }
+
   const index = inMemoryEvents.findIndex((e) => e.id === eventId)
 
   if (index === -1) {
@@ -828,6 +850,16 @@ function validateKits(kits) {
 // reidrata o disco (cura a divergência total x lista zerada).
 app.get('/api/events/:eventId/athletes', async (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const session = getSessionFromReq(req)
+  if (session && session.role !== 'ADMIN') {
+    if (session.eventId && session.eventId !== 'all' && session.eventId !== safeEventId) {
+      return res.status(403).json({
+        ok: false,
+        message: 'Acesso negado: você não tem permissão para acessar os atletas deste evento.',
+      })
+    }
+  }
+
   const data = loadAthletesForEvent(safeEventId)
   if (data && Array.isArray(data.athletes) && data.athletes.length > 0) {
     return res.json({
@@ -869,6 +901,16 @@ app.get('/api/events/:eventId/athletes', async (req, res) => {
 // volta em kitsWarning (causa raiz da divergência total x lista zerada).
 app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const session = getSessionFromReq(req)
+  if (session && session.role !== 'ADMIN') {
+    if (session.eventId && session.eventId !== 'all' && session.eventId !== safeEventId) {
+      return res.status(403).json({
+        ok: false,
+        message: 'Acesso negado: você não tem permissão para modificar atletas deste evento.',
+      })
+    }
+  }
+
   const { athletes, schema, kits, originalSheet } = req.body || {}
 
   if (!Array.isArray(athletes)) {
@@ -909,6 +951,16 @@ const athleteChunkUploads = new Map()
 
 app.post('/api/events/:eventId/athletes/chunks', athletesJsonParser, (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const session = getSessionFromReq(req)
+  if (session && session.role !== 'ADMIN') {
+    if (session.eventId && session.eventId !== 'all' && session.eventId !== safeEventId) {
+      return res.status(403).json({
+        ok: false,
+        message: 'Acesso negado: você não tem permissão para modificar atletas deste evento.',
+      })
+    }
+  }
+
   const { uploadId, chunkIndex, totalChunks, athletesChunk, schema, kits, originalSheet } = req.body || {}
   const safeUploadId = String(uploadId || '').replace(/[^\w-]/g, '').slice(0, 64)
   const idx = Number(chunkIndex)
@@ -973,6 +1025,16 @@ setInterval(() => {
 app.put('/api/events/:eventId/athletes/:numero/status', express.json(), (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
   const safeNumero = String(req.params.numero || '').trim().slice(0, 50)
+  const session = getSessionFromReq(req)
+  if (session && session.role !== 'ADMIN') {
+    if (session.eventId && session.eventId !== 'all' && session.eventId !== safeEventId) {
+      return res.status(403).json({
+        ok: false,
+        message: 'Acesso negado: operador não autorizado a entregar kits neste evento.',
+      })
+    }
+  }
+
   const { status, entregueEm, entreguePor, entreguePara } = req.body || {}
 
   const data = loadAthletesForEvent(safeEventId)
@@ -1180,6 +1242,15 @@ app.post('/api/users', requireAdminOrSubAdmin, (req, res) => {
     return res.status(403).json({ ok: false, message: 'O usuário deve pertencer ao evento do Sub-Admin.' })
   }
 
+  if (role === 'OPERADOR' || role === 'SUPERVISOR') {
+    if (!eventId || eventId === 'all') {
+      return res.status(400).json({
+        ok: false,
+        message: 'Operadores e Supervisores devem ser vinculados obrigatoriamente a um projeto específico.',
+      })
+    }
+  }
+
   if (!name || !email || !EMAIL_RE.test(email)) {
     return res.status(400).json({ ok: false, message: 'Nome e e-mail válido são obrigatórios.' })
   }
@@ -1222,6 +1293,18 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   const current = inMemoryUsers[idx]
   const body = req.body || {}
 
+  const targetRole = body.role && ['ADMIN', 'SUB_ADMIN', 'SUPERVISOR', 'OPERADOR'].includes(body.role) ? body.role : current.role
+  const targetEventId = body.eventId !== undefined ? String(body.eventId).trim() : current.eventId
+
+  if (targetRole === 'OPERADOR' || targetRole === 'SUPERVISOR') {
+    if (!targetEventId || targetEventId === 'all') {
+      return res.status(400).json({
+        ok: false,
+        message: 'Operadores e Supervisores devem ser vinculados obrigatoriamente a um projeto específico.',
+      })
+    }
+  }
+
   if (req.session?.role === 'SUB_ADMIN') {
     if (current.role === 'ADMIN' || userId === 'admin_pacetime') {
       return res.status(403).json({ ok: false, message: 'Sub-Admin não pode alterar o Super Admin.' })
@@ -1241,9 +1324,9 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   const updated = {
     ...current,
     name: body.name ? String(body.name).trim().toUpperCase() : current.name,
-    role: body.role && ['ADMIN', 'SUB_ADMIN', 'SUPERVISOR', 'OPERADOR'].includes(body.role) ? body.role : current.role,
-    eventId: body.eventId !== undefined ? String(body.eventId) : current.eventId,
-    eventName: body.eventName !== undefined ? String(body.eventName) : current.eventName,
+    role: targetRole,
+    eventId: targetEventId,
+    eventName: body.eventName !== undefined ? String(body.eventName).trim() : current.eventName,
     status: body.status && ['ATIVO', 'INATIVO'].includes(body.status) ? body.status : current.status,
     deliveries: typeof body.deliveries === 'number' ? body.deliveries : current.deliveries,
     updatedAt: Date.now(),
@@ -1307,13 +1390,25 @@ app.post('/api/login', loginLimiter, (req, res) => {
         message: 'Usuário desativado. Entre em contato com o administrador.',
       })
     }
+
+    let finalEventId = foundUser.eventId || 'all'
+    let finalEventName = foundUser.eventName || 'TODOS OS PROJETOS'
+
+    if ((foundUser.role === 'OPERADOR' || foundUser.role === 'SUPERVISOR') && (!finalEventId || finalEventId === 'all')) {
+      const firstEvent = inMemoryEvents[0]
+      if (firstEvent) {
+        finalEventId = firstEvent.id
+        finalEventName = firstEvent.name
+      }
+    }
+
     const sessionUser = {
       id: foundUser.id,
       name: foundUser.name,
       email: foundUser.email,
       role: foundUser.role || 'OPERADOR',
-      eventId: foundUser.eventId || 'all',
-      eventName: foundUser.eventName || 'TODOS OS PROJETOS',
+      eventId: finalEventId,
+      eventName: finalEventName,
     }
     return res.json({ ok: true, user: sessionUser, token: createSession(sessionUser) })
   }
@@ -1328,13 +1423,14 @@ app.post('/api/login', loginLimiter, (req, res) => {
   }
 
   if (legacyOperators[normalizedEmail] && password === ADMIN_PASSWORD) {
+    const firstEvent = inMemoryEvents[0]
     const legacyUser = {
       id: normalizedEmail.split('@')[0],
       name: legacyOperators[normalizedEmail],
       email: normalizedEmail,
       role: 'OPERADOR',
-      eventId: 'all',
-      eventName: 'TODOS OS PROJETOS',
+      eventId: firstEvent?.id || 'event-default',
+      eventName: firstEvent?.name || 'PROJETO ATRIBUÍDO',
     }
     return res.json({ ok: true, user: legacyUser, token: createSession(legacyUser) })
   }

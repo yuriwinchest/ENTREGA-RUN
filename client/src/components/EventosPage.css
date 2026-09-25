@@ -255,6 +255,15 @@
   transition: all 0.15s ease;
 }
 
+.status-pill.read-only {
+  cursor: default;
+}
+
+.status-pill.read-only:hover {
+  filter: none;
+  transform: none;
+}
+
 .status-pill.active {
   background: #fff2eb;
   color: #ff5200;

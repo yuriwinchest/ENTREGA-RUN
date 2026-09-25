@@ -115,7 +115,7 @@ export async function apiFetchAthletes(eventId) {
   if (!eventId) return null
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes`, {
-      headers: { Accept: 'application/json' },
+      headers: getAuthHeaders(),
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -143,10 +143,9 @@ export async function apiSaveAthletes(eventId, athletes, schema = [], kits, orig
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes`, {
       method: 'POST',
-      headers: {
+      headers: getAuthHeaders({
         'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+      }),
       body: JSON.stringify({
         athletes,
         schema,
@@ -172,10 +171,9 @@ export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kit
       const chunk = athletes.slice(i * chunkSize, (i + 1) * chunkSize)
       const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes/chunks`, {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
+        }),
         body: JSON.stringify({
           uploadId,
           chunkIndex: i,
@@ -211,10 +209,9 @@ async function apiSaveAthletesSingle(eventId, athletes, schema = [], kits, origi
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes`, {
       method: 'POST',
-      headers: {
+      headers: getAuthHeaders({
         'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+      }),
       body: JSON.stringify({
         athletes,
         schema,

@@ -1,5 +1,48 @@
 # Handoff
 
+## 2026-09-25 — Isolamento Estrito de Eventos por Usuário e Reatribuição de Operadores (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead, Crowley Segurança, Vitor Infra/SRE & Fullstack).
+- **Demanda do Yuri (PO via áudio):**
+  "Outro ajuste que precisa ser feito é no isolamento dos usuários. O usuário só pode ser... o usuário que entrega kit ele só pode entregar o kit daquele projeto que foi atribuído pra ele. Hoje ele tá conseguindo entregar kit de qualquer evento que foi criado. Então ele só vai ver o evento que foi atribuído pra ele quando o admin criou o login dele e atribuiu um evento pra ele, ele só vai ver aquele evento. Então só vai conseguir atribuir aquele evento. Precisa ajustar isso também, ajustar isso imediatamente."
+- **Causa Raiz Identificada:**
+  1. A rota backend `GET /api/events` retornava todos os eventos do banco sem filtrar pela sessão do usuário logado.
+  2. Os endpoints de atletas (`GET/POST /api/events/:eventId/athletes` e `PUT /api/events/:eventId/athletes/:numero/status`) não verificavam a titularidade do evento na sessão, e o frontend em `eventsApi.js` não enviava o Bearer token nessas requisições.
+  3. No cadastro de usuários, o dropdown permitia selecionar "TODOS OS PROJETOS (`all`)" para operadores e supervisores.
+  4. No frontend (`App.jsx`), a navegação por fallback caía em `events[0]`, permitindo que um operador visualizasse ou alterasse eventos de terceiros.
+- **Implementações Técnicas Ponta a Ponta:**
+  - `server/server.js`:
+    - `GET /api/events`: Usuários com restrição de escopo (`session.role !== 'ADMIN'` e `session.eventId !== 'all'`) recebem exclusivamente o evento atribuído ao seu ID.
+    - `POST /api/events` e `PUT /api/events/:eventId`: Bloqueio estrito com `403 Forbidden` para operadores.
+    - `GET/POST /api/events/:eventId/athletes` e `PUT /api/events/:eventId/athletes/:numero/status`: Proteção contra IDOR / invasão de inquilino — bloqueia com `403 Forbidden` qualquer operador tentando consultar atletas ou entregar kits de outro evento (`session.eventId !== safeEventId`).
+    - `POST /api/users` e `PUT /api/users/:id`: Rejeição com `400 Bad Request` na tentativa de cadastrar ou alterar `OPERADOR` ou `SUPERVISOR` sem vincular a um evento específico (`eventId === 'all'` ou nulo é proibido).
+    - `POST /api/login`: Garantia de vínculo de operadores legados para nunca permitir sessão global não autorizada.
+  - `client/src/utils/eventsApi.js`:
+    - Inclusão de cabeçalhos de autenticação (`Authorization: Bearer <token>`) em `apiFetchAthletes`, `apiSaveAthletes`, `apiSaveAthletesChunked` e `apiSaveAthletesSingle`.
+  - `client/src/components/UsuariosPage.jsx` & `UsuariosPage.css`:
+    - Formulário de Novo Usuário: Opção "TODOS OS PROJETOS" ocultada para perfis `OPERADOR` e `SUPERVISOR`, forçando a seleção de uma corrida real.
+    - Modal de Editar Usuário (Novo): Permite que administradores alterem nome, função e reatribuam o evento do operador em 2 cliques.
+    - Botão "EDITAR" com ícone estilizado nos cards da listagem de credenciais.
+  - `client/src/components/EventosPage.jsx` & `EventosPage.css`:
+    - Listagem filtrada: operador visualiza exclusivamente o card da corrida atribuída.
+    - Botão `+ NOVO EVENTO` e ações de alterar/excluir evento ocultados para operadores.
+    - Status pill renderizado como badge estático (sem permissão para alterar ciclo de vida do evento).
+  - `client/src/components/DashboardPage.jsx`:
+    - Métricas, contadores e barras de progresso calculados estritamente sobre os eventos visíveis do usuário.
+    - Botão de criar evento suprimido no empty state para usuários restritos.
+  - `client/src/App.jsx`:
+    - Guards de rota ativos via `useEffect` e sanitização de histórico com `replaceState`: operadores acessando URLs de outros eventos ou `/usuarios` são redirecionados automaticamente para `/operacao/${user.eventId}`.
+    - Fallback de renderização de componentes blindado para impedir vazamento de eventos de terceiros.
+    - Redirecionamento no login de operador leva direto para a sua tela de entrega de kit.
+  - `server/admin-users.test.mjs`:
+    - Testes automatizados cobrindo rejeição de operador com `eventId: 'all'`, isolamento da listagem de eventos e bloqueio 403 Forbidden em tentativas de entrega de kits em eventos não atribuídos.
+- **Validação Real:**
+  - `node server/admin-users.test.mjs`: 100% aprovado (`pass: 1, fail: 0`).
+  - `npm run lint --prefix client`: 0 erros.
+  - `npm run build --prefix client`: bundle gerado com sucesso em 327ms.
+  - `curl.exe http://localhost:3001/api/health`: 200 OK.
+- **Próximo Passo:** Homologação pelo Yuri (PO) após deploy automático.
+
 ## 2026-09-25 — Redesign Visual e Ergonomia Responsiva da Aba Auditoria (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead, Ana UI/UX & Fullstack).

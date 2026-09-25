@@ -82,12 +82,21 @@ export default function DashboardPage({
   onLogout,
   onOpenTutorial,
 }) {
-  // Métricas calculadas dinamicamente
-  const totalAtletas = events.reduce((sum, e) => sum + (Number(e.total_athletes || e.total) || 0), 0)
-  const totalEntregues = events.reduce((sum, e) => sum + (Number(e.delivered_count || e.entregues) || 0), 0)
+  const isRestricted = Boolean(
+    user &&
+    user.role !== 'ADMIN' &&
+    (user.role === 'OPERADOR' || user.role === 'SUPERVISOR' || (user.eventId && user.eventId !== 'all'))
+  )
+  const visibleEvents = isRestricted
+    ? events.filter((e) => e.id === user.eventId)
+    : events
+
+  // Métricas calculadas dinamicamente sobre os eventos visíveis do usuário
+  const totalAtletas = visibleEvents.reduce((sum, e) => sum + (Number(e.total_athletes || e.total) || 0), 0)
+  const totalEntregues = visibleEvents.reduce((sum, e) => sum + (Number(e.delivered_count || e.entregues) || 0), 0)
   const totalPendentes = Math.max(0, totalAtletas - totalEntregues)
   const percentConcluido = totalAtletas > 0 ? ((totalEntregues / totalAtletas) * 100).toFixed(1) + '%' : '0.0%'
-  const eventosEmOperacao = events.filter((e) => e.status === 'EM OPERAÇÃO' || e.status === 'EM_OPERACAO').length
+  const eventosEmOperacao = visibleEvents.filter((e) => e.status === 'EM OPERAÇÃO' || e.status === 'EM_OPERACAO').length
 
   return (
     <div className="dashboard-layout">
@@ -167,10 +176,10 @@ export default function DashboardPage({
         <section className="progress-section">
           <div className="progress-header">
             <h2 className="progress-title">PROGRESSO POR EVENTO</h2>
-            <span className="progress-count">{events.length} {events.length === 1 ? 'EVENTO' : 'EVENTOS'}</span>
+            <span className="progress-count">{visibleEvents.length} {visibleEvents.length === 1 ? 'EVENTO' : 'EVENTOS'}</span>
           </div>
 
-          {events.length === 0 ? (
+          {visibleEvents.length === 0 ? (
             <div style={{
               background: '#fff',
               border: '1.5px dashed #e2e8f0',
@@ -183,33 +192,37 @@ export default function DashboardPage({
               gap: '12px'
             }}>
               <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 600 }}>
-                Nenhum evento cadastrado no sistema ainda.
+                {isRestricted ? 'Nenhum evento atribuído ao seu usuário.' : 'Nenhum evento cadastrado no sistema ainda.'}
               </p>
               <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px' }}>
-                Clique no botão abaixo para cadastrar o primeiro evento ou importar uma planilha.
+                {isRestricted
+                  ? 'Contate o administrador para vincular um evento ao seu perfil.'
+                  : 'Clique no botão abaixo para cadastrar o primeiro evento ou importar uma planilha.'}
               </p>
-              <button
-                type="button"
-                style={{
-                  marginTop: '8px',
-                  background: '#ff5200',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '10px',
-                  fontWeight: 700,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  letterSpacing: '0.5px'
-                }}
-                onClick={() => onNavigate('eventos')}
-              >
-                + CADASTRAR EVENTO
-              </button>
+              {!isRestricted && (
+                <button
+                  type="button"
+                  style={{
+                    marginTop: '8px',
+                    background: '#ff5200',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    letterSpacing: '0.5px'
+                  }}
+                  onClick={() => onNavigate('eventos')}
+                >
+                  + CADASTRAR EVENTO
+                </button>
+              )}
             </div>
           ) : (
             <div className="progress-list">
-              {events.map((ev) => {
+              {visibleEvents.map((ev) => {
                 const total = Number(ev.total_athletes || ev.total) || 0
                 const entregues = Number(ev.delivered_count || ev.entregues) || 0
                 const pendentes = Math.max(0, total - entregues)

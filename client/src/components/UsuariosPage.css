@@ -267,7 +267,31 @@
 .user-card-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+.btn-user-cred-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0c142c;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  padding: 5px 9px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.btn-user-cred-action:hover {
+  background: #ff5200;
+  border-color: #ff5200;
+  color: #ffffff;
 }
 
 .btn-deactivate {

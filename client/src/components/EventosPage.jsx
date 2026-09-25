@@ -171,10 +171,19 @@ export default function EventosPage({
     location: '',
   })
 
+  const isOperator = user?.role === 'OPERADOR'
+  const isRestricted = Boolean(
+    user && user.role !== 'ADMIN' && (user.role === 'OPERADOR' || user.role === 'SUPERVISOR' || (user.eventId && user.eventId !== 'all'))
+  )
   const canDelete = user?.role === 'ADMIN'
+  const canCreate = user?.role === 'ADMIN' || user?.role === 'SUB_ADMIN'
   const isStep2 = tutorialStep === 2
 
-  const filteredEvents = events.filter((event) => {
+  const visibleEvents = isRestricted && user?.eventId
+    ? events.filter((e) => e.id === user.eventId)
+    : events
+
+  const filteredEvents = visibleEvents.filter((event) => {
     const matchesSearch =
       event.name.toLowerCase().includes(search.toLowerCase()) ||
       event.location.toLowerCase().includes(search.toLowerCase()) ||
@@ -288,20 +297,22 @@ export default function EventosPage({
               <span>TUTORIAL</span>
             </button>
 
-            <button
-              type="button"
-              className={`btn-primary-event ${isStep2 ? 'spotlight-highlight' : ''}`}
-              onClick={() => setShowCreateModal(true)}
-            >
-              <PlusIcon />
-              <span>NOVO EVENTO</span>
-              {isStep2 && (
-                <div className="spotlight-badge">
-                  <span>✨</span>
-                  <span>COMECE POR AQUI</span>
-                </div>
-              )}
-            </button>
+            {canCreate && (
+              <button
+                type="button"
+                className={`btn-primary-event ${isStep2 ? 'spotlight-highlight' : ''}`}
+                onClick={() => setShowCreateModal(true)}
+              >
+                <PlusIcon />
+                <span>NOVO EVENTO</span>
+                {isStep2 && (
+                  <div className="spotlight-badge">
+                    <span>✨</span>
+                    <span>COMECE POR AQUI</span>
+                  </div>
+                )}
+              </button>
+            )}
           </div>
         </header>
 
@@ -380,14 +391,16 @@ export default function EventosPage({
                   <span className="event-date">{event.date}</span>
 
                   <div className="event-top-actions">
-                    <button
-                      type="button"
-                      className="icon-action-btn"
-                      title="Editar evento"
-                      onClick={() => setEditingEvent({ ...event })}
-                    >
-                      <EditIcon />
-                    </button>
+                    {!isOperator && (
+                      <button
+                        type="button"
+                        className="icon-action-btn"
+                        title="Editar evento"
+                        onClick={() => setEditingEvent({ ...event })}
+                      >
+                        <EditIcon />
+                      </button>
+                    )}
 
                     {canDelete && (
                       <button
@@ -402,25 +415,42 @@ export default function EventosPage({
 
                     {/* Status Pill Button + Dropdown Container */}
                     <div className="status-dropdown-container">
-                      <button
-                        type="button"
-                        className={`status-pill ${
-                          event.status === 'EM OPERAÇÃO'
-                            ? 'active'
-                            : event.status === 'FINALIZADO'
-                            ? 'finished'
-                            : 'planned'
-                        }`}
-                        onClick={() =>
-                          setOpenDropdownId(isDropdownOpen ? null : event.id)
-                        }
-                      >
-                        {event.status === 'EM OPERAÇÃO' && <PlayIcon />}
-                        {event.status === 'PLANEJADO' && <ClockIcon />}
-                        {event.status === 'FINALIZADO' && <CheckCircleIcon />}
-                        <span>{event.status}</span>
-                        <ChevronDownIcon />
-                      </button>
+                      {isOperator ? (
+                        <div
+                          className={`status-pill read-only ${
+                            event.status === 'EM OPERAÇÃO'
+                              ? 'active'
+                              : event.status === 'FINALIZADO'
+                              ? 'finished'
+                              : 'planned'
+                          }`}
+                        >
+                          {event.status === 'EM OPERAÇÃO' && <PlayIcon />}
+                          {event.status === 'PLANEJADO' && <ClockIcon />}
+                          {event.status === 'FINALIZADO' && <CheckCircleIcon />}
+                          <span>{event.status}</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className={`status-pill ${
+                            event.status === 'EM OPERAÇÃO'
+                              ? 'active'
+                              : event.status === 'FINALIZADO'
+                              ? 'finished'
+                              : 'planned'
+                          }`}
+                          onClick={() =>
+                            setOpenDropdownId(isDropdownOpen ? null : event.id)
+                          }
+                        >
+                          {event.status === 'EM OPERAÇÃO' && <PlayIcon />}
+                          {event.status === 'PLANEJADO' && <ClockIcon />}
+                          {event.status === 'FINALIZADO' && <CheckCircleIcon />}
+                          <span>{event.status}</span>
+                          <ChevronDownIcon />
+                        </button>
+                      )}
 
                       {isDropdownOpen && (
                         <>

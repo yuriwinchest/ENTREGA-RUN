@@ -8,7 +8,7 @@ import EspelhoPage from './components/EspelhoPage.jsx'
 import ValidarAtletaPage from './components/ValidarAtletaPage.jsx'
 import TutorialModal from './components/TutorialModal.jsx'
 import UsuariosPage from './components/UsuariosPage.jsx'
-import { apiFetchEvents, apiSyncEvents, apiUpdateEvent } from './utils/eventsApi.js'
+import { apiFetchEvents, apiUpdateEvent } from './utils/eventsApi.js'
 
 const MOCK_EVENT_IDS = [
   '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6',
@@ -100,38 +100,20 @@ export default function App() {
       const serverEvents = await apiFetchEvents()
       if (!isMounted || !Array.isArray(serverEvents)) return
 
-      const alreadyMigrated = localStorage.getItem('entregas_run_events_migrated')
+      const isRestricted = Boolean(
+        user && user.role !== 'ADMIN' && (user.role === 'OPERADOR' || user.role === 'SUPERVISOR' || (user.eventId && user.eventId !== 'all'))
+      )
 
-      if (!alreadyMigrated) {
-        // Primeira carga da nova versão no dispositivo: resgata eventos legados locais
-        setEvents((currentLocal) => {
-          const serverIds = new Set(serverEvents.map((e) => e.id))
-          const localOnly = currentLocal.filter(
-            (e) => e && e.id && !serverIds.has(e.id) && !MOCK_EVENT_IDS.includes(e.id)
-          )
+      const finalEvents = isRestricted && user?.eventId
+        ? serverEvents.filter((e) => e.id === user.eventId)
+        : serverEvents
 
-          try {
-            localStorage.setItem('entregas_run_events_migrated', 'true')
-          } catch {
-            // ignore
-          }
-
-          if (localOnly.length > 0) {
-            apiSyncEvents(localOnly).then((synced) => {
-              if (isMounted && Array.isArray(synced) && synced.length > 0) {
-                setEvents(synced)
-              }
-            })
-            return [...localOnly, ...serverEvents]
-          }
-
-          return serverEvents
-        })
-        return
+      setEvents(finalEvents)
+      try {
+        localStorage.setItem('entregas_run_events', JSON.stringify(finalEvents))
+      } catch {
+        // ignore
       }
-
-      // Servidor é a fonte oficial da verdade
-      setEvents(serverEvents)
     }
 
     syncEventsWithServer()
@@ -183,8 +165,14 @@ export default function App() {
     return ''
   })
 
-  const effectiveEventId = (user?.role !== 'ADMIN' && user?.role !== 'SUB_ADMIN' && user?.eventId && user.eventId !== 'all')
-    ? user.eventId
+  const isRestrictedUser = Boolean(
+    user &&
+    user.role !== 'ADMIN' &&
+    (user.role === 'OPERADOR' || user.role === 'SUPERVISOR' || (user.eventId && user.eventId !== 'all'))
+  )
+
+  const effectiveEventId = isRestrictedUser
+    ? (user?.eventId || '')
     : (selectedEventId && events.some((e) => e.id === selectedEventId)
       ? selectedEventId
       : (events[0]?.id || ''))
@@ -204,6 +192,32 @@ export default function App() {
   const [tutorialStep, setTutorialStep] = useState(1)
   const [showTutorial, setShowTutorial] = useState(false)
 
+  // Guard de rota para isolamento estrito de eventos por usuário
+  useEffect(() => {
+    if (!user) return
+    if (isRestrictedUser && user.eventId && user.eventId !== 'all') {
+      const path = window.location.pathname
+      const parts = path.split('/')
+      const section = parts[1] || ''
+      const urlId = parts[2] || ''
+
+      if (section === 'usuarios') {
+        setSelectedEventId(user.eventId)
+        setCurrentPage('operacao')
+        window.history.replaceState(null, '', `/operacao/${user.eventId}`)
+        return
+      }
+
+      if (['operacao', 'dashboard', 'espelho'].includes(section) && urlId && urlId !== user.eventId) {
+        setSelectedEventId(user.eventId)
+        const targetPath = section === 'dashboard' ? `/dashboard/${user.eventId}` : `/${section}/${user.eventId}`
+        window.history.replaceState(null, '', targetPath)
+        if (section === 'dashboard') setCurrentPage('event-dashboard')
+        else setCurrentPage(section)
+      }
+    }
+  }, [user, isRestrictedUser, currentPage])
+
   // Sincroniza navegação via botões voltar/avançar do navegador
   useEffect(() => {
     function handlePopState() {
@@ -216,19 +230,23 @@ export default function App() {
         setCurrentPage('validar')
       } else if (path.startsWith('/espelho')) {
         const parts = path.split('/')
-        if (parts[2]) setSelectedEventId(parts[2])
+        if (parts[2]) setSelectedEventId(isRestrictedUser && user?.eventId ? user.eventId : parts[2])
         setCurrentPage('espelho')
       } else if (path.startsWith('/operacao')) {
         const parts = path.split('/')
-        if (parts[2]) setSelectedEventId(parts[2])
+        if (parts[2]) setSelectedEventId(isRestrictedUser && user?.eventId ? user.eventId : parts[2])
         setCurrentPage('operacao')
       } else if (path.startsWith('/eventos')) {
         setCurrentPage('eventos')
       } else if (path.startsWith('/usuarios')) {
-        setCurrentPage('usuarios')
+        if (isRestrictedUser) {
+          setCurrentPage('operacao')
+        } else {
+          setCurrentPage('usuarios')
+        }
       } else if (path.startsWith('/dashboard/')) {
         const parts = path.split('/')
-        if (parts[2]) setSelectedEventId(parts[2])
+        if (parts[2]) setSelectedEventId(isRestrictedUser && user?.eventId ? user.eventId : parts[2])
         setCurrentPage('event-dashboard')
       } else if (path.startsWith('/dashboard')) {
         setCurrentPage('dashboard')
@@ -238,14 +256,17 @@ export default function App() {
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
-  }, [user, currentPage, effectiveEventId])
+  }, [user, currentPage, effectiveEventId, isRestrictedUser])
 
   function navigateTo(page, id) {
     let targetPage = page
     if (targetPage === 'usuarios' && user?.role !== 'ADMIN' && user?.role !== 'SUB_ADMIN') {
-      targetPage = 'eventos'
+      targetPage = isRestrictedUser ? 'operacao' : 'eventos'
     }
-    const targetId = id || effectiveEventId
+    let targetId = id || effectiveEventId
+    if (isRestrictedUser && user?.eventId) {
+      targetId = user.eventId
+    }
     if (targetId) {
       setSelectedEventId(targetId)
     }
@@ -283,7 +304,12 @@ export default function App() {
     } catch {
       // ignore
     }
-    navigateTo('dashboard')
+    if (loggedUser.role === 'OPERADOR' && loggedUser.eventId && loggedUser.eventId !== 'all') {
+      setSelectedEventId(loggedUser.eventId)
+      navigateTo('operacao', loggedUser.eventId)
+    } else {
+      navigateTo('dashboard')
+    }
   }
 
   function handleLogout() {
@@ -343,7 +369,9 @@ export default function App() {
 
   // Tela de Espelho (acesso público para atletas via QR Code ou monitor secundário)
   if (currentPage === 'espelho' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/espelho'))) {
-    const currentEvent = events.find((e) => e.id === effectiveEventId) || events[0]
+    const currentEvent = events.find((e) => e.id === effectiveEventId) || (
+      isRestrictedUser && user?.eventId ? { id: user.eventId, name: user.eventName || 'PROJETO ATRIBUÍDO' } : events[0]
+    )
     return (
       <EspelhoPage
         eventId={effectiveEventId || currentEvent?.id}
@@ -356,6 +384,10 @@ export default function App() {
   if (!user) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />
   }
+
+  const assignedEventFallback = isRestrictedUser && user?.eventId
+    ? { id: user.eventId, name: user.eventName || 'PROJETO ATRIBUÍDO' }
+    : events[0]
 
   return (
     <div className="app-container">
@@ -371,7 +403,7 @@ export default function App() {
 
       {currentPage === 'event-dashboard' && (
         <EventDashboardPage
-          event={events.find((e) => e.id === effectiveEventId) || events[0]}
+          event={events.find((e) => e.id === effectiveEventId) || assignedEventFallback}
           user={user}
           onNavigate={navigateTo}
           onLogout={handleLogout}
@@ -394,7 +426,7 @@ export default function App() {
       {currentPage === 'operacao' && (
         <OperacaoPage
           key={effectiveEventId || 'operacao'}
-          event={events.find((e) => e.id === effectiveEventId) || events[0]}
+          event={events.find((e) => e.id === effectiveEventId) || assignedEventFallback}
           user={user}
           onUpdateEvent={(updatedEvent) => {
             setEvents((prev) =>

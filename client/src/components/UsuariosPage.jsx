@@ -79,6 +79,15 @@ function CheckIcon() {
   )
 }
 
+function EditIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <path d="m15 5 4 4" />
+    </svg>
+  )
+}
+
 function KeyIcon({ size = 15 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -187,6 +196,20 @@ export default function UsuariosPage({
   const roleDropdownRef = useRef(null)
   const eventDropdownRef = useRef(null)
 
+  // Modal para editar usuário (função, nome e projeto atribuído)
+  const [userToEdit, setUserToEdit] = useState(null)
+  const [editUserForm, setEditUserForm] = useState({
+    name: '',
+    role: 'OPERADOR',
+    eventId: '',
+    eventName: '',
+  })
+  const [editFormError, setEditFormError] = useState('')
+  const [isEditRoleDropdownOpen, setIsEditRoleDropdownOpen] = useState(false)
+  const [isEditEventDropdownOpen, setIsEditEventDropdownOpen] = useState(false)
+  const editRoleDropdownRef = useRef(null)
+  const editEventDropdownRef = useRef(null)
+
   // Credenciais geradas após criar usuário com sucesso (para copiar para WhatsApp)
   const [createdUserCredentials, setCreatedUserCredentials] = useState(null)
   const [copiedNotification, setCopiedNotification] = useState(false)
@@ -204,8 +227,8 @@ export default function UsuariosPage({
     email: '',
     password: '',
     role: 'OPERADOR',
-    eventId: defaultEvent?.id || 'all',
-    eventName: defaultEvent?.name || 'TODOS OS EVENTOS',
+    eventId: defaultEvent?.id || '',
+    eventName: defaultEvent?.name || '',
   }))
 
   useEffect(() => {
@@ -216,8 +239,14 @@ export default function UsuariosPage({
       if (eventDropdownRef.current && !eventDropdownRef.current.contains(event.target)) {
         setIsEventDropdownOpen(false)
       }
+      if (editRoleDropdownRef.current && !editRoleDropdownRef.current.contains(event.target)) {
+        setIsEditRoleDropdownOpen(false)
+      }
+      if (editEventDropdownRef.current && !editEventDropdownRef.current.contains(event.target)) {
+        setIsEditEventDropdownOpen(false)
+      }
     }
-    if (isRoleDropdownOpen || isEventDropdownOpen) {
+    if (isRoleDropdownOpen || isEventDropdownOpen || isEditRoleDropdownOpen || isEditEventDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside)
       document.addEventListener('touchstart', handleClickOutside)
     }
@@ -225,16 +254,17 @@ export default function UsuariosPage({
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('touchstart', handleClickOutside)
     }
-  }, [isRoleDropdownOpen, isEventDropdownOpen])
+  }, [isRoleDropdownOpen, isEventDropdownOpen, isEditRoleDropdownOpen, isEditEventDropdownOpen])
 
   function handleOpenAddModal() {
+    const initialEvent = manageableEvents[0] || (user?.eventId !== 'all' ? { id: user.eventId, name: user.eventName } : null)
     setNewUserForm({
       name: '',
       email: '',
       password: '',
       role: 'OPERADOR',
-      eventId: defaultEvent?.id || 'all',
-      eventName: defaultEvent?.name || 'TODOS OS PROJETOS',
+      eventId: initialEvent?.id || '',
+      eventName: initialEvent?.name || '',
     })
     setFormError('')
     setShowPasswordInAddModal(false)
@@ -246,6 +276,11 @@ export default function UsuariosPage({
     if (!newUserForm.name.trim() || !newUserForm.email.trim()) return
     if (!newUserForm.password || newUserForm.password.length < 6) {
       setFormError('A senha deve ter no mínimo 6 caracteres.')
+      return
+    }
+
+    if ((newUserForm.role === 'OPERADOR' || newUserForm.role === 'SUPERVISOR') && (!newUserForm.eventId || newUserForm.eventId === 'all')) {
+      setFormError('Operadores e Supervisores devem ser vinculados obrigatoriamente a um projeto específico.')
       return
     }
 
@@ -275,6 +310,55 @@ export default function UsuariosPage({
       setCreatedUserCredentials({ ...savedUser, password: newUserForm.password })
     } catch (error) {
       setFormError(error.message || 'Não foi possível salvar o usuário.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleOpenEditModal(targetUser) {
+    const initialEvent = manageableEvents.find((e) => e.id === targetUser.eventId) || manageableEvents[0]
+    setUserToEdit(targetUser)
+    setEditUserForm({
+      name: targetUser.name || '',
+      role: targetUser.role || 'OPERADOR',
+      eventId: targetUser.eventId && targetUser.eventId !== 'all' ? targetUser.eventId : (initialEvent?.id || ''),
+      eventName: targetUser.eventName && targetUser.eventName !== 'TODOS OS PROJETOS' ? targetUser.eventName : (initialEvent?.name || ''),
+    })
+    setEditFormError('')
+    setIsEditRoleDropdownOpen(false)
+    setIsEditEventDropdownOpen(false)
+  }
+
+  async function handleSaveEditUser(e) {
+    e.preventDefault()
+    if (!userToEdit) return
+    if (!editUserForm.name.trim()) {
+      setEditFormError('O nome do usuário é obrigatório.')
+      return
+    }
+    if ((editUserForm.role === 'OPERADOR' || editUserForm.role === 'SUPERVISOR') && (!editUserForm.eventId || editUserForm.eventId === 'all')) {
+      setEditFormError('Operadores e Supervisores devem ser vinculados obrigatoriamente a um projeto específico.')
+      return
+    }
+
+    const selectedEv = availableEvents.find((ev) => ev.id === editUserForm.eventId)
+    const assignedName = editUserForm.eventId === 'all'
+      ? 'TODOS OS PROJETOS'
+      : (selectedEv?.name || editUserForm.eventName || 'PROJETO VINCULADO')
+
+    setSaving(true)
+    setEditFormError('')
+    try {
+      const savedUser = await apiUpdateUser(userToEdit.id, {
+        name: editUserForm.name.trim().toUpperCase(),
+        role: editUserForm.role,
+        eventId: editUserForm.eventId,
+        eventName: assignedName,
+      })
+      setUsers((prev) => prev.map((u) => (u.id === userToEdit.id ? savedUser : u)))
+      setUserToEdit(null)
+    } catch (error) {
+      setEditFormError(error.message || 'Não foi possível salvar as alterações.')
     } finally {
       setSaving(false)
     }
@@ -446,6 +530,18 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                 </div>
 
                 <div className="user-card-actions">
+                  {!(user?.role === 'SUB_ADMIN' && item.role === 'ADMIN') && (
+                    <button
+                      type="button"
+                      className="btn-user-cred-action"
+                      title="Editar dados e projeto do usuário"
+                      onClick={() => handleOpenEditModal(item)}
+                    >
+                      <EditIcon size={14} />
+                      <span>EDITAR</span>
+                    </button>
+                  )}
+
                   {!(user?.role === 'SUB_ADMIN' && item.role === 'ADMIN') && (
                     <button
                       type="button"
@@ -817,6 +913,246 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL EDITAR USUÁRIO */}
+        {userToEdit && (
+          <div className="modal-backdrop" onClick={() => setUserToEdit(null)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <div className="modal-title-with-badge">
+                  <h2 className="modal-title">EDITAR USUÁRIO</h2>
+                  <span className="modal-title-desc">Altere o nome, a função e o projeto atribuído</span>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close-btn"
+                  onClick={() => setUserToEdit(null)}
+                  title="Fechar"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              <form className="modal-body" onSubmit={handleSaveEditUser}>
+                <div className="form-group">
+                  <label className="form-label">NOME COMPLETO</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editUserForm.name}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">E-MAIL (LOGIN)</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    value={userToEdit.email}
+                    disabled
+                    style={{ background: '#f8fafc', color: '#64748b', cursor: 'not-allowed' }}
+                  />
+                </div>
+
+                <div className="form-group" ref={editRoleDropdownRef}>
+                  <label className="form-label" id="edit-role-select-label">FUNÇÃO</label>
+                  <div className="custom-role-dropdown">
+                    <button
+                      type="button"
+                      className={`custom-role-trigger ${isEditRoleDropdownOpen ? 'open' : ''}`}
+                      onClick={() => setIsEditRoleDropdownOpen((prev) => !prev)}
+                      aria-haspopup="listbox"
+                      aria-expanded={isEditRoleDropdownOpen}
+                      aria-labelledby="edit-role-select-label"
+                    >
+                      <div className="role-trigger-text">
+                        <span className="role-trigger-name">
+                          {ROLE_OPTIONS.find((r) => r.value === editUserForm.role)?.label || editUserForm.role}
+                        </span>
+                        <span className="role-trigger-desc">
+                          ({ROLE_OPTIONS.find((r) => r.value === editUserForm.role)?.description || ''})
+                        </span>
+                      </div>
+                      <ChevronDownIcon className={`role-chevron ${isEditRoleDropdownOpen ? 'rotated' : ''}`} />
+                    </button>
+
+                    {isEditRoleDropdownOpen && (
+                      <div className="role-options-list" role="listbox">
+                        {availableRoleOptions.map((opt) => {
+                          const isSelected = editUserForm.role === opt.value
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              className={`role-option-item ${isSelected ? 'selected' : ''}`}
+                              onClick={() => {
+                                setEditUserForm((prev) => {
+                                  const isGlobalRole = opt.value === 'ADMIN' || opt.value === 'SUB_ADMIN'
+                                  let nextEventId = prev.eventId
+                                  let nextEventName = prev.eventName
+                                  if (!isGlobalRole && (prev.eventId === 'all' || !prev.eventId)) {
+                                    nextEventId = manageableEvents[0]?.id || ''
+                                    nextEventName = manageableEvents[0]?.name || ''
+                                  }
+                                  if (isGlobalRole && (user?.role === 'ADMIN' || user?.eventId === 'all')) {
+                                    nextEventId = 'all'
+                                    nextEventName = 'TODOS OS PROJETOS'
+                                  }
+                                  return {
+                                    ...prev,
+                                    role: opt.value,
+                                    eventId: nextEventId,
+                                    eventName: nextEventName,
+                                  }
+                                })
+                                setIsEditRoleDropdownOpen(false)
+                              }}
+                              role="option"
+                              aria-selected={isSelected}
+                            >
+                              <div className="role-option-content">
+                                <div className="role-option-title-row">
+                                  <span className={`role-tag-badge ${opt.value.toLowerCase()}`}>
+                                    {opt.label}
+                                  </span>
+                                  <span className="role-option-desc">({opt.description})</span>
+                                </div>
+                                <p className="role-option-detail">{opt.detail}</p>
+                              </div>
+                              {isSelected && (
+                                <div className="role-selected-check">
+                                  <CheckIcon />
+                                </div>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-group" ref={editEventDropdownRef}>
+                  <label className="form-label" id="edit-event-select-label">PROJETO / CORRIDA ATRIBUÍDA</label>
+                  <div className="custom-role-dropdown">
+                    <button
+                      type="button"
+                      className={`custom-role-trigger ${isEditEventDropdownOpen ? 'open' : ''}`}
+                      onClick={() => {
+                        setIsEditRoleDropdownOpen(false)
+                        setIsEditEventDropdownOpen((prev) => !prev)
+                      }}
+                      aria-haspopup="listbox"
+                      aria-expanded={isEditEventDropdownOpen}
+                      aria-labelledby="edit-event-select-label"
+                    >
+                      <div className="role-trigger-text">
+                        <span className="role-trigger-name">
+                          {editUserForm.eventId === 'all'
+                            ? 'TODOS OS PROJETOS (Acesso Global)'
+                            : (manageableEvents.find((e) => e.id === editUserForm.eventId)?.name || editUserForm.eventName || 'SELECIONE A CORRIDA')}
+                        </span>
+                      </div>
+                      <ChevronDownIcon className={`role-chevron ${isEditEventDropdownOpen ? 'rotated' : ''}`} />
+                    </button>
+
+                    {isEditEventDropdownOpen && (
+                      <div className="role-options-list" role="listbox">
+                        {(editUserForm.role === 'ADMIN' || editUserForm.role === 'SUB_ADMIN') && (user?.role === 'ADMIN' || user?.eventId === 'all') && (
+                          <button
+                            type="button"
+                            className={`role-option-item ${editUserForm.eventId === 'all' ? 'selected' : ''}`}
+                            onClick={() => {
+                              setEditUserForm((prev) => ({
+                                ...prev,
+                                eventId: 'all',
+                                eventName: 'TODOS OS PROJETOS',
+                              }))
+                              setIsEditEventDropdownOpen(false)
+                            }}
+                            role="option"
+                            aria-selected={editUserForm.eventId === 'all'}
+                          >
+                            <div className="role-option-content">
+                              <div className="role-option-title-row">
+                                <span className={`role-tag-badge ${editUserForm.role === 'SUB_ADMIN' ? 'sub_admin' : 'admin'}`}>GLOBAL</span>
+                                <span className="role-option-desc">TODOS OS PROJETOS</span>
+                              </div>
+                              <p className="role-option-detail">Acesso e gestão de todas as corridas do sistema</p>
+                            </div>
+                            {editUserForm.eventId === 'all' && (
+                              <div className="role-selected-check">
+                                <CheckIcon />
+                              </div>
+                            )}
+                          </button>
+                        )}
+
+                        {manageableEvents.length === 0 ? (
+                          <div className="empty-events-select-msg">
+                            Nenhum projeto cadastrado no momento.
+                          </div>
+                        ) : (
+                          manageableEvents.map((ev) => {
+                            const isSelected = editUserForm.eventId === ev.id
+                            return (
+                              <button
+                                key={ev.id}
+                                type="button"
+                                className={`role-option-item ${isSelected ? 'selected' : ''}`}
+                                onClick={() => {
+                                  setEditUserForm((prev) => ({
+                                    ...prev,
+                                    eventId: ev.id,
+                                    eventName: ev.name,
+                                  }))
+                                  setIsEditEventDropdownOpen(false)
+                                }}
+                                role="option"
+                                aria-selected={isSelected}
+                              >
+                                <div className="role-option-content">
+                                  <div className="role-option-title-row">
+                                    <span className="role-tag-badge operador">CORRIDA</span>
+                                    <span className="role-option-desc">{ev.name}</span>
+                                  </div>
+                                  <p className="role-option-detail">
+                                    {ev.dateInput || ev.date || 'Data a definir'} • {ev.location || 'Local a definir'}
+                                  </p>
+                                </div>
+                                {isSelected && (
+                                  <div className="role-selected-check">
+                                    <CheckIcon />
+                                  </div>
+                                )}
+                              </button>
+                            )
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {editFormError && <p role="alert" className="alert-feedback-error">{editFormError}</p>}
+                <div className="modal-actions-row">
+                  <button
+                    type="button"
+                    className="modal-btn-cancel"
+                    onClick={() => setUserToEdit(null)}
+                  >
+                    Cancelar
+                  </button>
+                  <button type="submit" className="modal-btn-save" disabled={saving}>
+                    {saving ? 'Salvando...' : 'Salvar Alterações'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
