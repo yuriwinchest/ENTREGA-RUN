@@ -13,6 +13,7 @@ import {
 } from '../utils/auditData.js'
 import {
   buildAthleteDetailDraft,
+  canAssociateAthleteKit,
   hasAthleteDetailChanges,
   matchesAthleteReference,
   normalizeAthleteDetail,
@@ -1194,7 +1195,7 @@ export default function OperacaoPage({
   }
 
   function startKitReading(athlete) {
-    if (!athlete) return
+    if (!athlete || !canAssociateAthleteKit(athlete)) return
     setScannedKit(null)
     setScanFeedback('')
     setScannerAthlete(athlete)
@@ -1239,8 +1240,8 @@ export default function OperacaoPage({
   function confirmKitAssociation(recipient) {
     if (!scannerAthlete || !scannedKit) return
     const source = athletes.find((a) => matchesAthleteReference(a, scannerAthlete))
-    if (!source || source.status === 'ENTREGUE') {
-      setScanFeedback('Não é possível alterar a associação de uma entrega concluída.')
+    if (!source || !canAssociateAthleteKit(source)) {
+      setScanFeedback('Este atleta já está associado ou teve o kit entregue. Atualize a ficha para continuar.')
       return
     }
     const collision = athletes.some((a) =>
@@ -2114,16 +2115,16 @@ export default function OperacaoPage({
                     </>
                   )}
 
-                  <button
+                  {canAssociateAthleteKit(detailForm || selectedAthlete) && <button
                     type="button"
                     className="btn-detail-qr-action"
-                    onClick={() => startKitReading(selectedAthlete || detailForm)}
+                    onClick={() => startKitReading(detailForm || selectedAthlete)}
                     disabled={detailForm.status === 'ENTREGUE'}
                     title="Associar kit por leitura de QR Code ou código manual"
                   >
                     <QrCodeIcon size={16} />
                     <span>ASSOCIAR KIT</span>
-                  </button>
+                  </button>}
 
                   <button
                     type="button"
@@ -2843,12 +2844,8 @@ export default function OperacaoPage({
                         >
                           <td
                             style={{ textAlign: 'center', width: '84px' }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              startKitReading(a)
-                            }}
                           >
-                            <button
+                            {canAssociateAthleteKit(a) && <button
                               type="button"
                               className="btn-table-qr-badge"
                               onClick={(e) => {
@@ -2859,7 +2856,7 @@ export default function OperacaoPage({
                             >
                               <QrCodeIcon size={14} />
                               <span>LER</span>
-                            </button>
+                            </button>}
                           </td>
                           {visibleAthleteTableColumns.map((column, columnIndex) => {
                             const cellValue = getAthleteTableValue(a, column)

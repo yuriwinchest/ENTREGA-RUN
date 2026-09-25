@@ -20,6 +20,25 @@ function text(value) {
   return value == null ? '' : String(value)
 }
 
+export function canAssociateAthleteKit(athlete = {}) {
+  const isFilled = (value) => {
+    const normalized = text(value)
+      .trim()
+      .toLocaleLowerCase('pt-BR')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+    return normalized !== '' &&
+      normalized !== '—' &&
+      normalized !== '-' &&
+      normalized !== 'n/a' &&
+      normalized !== 'nao associado' &&
+      normalized !== 'sem chip' &&
+      normalized !== 'sem numero'
+  }
+  return text(athlete.status).trim().toUpperCase() !== 'ENTREGUE'
+    && !(isFilled(athlete.numero) && isFilled(athlete.chip))
+}
+
 function cloneCustomFields(customFields) {
   if (!customFields || typeof customFields !== 'object' || Array.isArray(customFields)) {
     return {}

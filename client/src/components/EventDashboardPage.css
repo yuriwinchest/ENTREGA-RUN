@@ -734,3 +734,10 @@
     grid-template-columns: 1fr;
   }
 }
+
+.event-dashboard-feedback { margin: 16px 36px; color: #64748b; }
+.delivery-chart-rows { display: flex; flex-direction: column; gap: 18px; padding: 12px 0; }
+.delivery-chart-label { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: #475569; margin-bottom: 7px; flex-wrap: wrap; overflow-wrap: anywhere; }
+.delivery-chart-label strong { font-size: 11px; }
+.delivery-chart-track { display: flex; height: 24px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+.delivery-chart-track span { display: block; height: 100%; transition: width .2s ease; }

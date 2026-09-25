@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { apiFetchAthletes } from '../utils/eventsApi.js'
 import Sidebar from './Sidebar.jsx'
 import './EventDashboardPage.css'
 
@@ -44,29 +45,86 @@ function PackageIcon() {
   )
 }
 
-const AGE_GROUPS_DATA = [
-  { key: 'under18', label: '≤18', masc: 22, fem: 20, misto: 0, center: 104, colLeft: 70, colWidth: 68 },
-  { key: '19-29', label: '19-29', masc: 72, fem: 76, misto: 0, center: 193, colLeft: 159, colWidth: 68 },
-  { key: '30-39', label: '30-39', masc: 40, fem: 83, misto: 0, center: 281, colLeft: 247, colWidth: 68 },
-  { key: '40-49', label: '40-49', masc: 27, fem: 31, misto: 0, center: 370, colLeft: 336, colWidth: 68 },
-  { key: '50-59', label: '50-59', masc: 7, fem: 15, misto: 0, center: 458, colLeft: 424, colWidth: 68 },
-  { key: '60-69', label: '60-69', masc: 2, fem: 1, misto: 0, center: 547, colLeft: 513, colWidth: 68 },
-  { key: '70+', label: '70+', masc: 0, fem: 0, misto: 0, center: 635, colLeft: 601, colWidth: 68 },
-]
+function isDelivered(athlete) {
+  return String(athlete.status || '').trim().toUpperCase() === 'ENTREGUE' || Boolean(athlete.entregueEm)
+}
 
-const CAMISETAS_DATA = [
-  { size: 'P', entregue: 65, faltante: 3, total: 68, center: 94.6, colLeft: 54, colWidth: 81.2, barWidth: 52 },
-  { size: 'M', entregue: 114, faltante: 11, total: 125, center: 175.8, colLeft: 135.2, colWidth: 81.2, barWidth: 52 },
-  { size: 'G', entregue: 55, faltante: 2, total: 57, center: 257.0, colLeft: 216.4, colWidth: 81.2, barWidth: 52 },
-  { size: 'GG', entregue: 19, faltante: 0, total: 19, center: 338.2, colLeft: 297.6, colWidth: 81.2, barWidth: 52 },
-  { size: 'XG', entregue: 1, faltante: 0, total: 1, center: 419.4, colLeft: 378.8, colWidth: 81.2, barWidth: 52 },
-]
+const SHIRT_SIZES_ORDER = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG', 'EXG', '2G', '3G', '4G', 'INFANTIL', 'UNICO', 'ÚNICO']
 
-const KITS_DATA = [
-  { name: 'KIT ELITE', entregue: 255, faltante: 5, total: 260, center: 121.7, colLeft: 54, colWidth: 135.33, barWidth: 96 },
-  { name: 'KIT ATLETA', entregue: 136, faltante: 3, total: 139, center: 257.0, colLeft: 189.33, colWidth: 135.33, barWidth: 96 },
-  { name: 'Kit Padrão', entregue: 0, faltante: 11, total: 11, center: 392.3, colLeft: 324.66, colWidth: 135.33, barWidth: 96 },
-]
+function sortShirtSizes(a, b) {
+  const idxA = SHIRT_SIZES_ORDER.indexOf(String(a.name || '').toUpperCase())
+  const idxB = SHIRT_SIZES_ORDER.indexOf(String(b.name || '').toUpperCase())
+  if (idxA !== -1 && idxB !== -1) return idxA - idxB
+  if (idxA !== -1) return -1
+  if (idxB !== -1) return 1
+  return a.name.localeCompare(b.name, 'pt-BR', { numeric: true })
+}
+
+function groupDeliveries(athletes, fields, customSort) {
+  const groups = new Map()
+  athletes.forEach((athlete) => {
+    const label = fields.map((field) => {
+      const val = athlete[field] ?? athlete?.customFields?.[field] ?? athlete?.customFields?.[field.toLowerCase()] ?? athlete?.customFields?.[field.toUpperCase()]
+      return String(val ?? '').trim()
+    }).find(Boolean) || 'Não informado'
+    const item = groups.get(label) || { name: label, entregue: 0, faltante: 0, total: 0 }
+    item.total += 1
+    item[isDelivered(athlete) ? 'entregue' : 'faltante'] += 1
+    groups.set(label, item)
+  })
+  if (customSort) {
+    return [...groups.values()].sort(customSort)
+  }
+  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true }))
+}
+
+function athleteAge(athlete, reference) {
+  const raw = String(athlete.nascimento || '').trim()
+  const match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/) || raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return null
+  const [year, month, day] = raw.includes('/') ? [Number(match[3]), Number(match[2]), Number(match[1])] : match.slice(1).map(Number)
+  const birth = new Date(year, month - 1, day)
+  if (birth.getFullYear() !== year || birth.getMonth() !== month - 1 || birth.getDate() !== day) return null
+  const age = reference.getFullYear() - year - (reference.getMonth() < month - 1 || (reference.getMonth() === month - 1 && reference.getDate() < day) ? 1 : 0)
+  return age >= 0 && age <= 120 ? age : null
+}
+
+function DeliveryChart({ title, data, showPendentes = true }) {
+  const max = Math.max(1, ...data.map((item) => item.total))
+  return (
+    <div className="dash-chart-card">
+      <h3 className="dash-chart-title">{title}</h3>
+      {data.length === 0 ? <div className="chart-empty-msg">Nenhuma entrega registrada</div> : (
+        <div className="delivery-chart-rows">
+          {data.map((item) => (
+            <div key={item.name} className="delivery-chart-row">
+              <div className="delivery-chart-label">
+                <span>{item.name}</span>
+                <strong>
+                  {showPendentes && item.faltante > 0
+                    ? `${item.entregue} entregues · ${item.faltante} pendentes · ${item.total} total`
+                    : `${item.entregue} entregue(s)`}
+                </strong>
+              </div>
+              <div className="delivery-chart-track" role="img" aria-label={`${item.name}: ${item.entregue} entregues, ${item.faltante} pendentes`}>
+                <span style={{ width: `${(item.entregue / max) * 100}%`, background: '#22c55e' }} />
+                {showPendentes && item.faltante > 0 && (
+                  <span style={{ width: `${(item.faltante / max) * 100}%`, background: '#f87171' }} />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {data.length > 0 && showPendentes && (
+        <div className="donut-legend">
+          <span className="legend-item"><span className="legend-square" style={{ background: '#22c55e' }} />Entregue</span>
+          <span className="legend-item"><span className="legend-square" style={{ background: '#f87171' }} />Pendente</span>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function EventDashboardPage({
   event,
@@ -76,68 +134,65 @@ export default function EventDashboardPage({
   onOpenTutorial,
 }) {
   const [activeSubtab, setActiveSubtab] = useState('geral')
-  const [hoveredAgeGroup, setHoveredAgeGroup] = useState(AGE_GROUPS_DATA[2])
   const [hoveredStatus, setHoveredStatus] = useState(null)
   const [hoveredGender, setHoveredGender] = useState(null)
-  const [hoveredModalidadeKit, setHoveredModalidadeKit] = useState(false)
-  const [hoveredCamiseta, setHoveredCamiseta] = useState(null)
-  const [hoveredKit, setHoveredKit] = useState(null)
+  const [snapshot, setSnapshot] = useState({ eventId: null, athletes: [], loading: true, error: false })
+  const athletes = snapshot.eventId === event?.id ? snapshot.athletes : []
+  const loading = snapshot.eventId !== event?.id || snapshot.loading
+  const error = snapshot.eventId === event?.id && snapshot.error
 
-  const athletes = (() => {
-    try {
-      if (!event?.id) return []
-      const saved = localStorage.getItem(`entregas_run_athletes_${event.id}`)
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
+  useEffect(() => {
+    let active = true
+    let busy = false
+    const refresh = async () => {
+      if (busy || !event?.id || document.visibilityState === 'hidden') return
+      busy = true
+      try {
+        const result = await apiFetchAthletes(event.id)
+        if (!active) return
+        setSnapshot((previous) => ({
+          eventId: event.id,
+          athletes: Array.isArray(result?.athletes) ? result.athletes : previous.eventId === event.id ? previous.athletes : [],
+          loading: false,
+          error: !Array.isArray(result?.athletes),
+        }))
+      } finally {
+        busy = false
+      }
     }
-  })()
-
-  // Métricas calculadas dinamicamente
-  const totalCount = athletes.length > 0 ? athletes.length : (Number(event?.total_athletes || event?.total) || 430)
-  const mascCount = athletes.length > 0
-    ? athletes.filter((a) => (a.sexo || a.gender || '').toUpperCase().startsWith('M')).length
-    : 179
-  const femCount = athletes.length > 0
-    ? athletes.filter((a) => (a.sexo || a.gender || '').toUpperCase().startsWith('F')).length
-    : 251
-  const entreguesCount = athletes.length > 0
-    ? athletes.filter((a) => String(a.status || '').toUpperCase() === 'ENTREGUE' || Boolean(a.entregueEm)).length
-    : 361
-  const faltantesCount = Math.max(0, totalCount - entreguesCount)
-  const entreguesPct = totalCount > 0 ? ((entreguesCount / totalCount) * 100).toFixed(1) : '84.0'
-  const faltantesPct = totalCount > 0 ? ((faltantesCount / totalCount) * 100).toFixed(1) : '16.0'
-  const mascPct = totalCount > 0 ? ((mascCount / totalCount) * 100).toFixed(1) : '41.6'
-  const femPct = totalCount > 0 ? ((femCount / totalCount) * 100).toFixed(1) : '58.4'
-
-  // Equipes calculadas dinamicamente
-  const teamsData = (() => {
-    if (athletes.length > 0) {
-      const counts = {}
-      athletes.forEach((a) => {
-        const team = (a.equipe || a.assessoria || a.time || 'Sem Equipe').trim() || 'Sem Equipe'
-        counts[team] = (counts[team] || 0) + 1
-      })
-      const sorted = Object.entries(counts)
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10)
-        .map((item, idx) => ({ rank: idx + 1, ...item }))
-      return sorted.length > 0 ? sorted : [{ rank: 1, name: 'Sem Equipe', count: athletes.length }]
+    refresh()
+    const timer = window.setInterval(refresh, 10000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
     }
-    return [
-      { rank: 1, name: 'Sem Equipe', count: 267 },
-      { rank: 2, name: 'BORA PRO CORRE', count: 55 },
-      { rank: 3, name: 'BORAPROCORRE', count: 15 },
-      { rank: 4, name: 'FORMOSO PACE CLUBE', count: 6 },
-      { rank: 5, name: 'BROCARUN', count: 6 },
-      { rank: 6, name: 'UNA-SE', count: 3 },
-      { rank: 7, name: 'FORMOSO PACE', count: 3 },
-      { rank: 8, name: 'SAO BENTO DO UNA', count: 3 },
-      { rank: 9, name: 'SANTA LUZIA', count: 3 },
-      { rank: 10, name: 'BORRA PRO CORRE', count: 2 },
-    ]
-  })()
+  }, [event?.id])
+
+  const totalCount = athletes.length
+  const mascCount = athletes.filter((a) => String(a.sexo || a.gender || '').toUpperCase().startsWith('M')).length
+  const femCount = athletes.filter((a) => String(a.sexo || a.gender || '').toUpperCase().startsWith('F')).length
+  const entreguesCount = athletes.filter(isDelivered).length
+  const faltantesCount = totalCount - entreguesCount
+  const percentage = (count) => totalCount ? (count / totalCount * 100).toFixed(1) : '0.0'
+  const entreguesPct = percentage(entreguesCount)
+  const faltantesPct = percentage(faltantesCount)
+  const mascPct = percentage(mascCount)
+  const femPct = percentage(femCount)
+  const teamsData = groupDeliveries(athletes, ['equipe', 'assessoria', 'time'])
+    .map((item) => ({ name: item.name, count: item.total }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
+    .map((item, index) => ({ ...item, rank: index + 1 }))
+  const ageReference = new Date()
+  const ages = athletes.map((athlete) => ({ ...athlete, age: athleteAge(athlete, ageReference) })).filter((athlete) => athlete.age !== null)
+  const ageGroups = ['≤18', '19–29', '30–39', '40–49', '50–59', '60–69', '70+'].map((label, index) => ({
+    label,
+    count: ages.filter(({ age }) => (index === 0 ? age <= 18 : index === 6 ? age >= 70 : age >= (index === 1 ? 19 : (index + 1) * 10) && age < (index + 2) * 10)).length,
+  }))
   const maxTeamCount = teamsData[0]?.count || 1
 
   return (
@@ -177,7 +232,8 @@ export default function EventDashboardPage({
           </div>
         </section>
 
-        {athletes.length === 0 ? (
+        {error && <p role="alert" className="event-dashboard-feedback">Não foi possível atualizar os dados. {athletes.length ? 'Exibindo a última consulta. ' : ''}Uma nova tentativa será feita automaticamente.</p>}
+        {loading ? <p role="status" className="event-dashboard-feedback">Carregando dados do evento…</p> : athletes.length === 0 && error ? null : athletes.length === 0 ? (
           <div style={{
             background: '#fff',
             border: '1.5px dashed #e2e8f0',
@@ -392,247 +448,14 @@ export default function EventDashboardPage({
                   </div>
                 </div>
 
-            {/* Faixa etária */}
             <div className="dash-chart-card">
               <h3 className="dash-chart-title">Distribuição por Faixa Etária</h3>
-              <div className="age-badges-row">
-                <span className="age-badge neutral">👤 Idade Média: 30 anos</span>
-                <span className="age-badge male">♂ Masculino: 28 anos</span>
-                <span className="age-badge female">♀ Feminino: 32 anos</span>
-              </div>
-
-              <div className="age-bars-container">
-                <div className="interactive-chart-box">
-                  <svg
-                    width="100%"
-                    height="230"
-                    viewBox="0 0 700 230"
-                    preserveAspectRatio="none"
-                  >
-                    {/* Grid lines */}
-                    <line x1="40" y1="30" x2="680" y2="30" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="40" y1="70" x2="680" y2="70" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="40" y1="110" x2="680" y2="110" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="40" y1="150" x2="680" y2="150" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="40" y1="190" x2="680" y2="190" stroke="#e2e8f0" strokeWidth="1.5" />
-
-                    {/* Y Axis labels */}
-                    <text x="15" y="34" fill="#94a3b8" fontSize="11">100</text>
-                    <text x="20" y="74" fill="#94a3b8" fontSize="11">75</text>
-                    <text x="20" y="114" fill="#94a3b8" fontSize="11">50</text>
-                    <text x="20" y="154" fill="#94a3b8" fontSize="11">25</text>
-                    <text x="26" y="194" fill="#94a3b8" fontSize="11">0</text>
-
-                    {/* Active Column Grey Highlight Band */}
-                    {hoveredAgeGroup && (
-                      <rect
-                        x={hoveredAgeGroup.colLeft}
-                        y="15"
-                        width={hoveredAgeGroup.colWidth}
-                        height="175"
-                        fill="#cbd5e1"
-                        opacity="0.65"
-                      />
-                    )}
-
-                    {/* Groups */}
-                    {AGE_GROUPS_DATA.map((group) => {
-                      const mascHeight = (group.masc / 100) * 160
-                      const femHeight = (group.fem / 100) * 160
-                      const mascY = 190 - mascHeight
-                      const femY = 190 - femHeight
-                      const isHovered = hoveredAgeGroup?.key === group.key
-
-                      return (
-                        <g
-                          key={group.key}
-                          className="chart-col-group"
-                          onMouseEnter={() => setHoveredAgeGroup(group)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          {/* Invisible hover hitbox */}
-                          <rect
-                            x={group.colLeft}
-                            y="15"
-                            width={group.colWidth}
-                            height="195"
-                            fill="transparent"
-                          />
-
-                          {/* Masculino bar */}
-                          {group.masc > 0 && (
-                            <rect
-                              x={group.center - 18}
-                              y={mascY}
-                              width="16"
-                              height={mascHeight}
-                              fill="#2196f3"
-                              rx="2"
-                            />
-                          )}
-
-                          {/* Feminino bar */}
-                          {group.fem > 0 && (
-                            <rect
-                              x={group.center + 2}
-                              y={femY}
-                              width="16"
-                              height={femHeight}
-                              fill="#e91e63"
-                              rx="2"
-                            />
-                          )}
-
-                          {/* Label */}
-                          <text
-                            x={group.center}
-                            y="208"
-                            textAnchor="middle"
-                            fill={isHovered ? '#0f172a' : '#64748b'}
-                            fontWeight={isHovered ? '700' : '500'}
-                            fontSize="11"
-                          >
-                            {group.label}
-                          </text>
-                        </g>
-                      )
-                    })}
-                  </svg>
-
-                  {/* Floating tooltip */}
-                  {hoveredAgeGroup && (
-                    <div
-                      className="chart-floating-tooltip age-tooltip"
-                      style={{
-                        left:
-                          hoveredAgeGroup.center > 500
-                            ? `${((hoveredAgeGroup.colLeft - 135) / 700) * 100}%`
-                            : `${((hoveredAgeGroup.colLeft + hoveredAgeGroup.colWidth + 6) / 700) * 100}%`,
-                        top: '15px',
-                      }}
-                    >
-                      <div className="tooltip-title">{hoveredAgeGroup.label}</div>
-                      <div className="tooltip-row male">
-                        <span>Masculino :</span>
-                        <span>{hoveredAgeGroup.masc}</span>
-                      </div>
-                      <div className="tooltip-row female">
-                        <span>Feminino :</span>
-                        <span>{hoveredAgeGroup.fem}</span>
-                      </div>
-                      <div className="tooltip-row misto">
-                        <span>Misto :</span>
-                        <span>{hoveredAgeGroup.misto}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="donut-legend" style={{ marginTop: 6 }}>
-                  <span className="legend-item">
-                    <span className="legend-square" style={{ background: '#2196f3' }} />
-                    Masculino
-                  </span>
-                  <span className="legend-item">
-                    <span className="legend-square" style={{ background: '#e91e63' }} />
-                    Feminino
-                  </span>
-                  <span className="legend-item">
-                    <span className="legend-square" style={{ background: '#9c27b0' }} />
-                    Misto
-                  </span>
-                </div>
-              </div>
+              {ages.length === 0 ? <div className="chart-empty-msg">Nenhuma data de nascimento válida informada.</div> : <>
+                <div className="age-badges-row"><span className="age-badge neutral">Idade média: {Math.round(ages.reduce((sum, athlete) => sum + athlete.age, 0) / ages.length)} anos</span></div>
+                <div className="delivery-chart-rows">{ageGroups.map((group) => <div className="delivery-chart-row" key={group.label}><div className="delivery-chart-label"><span>{group.label}</span><strong>{group.count} atletas</strong></div><div className="delivery-chart-track"><span style={{ width: `${group.count / ages.length * 100}%`, background: '#2196f3' }} /></div></div>)}</div>
+                <p className="dash-stat-sub">Idades calculadas hoje; {totalCount - ages.length} atletas sem data válida.</p>
+              </>}
             </div>
-
-            {/* Destaques de idade */}
-            <div className="dash-chart-card">
-              <h3 className="dash-chart-title">Destaques de Idade</h3>
-              <div className="highlights-grid">
-                <div className="highlight-col">
-                  <span className="highlight-col-title male">♂ MAIS IDOSO</span>
-                  <ul className="highlight-list">
-                    <li className="highlight-item">
-                      <span className="highlight-rank">1.</span>
-                      <div className="highlight-info">
-                        <span className="highlight-name">JOSE ADILSON CARNEIRO SILVA</span>
-                        <span className="highlight-sub">24/01/1971 • 55 anos • GERAL</span>
-                      </div>
-                    </li>
-                    <li className="highlight-item">
-                      <span className="highlight-rank">2.</span>
-                      <div className="highlight-info">
-                        <span className="highlight-name">JOSE CICERO COSTA</span>
-                        <span className="highlight-sub">07/07/1971 • 55 anos • GERAL</span>
-                      </div>
-                    </li>
-                    <li className="highlight-item">
-                      <span className="highlight-rank">3.</span>
-                      <div className="highlight-info">
-                        <span className="highlight-name">LUIZ CARLOS MATOS DA SILVA</span>
-                        <span className="highlight-sub">01/04/1972 • 54 anos • GERAL</span>
-                      </div>
-                    </li>
-                    <li className="highlight-item">
-                      <span className="highlight-rank">4.</span>
-                      <div className="highlight-info">
-                        <span className="highlight-name">MARCOS VALENÇA OLIVEIRA</span>
-                        <span className="highlight-sub">05/01/1973 • 53 anos • GERAL</span>
-                      </div>
-                    </li>
-                    <li className="highlight-item">
-                      <span className="highlight-rank">5.</span>
-                      <div className="highlight-info">
-                        <span className="highlight-name">EDVALDO DA SILVA</span>
-                        <span className="highlight-sub">13/07/1974 • 52 anos • GERAL</span>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="highlight-col">
-                  <span className="highlight-col-title female">♀ MAIS IDOSA</span>
-                  <ul className="highlight-list">
-                    <li className="highlight-item">
-                      <span className="highlight-rank">1.</span>
-                      <div className="highlight-info">
-                        <span className="highlight-name">MARCIA FERREIRA DE LIRA</span>
-                        <span className="highlight-sub">20/04/1970 • 56 anos • GERAL</span>
-                      </div>
-                    </li>
-                    <li className="highlight-item">
-                      <span className="highlight-rank">2.</span>
-                      <div className="highlight-info">
-                        <span className="highlight-name">MARLEIDE LIMA CAVALCANTE</span>
-                        <span className="highlight-sub">24/05/1970 • 56 anos • GERAL</span>
-                      </div>
-                    </li>
-                    <li className="highlight-item">
-                      <span className="highlight-rank">3.</span>
-                      <div className="highlight-info">
-                        <span className="highlight-name">EDIVANISE MARIA DO NASCIMENTO</span>
-                        <span className="highlight-sub">21/03/1971 • 55 anos • GERAL</span>
-                      </div>
-                    </li>
-                    <li className="highlight-item">
-                      <span className="highlight-rank">4.</span>
-                      <div className="highlight-info">
-                        <span className="highlight-name">ALE MANSO</span>
-                        <span className="highlight-sub">30/12/1971 • 54 anos • GERAL</span>
-                      </div>
-                    </li>
-                    <li className="highlight-item">
-                      <span className="highlight-rank">5.</span>
-                      <div className="highlight-info">
-                        <span className="highlight-name">MARIA EDY DA SILVA</span>
-                        <span className="highlight-sub">03/03/1972 • 54 anos • GERAL</span>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
             {/* Equipes por Atletas Cadastrados */}
             <div className="dash-chart-card">
               <h3 className="dash-chart-title flex-title">
@@ -665,507 +488,19 @@ export default function EventDashboardPage({
           </div>
         )}
 
-        {/* TAB 2: ENTREGA DE KIT */}
         {activeSubtab === 'entrega' && (
           <div className="event-dash-body">
-            {/* Top 3 metrics */}
-            <div className="dash-three-charts">
-              <div className="dash-stat-card blue">
-                <div className="dash-stat-label"><PackageIcon /> Total</div>
-                <div className="dash-stat-val">430</div>
-              </div>
-
-              <div className="dash-stat-card green">
-                <div className="dash-stat-label">✓ Entregue</div>
-                <div className="dash-stat-val">361</div>
-                <span className="dash-stat-sub">84.0%</span>
-              </div>
-
-              <div className="dash-stat-card coral">
-                <div className="dash-stat-label">✕ Faltante</div>
-                <div className="dash-stat-val">69</div>
-                <span className="dash-stat-sub">16.0%</span>
-              </div>
+            <div className="dash-three-metrics">
+              <div className="dash-stat-card blue"><div className="dash-stat-label"><UsersIcon /> Atletas</div><div className="dash-stat-val">{totalCount}</div></div>
+              <div className="dash-stat-card green"><div className="dash-stat-label"><PackageIcon /> Entregues</div><div className="dash-stat-val">{entreguesCount}</div><span className="dash-stat-sub">{entreguesPct}%</span></div>
+              <div className="dash-stat-card coral"><div className="dash-stat-label"><PackageIcon /> Pendentes</div><div className="dash-stat-val">{faltantesCount}</div><span className="dash-stat-sub">{faltantesPct}%</span></div>
             </div>
-
-            {/* Kits por modalidade */}
-            <div className="dash-chart-card">
-              <h3 className="dash-chart-title">Kits por Modalidade</h3>
-              <div className="interactive-chart-box">
-                <svg width="100%" height="220" viewBox="0 0 600 220" preserveAspectRatio="none">
-                  <line x1="40" y1="30" x2="560" y2="30" stroke="#f1f5f9" strokeDasharray="4" />
-                  <line x1="40" y1="75" x2="560" y2="75" stroke="#f1f5f9" strokeDasharray="4" />
-                  <line x1="40" y1="120" x2="560" y2="120" stroke="#f1f5f9" strokeDasharray="4" />
-                  <line x1="40" y1="165" x2="560" y2="165" stroke="#e2e8f0" />
-                  <text x="15" y="34" fill="#94a3b8" fontSize="11">600</text>
-                  <text x="15" y="79" fill="#94a3b8" fontSize="11">450</text>
-                  <text x="15" y="124" fill="#94a3b8" fontSize="11">300</text>
-                  <text x="15" y="169" fill="#94a3b8" fontSize="11">150</text>
-                  <text x="26" y="190" fill="#94a3b8" fontSize="11">0</text>
-
-                  {hoveredModalidadeKit && (
-                    <rect x="170" y="20" width="300" height="150" fill="#e2e8f0" opacity="0.65" />
-                  )}
-
-                  {/* Stacked bar for 5 KM */}
-                  <g
-                    style={{ cursor: 'pointer' }}
-                    onMouseEnter={() => setHoveredModalidadeKit(true)}
-                    onMouseLeave={() => setHoveredModalidadeKit(false)}
-                  >
-                    <rect x="180" y="65" width="280" height="24" fill="#ef4444" rx="2" />
-                    <text x="312" y="81" fill="#ffffff" fontSize="11" fontWeight="bold">69</text>
-                    <rect x="180" y="89" width="280" height="76" fill="#10b981" rx="2" />
-                    <text x="310" y="132" fill="#ffffff" fontSize="11" fontWeight="bold">361</text>
-                    <text x="306" y="185" fill="#64748b" fontSize="11">5 KM</text>
-                  </g>
-                </svg>
-                {hoveredModalidadeKit && (
-                  <div
-                    className="chart-floating-tooltip"
-                    style={{ left: '50%', top: '15px', transform: 'translateX(-50%)' }}
-                  >
-                    <div className="tooltip-title">Modalidade: 5 KM</div>
-                    <div className="tooltip-row entregue">
-                      <span>Entregue :</span>
-                      <span>361 (84.0%)</span>
-                    </div>
-                    <div className="tooltip-row faltante">
-                      <span>Faltante :</span>
-                      <span>69 (16.0%)</span>
-                    </div>
-                    <div className="tooltip-row total">
-                      <span>Total :</span>
-                      <span>430</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="donut-legend">
-                <span className="legend-item"><span className="legend-square" style={{ background: '#10b981' }} /> Entregue</span>
-                <span className="legend-item"><span className="legend-square" style={{ background: '#ef4444' }} /> Faltante</span>
-              </div>
+            <DeliveryChart title="Kits por Modalidade" data={groupDeliveries(athletes, ['modalidade', 'distancia'])} />
+            <div className="dash-two-charts">
+              <DeliveryChart title="Camisetas" data={groupDeliveries(athletes, ['camiseta', 'tamanho', 'CAMISETA', 'TAMANHO'], sortShirtSizes)} />
+              <DeliveryChart title="Kits" data={groupDeliveries(athletes, ['kit', 'KIT'])} />
             </div>
-
-            {/* Camisetas e Kits */}
-            <div className="highlights-grid">
-              <div className="dash-chart-card">
-                <h3 className="dash-chart-title">Camisetas</h3>
-                <div className="interactive-chart-box">
-                  <svg width="100%" height="280" viewBox="0 0 480 270">
-                    {/* Y-axis Title */}
-                    <text
-                      x="-120"
-                      y="16"
-                      transform="rotate(-90)"
-                      fill="#64748b"
-                      fontSize="12"
-                      textAnchor="middle"
-                      fontWeight="500"
-                    >
-                      Quantidade
-                    </text>
-
-                    {/* Dotted horizontal grid lines */}
-                    <line x1="54" y1="20" x2="460" y2="20" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="70" x2="460" y2="70" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="120" x2="460" y2="120" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="170" x2="460" y2="170" stroke="#f1f5f9" strokeDasharray="3 3" />
-
-                    {/* Right boundary dotted grid line */}
-                    <line x1="460" y1="20" x2="460" y2="220" stroke="#f1f5f9" strokeDasharray="3 3" />
-
-                    {/* Vertical grid lines at category centers */}
-                    {CAMISETAS_DATA.map((item) => (
-                      <line
-                        key={`grid-${item.size}`}
-                        x1={item.center}
-                        y1="20"
-                        x2={item.center}
-                        y2="220"
-                        stroke="#f1f5f9"
-                        strokeDasharray="3 3"
-                      />
-                    ))}
-
-                    {/* Axes */}
-                    <line x1="54" y1="20" x2="54" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-                    <line x1="54" y1="220" x2="460" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-
-                    {/* Y-axis Ticks & Labels */}
-                    <line x1="49" y1="20" x2="54" y2="20" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="24" fill="#94a3b8" fontSize="11.5" textAnchor="end">140</text>
-
-                    <line x1="49" y1="70" x2="54" y2="70" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="74" fill="#94a3b8" fontSize="11.5" textAnchor="end">105</text>
-
-                    <line x1="49" y1="120" x2="54" y2="120" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="124" fill="#94a3b8" fontSize="11.5" textAnchor="end">70</text>
-
-                    <line x1="49" y1="170" x2="54" y2="170" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="174" fill="#94a3b8" fontSize="11.5" textAnchor="end">35</text>
-
-                    <line x1="49" y1="220" x2="54" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="224" fill="#94a3b8" fontSize="11.5" textAnchor="end">0</text>
-
-                    {/* Active column highlight */}
-                    {hoveredCamiseta && (
-                      <rect
-                        x={hoveredCamiseta.colLeft}
-                        y="20"
-                        width={hoveredCamiseta.colWidth}
-                        height="200"
-                        fill="#cbd5e1"
-                        opacity="0.45"
-                      />
-                    )}
-
-                    {/* Wide Bars */}
-                    {CAMISETAS_DATA.map((item) => {
-                      const scale = 200 / 140
-                      const faltanteH = item.faltante * scale
-                      const entregueH = item.entregue * scale
-                      const totalH = faltanteH + entregueH
-                      const topY = 220 - totalH
-                      const entregueY = 220 - entregueH
-                      const barX = item.center - item.barWidth / 2
-
-                      return (
-                        <g
-                          key={item.size}
-                          style={{ cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredCamiseta(item)}
-                          onMouseLeave={() => setHoveredCamiseta(null)}
-                        >
-                          {/* Invisible hover catcher */}
-                          <rect
-                            x={item.colLeft}
-                            y="20"
-                            width={item.colWidth}
-                            height="210"
-                            fill="transparent"
-                          />
-
-                          {/* Faltante (Coral/Red) */}
-                          {item.faltante > 0 && (
-                            <rect
-                              x={barX}
-                              y={topY}
-                              width={item.barWidth}
-                              height={Math.max(4, faltanteH)}
-                              fill="#f87171"
-                              rx="3"
-                            />
-                          )}
-
-                          {/* Faltante label */}
-                          {item.faltante >= 2 && (
-                            <text
-                              x={item.center}
-                              y={topY + Math.max(4, faltanteH) / 2 + 4}
-                              fill="#fff"
-                              fontSize={item.faltante >= 10 ? '11' : '10'}
-                              fontWeight="bold"
-                              textAnchor="middle"
-                            >
-                              {item.faltante}
-                            </text>
-                          )}
-
-                          {/* Entregue (Vivid Green) */}
-                          {item.entregue > 0 && (
-                            <rect
-                              x={barX}
-                              y={entregueY}
-                              width={item.barWidth}
-                              height={entregueH}
-                              fill="#22c55e"
-                              rx={item.faltante === 0 ? '3' : '0'}
-                            />
-                          )}
-
-                          {/* Entregue label */}
-                          {item.entregue >= 10 && (
-                            <text
-                              x={item.center}
-                              y={entregueY + entregueH / 2 + 4.5}
-                              fill="#fff"
-                              fontSize="12"
-                              fontWeight="bold"
-                              textAnchor="middle"
-                            >
-                              {item.entregue}
-                            </text>
-                          )}
-
-                          {/* X-axis tick */}
-                          <line
-                            x1={item.center}
-                            y1="220"
-                            x2={item.center}
-                            y2="225"
-                            stroke="#cbd5e1"
-                            strokeWidth="1"
-                          />
-
-                          {/* X-axis Label */}
-                          <text
-                            x={item.center}
-                            y="244"
-                            fill={hoveredCamiseta?.size === item.size ? '#0f172a' : '#64748b'}
-                            fontWeight={hoveredCamiseta?.size === item.size ? '700' : '600'}
-                            fontSize="12.5"
-                            textAnchor="middle"
-                          >
-                            {item.size}
-                          </text>
-                        </g>
-                      )
-                    })}
-                  </svg>
-
-                  {hoveredCamiseta && (
-                    <div
-                      className="chart-floating-tooltip"
-                      style={{
-                        left: hoveredCamiseta.center > 260 ? '18%' : '55%',
-                        top: '15px',
-                      }}
-                    >
-                      <div className="tooltip-title">Camiseta: {hoveredCamiseta.size}</div>
-                      <div className="tooltip-row entregue">
-                        <span>Entregue :</span>
-                        <span>{hoveredCamiseta.entregue}</span>
-                      </div>
-                      <div className="tooltip-row faltante">
-                        <span>Faltante :</span>
-                        <span>{hoveredCamiseta.faltante}</span>
-                      </div>
-                      <div className="tooltip-row total">
-                        <span>Total :</span>
-                        <span>{hoveredCamiseta.total}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="dash-chart-legend">
-                  <span className="legend-item entregue">
-                    <span className="legend-square" style={{ background: '#22c55e' }} />
-                    Entregue
-                  </span>
-                  <span className="legend-item faltante">
-                    <span className="legend-square" style={{ background: '#f87171' }} />
-                    Faltante
-                  </span>
-                </div>
-              </div>
-
-              <div className="dash-chart-card">
-                <h3 className="dash-chart-title">Kits</h3>
-                <div className="interactive-chart-box">
-                  <svg width="100%" height="280" viewBox="0 0 480 270">
-                    {/* Dotted horizontal grid lines */}
-                    <line x1="54" y1="20" x2="460" y2="20" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="70" x2="460" y2="70" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="120" x2="460" y2="120" stroke="#f1f5f9" strokeDasharray="3 3" />
-                    <line x1="54" y1="170" x2="460" y2="170" stroke="#f1f5f9" strokeDasharray="3 3" />
-
-                    {/* Right boundary dotted grid line */}
-                    <line x1="460" y1="20" x2="460" y2="220" stroke="#f1f5f9" strokeDasharray="3 3" />
-
-                    {/* Vertical grid lines at category centers */}
-                    {KITS_DATA.map((item) => (
-                      <line
-                        key={`grid-${item.name}`}
-                        x1={item.center}
-                        y1="20"
-                        x2={item.center}
-                        y2="220"
-                        stroke="#f1f5f9"
-                        strokeDasharray="3 3"
-                      />
-                    ))}
-
-                    {/* Axes */}
-                    <line x1="54" y1="20" x2="54" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-                    <line x1="54" y1="220" x2="460" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-
-                    {/* Y-axis Ticks & Labels */}
-                    <line x1="49" y1="20" x2="54" y2="20" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="24" fill="#94a3b8" fontSize="11.5" textAnchor="end">260</text>
-
-                    <line x1="49" y1="70" x2="54" y2="70" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="74" fill="#94a3b8" fontSize="11.5" textAnchor="end">195</text>
-
-                    <line x1="49" y1="120" x2="54" y2="120" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="124" fill="#94a3b8" fontSize="11.5" textAnchor="end">130</text>
-
-                    <line x1="49" y1="170" x2="54" y2="170" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="174" fill="#94a3b8" fontSize="11.5" textAnchor="end">65</text>
-
-                    <line x1="49" y1="220" x2="54" y2="220" stroke="#cbd5e1" strokeWidth="1" />
-                    <text x="46" y="224" fill="#94a3b8" fontSize="11.5" textAnchor="end">0</text>
-
-                    {/* Active column highlight */}
-                    {hoveredKit && (
-                      <rect
-                        x={hoveredKit.colLeft}
-                        y="20"
-                        width={hoveredKit.colWidth}
-                        height="200"
-                        fill="#cbd5e1"
-                        opacity="0.45"
-                      />
-                    )}
-
-                    {/* Thick Wide Bars */}
-                    {KITS_DATA.map((item) => {
-                      const scale = 200 / 260
-                      const faltanteH = item.faltante * scale
-                      const entregueH = item.entregue * scale
-                      const totalH = faltanteH + entregueH
-                      const topY = 220 - totalH
-                      const entregueY = 220 - entregueH
-                      const barX = item.center - item.barWidth / 2
-
-                      return (
-                        <g
-                          key={item.name}
-                          style={{ cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredKit(item)}
-                          onMouseLeave={() => setHoveredKit(null)}
-                        >
-                          {/* Invisible hover catcher */}
-                          <rect
-                            x={item.colLeft}
-                            y="20"
-                            width={item.colWidth}
-                            height="210"
-                            fill="transparent"
-                          />
-
-                          {/* Faltante (Coral/Red) */}
-                          {item.faltante > 0 && (
-                            <rect
-                              x={barX}
-                              y={topY}
-                              width={item.barWidth}
-                              height={Math.max(4, faltanteH)}
-                              fill="#f87171"
-                              rx="3"
-                            />
-                          )}
-
-                          {/* Faltante label */}
-                          {item.faltante >= 3 && (
-                            <text
-                              x={item.center}
-                              y={topY + Math.max(4, faltanteH) / 2 + 4}
-                              fill="#fff"
-                              fontSize={item.faltante >= 10 ? '11' : '10'}
-                              fontWeight="bold"
-                              textAnchor="middle"
-                            >
-                              {item.faltante}
-                            </text>
-                          )}
-
-                          {/* Entregue (Vivid Green) */}
-                          {item.entregue > 0 && (
-                            <rect
-                              x={barX}
-                              y={entregueY}
-                              width={item.barWidth}
-                              height={entregueH}
-                              fill="#22c55e"
-                              rx={item.faltante === 0 ? '3' : '0'}
-                            />
-                          )}
-
-                          {/* Entregue label */}
-                          {item.entregue >= 30 && (
-                            <text
-                              x={item.center}
-                              y={entregueY + entregueH / 2 + 5}
-                              fill="#fff"
-                              fontSize="13"
-                              fontWeight="bold"
-                              textAnchor="middle"
-                            >
-                              {item.entregue}
-                            </text>
-                          )}
-
-                          {/* X-axis tick */}
-                          <line
-                            x1={item.center}
-                            y1="220"
-                            x2={item.center}
-                            y2="225"
-                            stroke="#cbd5e1"
-                            strokeWidth="1"
-                          />
-
-                          {/* X-axis Label */}
-                          <text
-                            x={item.center}
-                            y="244"
-                            fill={hoveredKit?.name === item.name ? '#0f172a' : '#64748b'}
-                            fontWeight={hoveredKit?.name === item.name ? '700' : '600'}
-                            fontSize="11.5"
-                            textAnchor="middle"
-                          >
-                            {item.name}
-                          </text>
-                        </g>
-                      )
-                    })}
-                  </svg>
-
-                  {hoveredKit && (
-                    <div
-                      className="chart-floating-tooltip"
-                      style={{
-                        left: hoveredKit.center > 260 ? '15%' : '50%',
-                        top: '15px',
-                      }}
-                    >
-                      <div className="tooltip-title">{hoveredKit.name}</div>
-                      <div className="tooltip-row entregue">
-                        <span>Entregue :</span>
-                        <span>{hoveredKit.entregue}</span>
-                      </div>
-                      <div className="tooltip-row faltante">
-                        <span>Faltante :</span>
-                        <span>{hoveredKit.faltante}</span>
-                      </div>
-                      <div className="tooltip-row total">
-                        <span>Total :</span>
-                        <span>{hoveredKit.total}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="dash-chart-legend">
-                  <span className="legend-item entregue">
-                    <span className="legend-square" style={{ background: '#22c55e' }} />
-                    Entregue
-                  </span>
-                  <span className="legend-item faltante">
-                    <span className="legend-square" style={{ background: '#f87171' }} />
-                    Faltante
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Entregas por operador */}
-            <div className="dash-chart-card">
-              <h3 className="dash-chart-title">Entregas por Operador</h3>
-              <div className="chart-empty-msg">
-                Nenhuma entrega registrada
-              </div>
-            </div>
+            <DeliveryChart title="Entregas por Operador" data={groupDeliveries(athletes.filter(isDelivered), ['entreguePor'])} showPendentes={false} />
           </div>
         )}
           </>

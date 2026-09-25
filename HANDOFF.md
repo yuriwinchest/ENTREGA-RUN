@@ -1,5 +1,33 @@
 # Handoff
 
+## 2026-09-24 — Dashboard Dinâmico de Entrega de Kits e Ocultação do Botão de Associar (Fase B)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead & Frontend).
+- **Demanda do Yuri (PO via áudio e texto):**
+  1. *Dashboard de Entrega de Kit em Tempo Real:* A aba "Entrega de Kit" no Dashboard do evento não refletia as entregas reais e exibia dados mockados estáticos. O PO solicitou que essa aba atualize dinamicamente a partir dos atletas cadastrados e entregues no evento.
+  2. *Ocultar Botão de Associar Kit quando já Associado:* O botão "ASSOCIAR KIT" (no detalhe lateral) e o botão "LER" (na tabela) devem aparecer apenas quando o atleta ainda precisa ser associado. Se o atleta já vier associado da planilha ou se já possuir número de peito e chip válidos (ou se o kit já foi entregue), o botão não deve aparecer.
+  3. *Revisão e Subida ao GitHub:* Analisar o trabalho iniciado pelo GPT que não chegou a subir, validar todas as alterações e realizar o commit/push no GitHub para deploy.
+- **Ações Realizadas:**
+  1. **Dashboard Dinâmico (`EventDashboardPage.jsx` e `EventDashboardPage.css`):**
+     - Substituídos os dados mockados fixos (`KITS_DATA` e `CAMISETAS_DATA`) pela função `groupDeliveries`, agrupando dinamicamente os atletas reais do evento por modalidade, camiseta (com ordenação inteligente de tamanhos: PP, P, M, G, GG, XG, etc.), kit e operador.
+     - Suporte a campos customizados (`customFields`) para camisetas, modalidades e kits importados de planilhas diversas.
+     - Gráfico "Entregas por Operador" ajustado para exibir exclusivamente os operadores responsáveis pelas entregas já realizadas, sem dados fictícios.
+     - Polling de 10s e listeners de foco/visibilidade mantidos para atualização contínua sem necessidade de recarregar a página.
+  2. **Regra de Ocultação do Botão de Associar (`athleteDetail.js` e `OperacaoPage.jsx`):**
+     - Criada a função `canAssociateAthleteKit(athlete)` em `athleteDetail.js`, que normaliza acentos e caixa, retornando `false` se o status for `ENTREGUE` ou se tanto o `numero` quanto o `chip` já estiverem preenchidos e válidos (ignorando valores como 'não associado', 'sem chip', '—' e '-').
+     - Botão "ASSOCIAR KIT" no detalhe protegido por `canAssociateAthleteKit(detailForm || selectedAthlete)`.
+     - Botão "LER" na coluna LEITURA da tabela protegido por `canAssociateAthleteKit(a)`.
+     - Funções `startKitReading` e `confirmKitAssociation` devidamente protegidas pela mesma regra para prevenir qualquer ação acidental.
+  3. **Workflow CI/CD e Segurança (`deploy.yml` e `.gitignore`):**
+     - Restaurado o script funcional e seguro de deploy no Docker com retry de 40s no healthcheck e configuração automática do domínio `entregasrunning.com.br` no Caddyfile.
+     - Adicionada etapa de `npm run lint` ao workflow do GitHub Actions.
+     - Pasta untracked `ENTREGADEKIS/` adicionada ao `.gitignore` para proteção estrita de arquivos e planilhas locais.
+- **Validação Real:**
+  - `oxlint`: 0 erros e 0 avisos em 29 arquivos do frontend.
+  - `npm run build`: bundle de produção gerado com sucesso em 1.33s (`index-CrHmXLiw.js`).
+  - Testes unitários com 9 asserções em `canAssociateAthleteKit`: aprovadas 100%.
+- **Próximo Passo:** Executar `git add`, `git commit` e `git push origin main` para acionamento do deploy na VPS e homologação pelo Yuri.
+
 ## 2026-09-24 — Apontamento do Novo Domínio Oficial ENTREGASRUNNING.COM.BR (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Vitor / SRE).
