@@ -1,13 +1,20 @@
 name: CI/CD Deploy ENTREGAS-RUN (VPS Docker)
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: entregas-run-deploy
+  cancel-in-progress: false
+
 jobs:
-  validate-and-deploy:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout do Código
@@ -25,7 +32,22 @@ jobs:
           npm run lint
           npm run build
 
-      - name: Deploy Automático Isolado na VPS (Docker)
+      - name: Validar Servidor e Permissões Administrativas
+        working-directory: server
+        run: |
+          npm ci
+          node --check server.js
+          node --test admin-users.test.mjs
+
+      - name: Validar Script de Deploy
+        run: bash -n scripts/deploy-vps.sh
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publicar Commit Validado com Snapshot, Healthcheck e Rollback
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -33,66 +55,9 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
           script: |
-            set -e
-            mkdir -p /opt/entregas-run/data
-            chmod -R 777 /opt/entregas-run/data || true
-            chown -R 1000:1000 /opt/entregas-run/data || true
+            set -eu
             cd /opt/entregas-run
-
-            # Atualizar repositório local na VPS
-            if [ -d ".git" ]; then
-              git fetch origin main
-              git reset --hard origin/main
-            fi
-
-            mkdir -p /opt/entregas-run/data
-            chmod -R 777 /opt/entregas-run/data || true
-            chown -R 1000:1000 /opt/entregas-run/data || true
-
-
-            # Build e Reinicialização Isolada no Docker (porta 3050 -> 3001)
-            docker compose down --remove-orphans || true
-            docker rm -f entregas-run-web || true
-            docker compose build --no-cache
-            docker compose up -d
-
-            # Healthcheck de verificação do serviço com retry inteligente (Vitor / SRE)
-            echo "Aguardando inicialização do serviço..."
-            HEALTHY=false
-            for i in $(seq 1 20); do
-              sleep 2
-              if curl -s -f http://127.0.0.1:3050/api/health > /dev/null; then
-                HEALTHY=true
-                echo "Healthcheck OK na tentativa $i!"
-                break
-              fi
-              echo "Tentativa $i falhou, aguardando..."
-            done
-
-            if [ "$HEALTHY" != "true" ]; then
-              echo "Healthcheck falhou após 40s! Logs do container:"
-              docker logs --tail 100 entregas-run-web || true
-              exit 1
-            fi
-
-            echo "=== DEPLOY CONCLUÍDO COM SUCESSO! ==="
-            docker ps --filter name=entregas-run-web --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-
-            # Configuração de Domínio no Caddyfile (Vitor / SRE)
-            echo "Verificando configuração do novo domínio no Caddy..."
-            if [ -f /etc/caddy/Caddyfile ]; then
-              if ! grep -q "entregasrunning.com.br" /etc/caddy/Caddyfile; then
-                echo "Adicionando entregasrunning.com.br e www ao Caddyfile..."
-                printf "\nentregasrunning.com.br, www.entregasrunning.com.br {\n    reverse_proxy 127.0.0.1:3050\n}\n" >> /etc/caddy/Caddyfile
-                caddy validate --config /etc/caddy/Caddyfile && (systemctl reload caddy || caddy reload || true)
-                echo "Caddy recarregado com o novo domínio!"
-              else
-                echo "Domínio entregasrunning.com.br já configurado no Caddyfile."
-              fi
-            fi
-
-            # Fallback para Caddy em container Docker
-            CADDY_CONTAINER=$(docker ps -q --filter name=caddy)
-            if [ -n "$CADDY_CONTAINER" ]; then
-              docker exec "$CADDY_CONTAINER" caddy reload || true
-            fi
+            git fetch --quiet origin main
+            git cat-file -e '${{ github.sha }}^{commit}'
+            git show '${{ github.sha }}:scripts/deploy-vps.sh' > /tmp/entregas-run-deploy-${{ github.sha }}.sh
+            bash /tmp/entregas-run-deploy-${{ github.sha }}.sh '${{ github.sha }}'
