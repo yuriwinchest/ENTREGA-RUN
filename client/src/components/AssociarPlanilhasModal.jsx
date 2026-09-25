@@ -435,6 +435,13 @@ export default function AssociarPlanilhasModal({
       onImportSuccess(cleanList, {
         columns: buildImportColumnSchema(atletasHeaders, mappingByColumn),
         kits: kitRows,
+        originalSheet: {
+          fileName: atletasFile?.name || 'planilha_atletas.xlsx',
+          headers: atletasHeaders,
+          rows: atletasRows,
+          totalRows: atletasRows.length,
+          importedAt: new Date().toISOString(),
+        },
       })
     }
 

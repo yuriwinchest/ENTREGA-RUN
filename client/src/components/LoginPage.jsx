@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import logoImg from '../assets/logo.png'
 import './LoginPage.css'
 
 function EyeIcon({ off }) {
@@ -88,7 +89,15 @@ export default function LoginPage({ onLoginSuccess }) {
 
       <main className="login-wrap">
         <div className="brand-badge">
-          <img src="/logo.png" alt="Entregas Run" />
+          <img
+            src={logoImg}
+            alt="Entregas Run"
+            onError={(e) => {
+              if (e.currentTarget.src !== window.location.origin + '/logo.png') {
+                e.currentTarget.src = '/logo.png'
+              }
+            }}
+          />
         </div>
 
         <h1 className="login-title">

@@ -444,6 +444,23 @@ app.get('/api/municipios', (_req, res) => {
   })
 })
 
+// Servir assets de marca na raiz sem cair no wildcard de SPA
+app.get('/logo.png', (_req, res) => {
+  const distLogo = path.join(__dirname, '..', 'client', 'dist', 'logo.png')
+  const pubLogo = path.join(__dirname, '..', 'client', 'public', 'logo.png')
+  res.sendFile(distLogo, (err) => {
+    if (err) res.sendFile(pubLogo)
+  })
+})
+
+app.get('/favicon.svg', (_req, res) => {
+  const distFavicon = path.join(__dirname, '..', 'client', 'dist', 'favicon.svg')
+  const pubFavicon = path.join(__dirname, '..', 'client', 'public', 'favicon.svg')
+  res.sendFile(distFavicon, (err) => {
+    if (err) res.sendFile(pubFavicon)
+  })
+})
+
 // ============================================================
 // PERSISTÊNCIA CENTRALIZADA DE EVENTOS (API REST)
 // Salva eventos em JSON persistido em volume Docker (/app/data).
@@ -750,7 +767,7 @@ function loadAthletesForEvent(eventId) {
   return null
 }
 
-function saveAthletesForEvent(eventId, athletes, schema = [], kits) {
+function saveAthletesForEvent(eventId, athletes, schema = [], kits, originalSheet) {
   const safeId = String(eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
   if (!safeId) return false
 
@@ -761,6 +778,7 @@ function saveAthletesForEvent(eventId, athletes, schema = [], kits) {
     athletes: Array.isArray(athletes) ? athletes : [],
     schema: Array.isArray(schema) ? schema : [],
     kits: kits === undefined ? (existing?.kits || []) : kits,
+    originalSheet: originalSheet !== undefined ? originalSheet : (existing?.originalSheet || null),
     updatedAt: Date.now(),
   }
 
@@ -801,19 +819,38 @@ app.get('/api/events/:eventId/athletes', async (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
   const data = loadAthletesForEvent(safeEventId)
   if (data && Array.isArray(data.athletes) && data.athletes.length > 0) {
-    return res.json({ ok: true, athletes: data.athletes || [], schema: data.schema || [], kits: data.kits || [] })
+    return res.json({
+      ok: true,
+      athletes: data.athletes || [],
+      schema: data.schema || [],
+      kits: data.kits || [],
+      originalSheet: data.originalSheet || null,
+    })
   }
   try {
     const remote = await fetchAthletesFromAppwrite(safeEventId)
     if (remote && Array.isArray(remote.athletes) && remote.athletes.length > 0) {
       saveAthletesForEvent(safeEventId, remote.athletes, remote.schema, remote.kits)
-      return res.json({ ok: true, athletes: remote.athletes, schema: remote.schema || [], kits: remote.kits || [], source: 'appwrite' })
+      return res.json({
+        ok: true,
+        athletes: remote.athletes,
+        schema: remote.schema || [],
+        kits: remote.kits || [],
+        originalSheet: data?.originalSheet || null,
+        source: 'appwrite',
+      })
     }
   } catch {}
   if (!data) {
-    return res.json({ ok: true, athletes: [], schema: [], kits: [] })
+    return res.json({ ok: true, athletes: [], schema: [], kits: [], originalSheet: null })
   }
-  res.json({ ok: true, athletes: data.athletes || [], schema: data.schema || [], kits: data.kits || [] })
+  res.json({
+    ok: true,
+    athletes: data.athletes || [],
+    schema: data.schema || [],
+    kits: data.kits || [],
+    originalSheet: data.originalSheet || null,
+  })
 })
 
 // POST /api/events/:eventId/athletes — Sincroniza/persiste lista de atletas
@@ -821,7 +858,7 @@ app.get('/api/events/:eventId/athletes', async (req, res) => {
 // volta em kitsWarning (causa raiz da divergência total x lista zerada).
 app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
-  const { athletes, schema, kits } = req.body || {}
+  const { athletes, schema, kits, originalSheet } = req.body || {}
 
   if (!Array.isArray(athletes)) {
     return res.status(400).json({ ok: false, message: 'Lista de atletas inválida.' })
@@ -839,7 +876,7 @@ app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
     }
   }
 
-  const success = saveAthletesForEvent(safeEventId, athletes, schema, kitsToSave)
+  const success = saveAthletesForEvent(safeEventId, athletes, schema, kitsToSave, originalSheet)
   void persistAthletesToAppwrite(safeEventId, athletes)
   const curEv = inMemoryEvents.find((e) => e.id === safeEventId)
   if (curEv) {
@@ -861,7 +898,7 @@ const athleteChunkUploads = new Map()
 
 app.post('/api/events/:eventId/athletes/chunks', athletesJsonParser, (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
-  const { uploadId, chunkIndex, totalChunks, athletesChunk, schema, kits } = req.body || {}
+  const { uploadId, chunkIndex, totalChunks, athletesChunk, schema, kits, originalSheet } = req.body || {}
   const safeUploadId = String(uploadId || '').replace(/[^\w-]/g, '').slice(0, 64)
   const idx = Number(chunkIndex)
   const total = Number(totalChunks)
@@ -875,7 +912,7 @@ app.post('/api/events/:eventId/athletes/chunks', athletesJsonParser, (req, res) 
 
   let upload = athleteChunkUploads.get(`${safeEventId}:${safeUploadId}`)
   if (!upload) {
-    upload = { chunks: new Array(total).fill(null), totalChunks: total, schema: [], kits: undefined, received: 0, updatedAt: Date.now() }
+    upload = { chunks: new Array(total).fill(null), totalChunks: total, schema: [], kits: undefined, originalSheet: undefined, received: 0, updatedAt: Date.now() }
     athleteChunkUploads.set(`${safeEventId}:${safeUploadId}`, upload)
   }
   if (upload.totalChunks !== total) {
@@ -889,13 +926,16 @@ app.post('/api/events/:eventId/athletes/chunks', athletesJsonParser, (req, res) 
     const error = validateKits(kits)
     if (!error) upload.kits = kits
   }
+  if (originalSheet !== undefined) {
+    upload.originalSheet = originalSheet
+  }
 
   if (upload.received < upload.totalChunks) {
     return res.json({ ok: true, received: upload.received, totalChunks: upload.totalChunks, done: false })
   }
 
   const merged = upload.chunks.flat()
-  const success = saveAthletesForEvent(safeEventId, merged, upload.schema, upload.kits)
+  const success = saveAthletesForEvent(safeEventId, merged, upload.schema, upload.kits, upload.originalSheet)
   void persistAthletesToAppwrite(safeEventId, merged)
   const curEvChunk = inMemoryEvents.find((e) => e.id === safeEventId)
   if (curEvChunk) {
@@ -942,7 +982,7 @@ app.put('/api/events/:eventId/athletes/:numero/status', express.json(), (req, re
     entreguePara: entreguePara !== undefined ? entreguePara : data.athletes[idx].entreguePara,
   }
 
-  saveAthletesForEvent(safeEventId, data.athletes, data.schema)
+  saveAthletesForEvent(safeEventId, data.athletes, data.schema, undefined, data.originalSheet)
   void updateAthleteStatusInAppwrite(safeEventId, safeNumero, {
     status: data.athletes[idx].status,
     entregueEm: data.athletes[idx].entregueEm,

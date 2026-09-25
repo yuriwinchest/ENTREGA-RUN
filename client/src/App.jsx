@@ -207,6 +207,10 @@ export default function App() {
   // Sincroniza navegação via botões voltar/avançar do navegador
   useEffect(() => {
     function handlePopState() {
+      if (currentPage === 'operacao' && effectiveEventId && localStorage.getItem(`entregas_run_kit_decision_${effectiveEventId}`)) {
+        window.history.pushState({}, '', `/operacao/${effectiveEventId}`)
+        return
+      }
       const path = window.location.pathname
       if (path.startsWith('/validar')) {
         setCurrentPage('validar')
@@ -234,7 +238,7 @@ export default function App() {
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
-  }, [user])
+  }, [user, currentPage, effectiveEventId])
 
   function navigateTo(page, id) {
     let targetPage = page

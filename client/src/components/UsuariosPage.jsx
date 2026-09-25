@@ -386,7 +386,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
             <p className="usuarios-subtitle">
               Gerencie os usuários da operação. O Sub-Admin acessa auditoria, cria usuários e remove apenas quem criou. O Super Admin gerencia todos.
               <br />
-              Crie logins com senha gerada automaticamente e envie facilmente para a equipe no WhatsApp.
+              Crie logins com a senha que você definir e compartilhe o acesso com a equipe.
             </p>
           </div>
 

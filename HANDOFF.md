@@ -1,6 +1,88 @@
 # Handoff
 
-## 2026-09-25 — Correção da Imagem de Fundo/Banner do Telão (Espelho) e Persistência (Fase A)
+## 2026-09-25 — Integração Codex (Decisão Obrigatória de Kit) e Correção da Importação de Planilha Completa (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead & Fullstack) integrado com Codex/Tony.
+- **Demandas do Yuri (PO via áudio/texto):**
+  1. *Subir no Git para VPS:* Verificar se o GPT/Codex terminou o trabalho de decisão obrigatória de kit e integrar para subir na VPS.
+  2. *Correção do modelo de Planilha Completa (Planilha Única Associada):* Quando o usuário cria um evento e anexa uma planilha que já vem completa/associada (com corredor, número de peito e chip na mesma linha), os dados deixavam de ser reconhecidos e não eram gravados no servidor.
+  3. *Preservação de Todas as Demandas Anteriores:* Manter a logo da sidebar sem quebrar, o campo "ENTREGUE PARA / RETIRADO POR" no final da ficha de atendimento, a permanência na aba `entrega` ao fechar/desfazer e a sub-aba "PLANILHA ORIGINAL (TODOS OS CAMPOS)".
+- **Causa Raiz da Planilha Completa:**
+  1. No modal de importação única (`ImportarAtletasModal.jsx`), mesmo quando a planilha continha colunas mapeadas de número e chip, a lista `kits` do evento não era populada nem enviada para a API.
+  2. Em `OperacaoPage.jsx`, `handleImportSuccess` continha um fechamento assíncrono sobre o callback do `setAthletes` onde a variável de atletas mesclados permanecia com tamanho 0 fora da closure, impedindo que a chamada de persistência `apiSaveAthletes` fosse acionada ao importar planilhas completas.
+- **Implementações Técnicas Integradas:**
+  - `client/src/components/PendingKitDecisionModal.jsx` & `PendingKitDecisionModal.css`: modal obrigatório após confirmação de leitura de QR code/chip com foco retido, trap de teclado e campo opcional de terceiro recebedor.
+  - `client/src/App.jsx`: bloqueio de navegação via `popstate` enquanto houver decisão de kit pendente.
+  - `client/src/components/KitQrScannerModal.jsx`: suporte ao estado `confirming` durante o salvamento inicial da associação.
+  - `client/src/components/ImportarAtletasModal.jsx`:
+    - Auto-extração de kits para atletas que já contam com número e chip na planilha completa.
+    - Gravação atômica assíncrona na etapa 3: o modal só avança para "Concluído" se a gravação no servidor for confirmada com sucesso. Se falhar, exibe mensagem clara e mantém o mapeamento permitindo retry.
+  - `client/src/components/OperacaoPage.jsx`:
+    - Fila sequencial assíncrona de persistência (`saveAthletesInOrder`) prevenindo condições de corrida com o autosave debounce.
+    - Estado `pendingKitDecision` persistido em `localStorage` e recuperado automaticamente se a página for recarregada.
+    - `confirmKitAssociation` atualizado para gravar no backend antes de abrir a decisão obrigatória, salvando o número anterior em `_kitPreviousNumero`.
+    - `handleUndoAssociation` atualizado para restaurar `_kitPreviousNumero` e manter a aba `entrega`.
+    - `handleSaveAndDeliver` atualizado para aceitar `recipientOverride` opcional do modal de decisão.
+    - Mantidos o campo "ENTREGUE PARA / RETIRADO POR" no final da página da ficha e a sub-aba de planilha original.
+- **Validação Real:**
+  - `node --check server/server.js`: sintaxe válida (exit code 0).
+  - `node server/admin-users.test.mjs`: testes de backend executados e aprovados (1702ms).
+  - `npm run lint --prefix client`: oxlint aprovado sem avisos nem erros (30 arquivos analisados em 90ms).
+  - `npm run build --prefix client`: bundle de produção do Vite gerado com sucesso (dist/assets/index-yQr5zy6o.js e logo-CPupJpv1.png).
+- **Próximo Passo:** Homologação pelo Yuri (PO) em produção.
+
+## 2026-09-25 — Correção da Logo do Menu Lateral / Sidebar e Rotas Estáticas de Marca (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead & Fullstack).
+- **Demanda do Yuri (PO via áudio):**
+  "A logo que tá dentro, em cima, a logo pequena, ela não tá aparecendo. A logo que fica dentro ali do menu lateral, ela sumiu."
+- **Causa Raiz Identificada:**
+  1. *Falta de bundling da logo pelo Vite:* O componente `Sidebar.jsx` utilizava `<img src="/logo.png" />` com string hardcoded em vez de import ES module. Em certas circunstâncias de roteamento SPA, requisições para `/logo.png` podiam ser capturadas pelo wildcard do Express/Vite retornando o `index.html` (text/html), fazendo o elemento `<img>` quebrar e desaparecer.
+  2. *Ausência de rota estática dedicada no Express:* O `server.js` possuía rota estática prioritária apenas para `/api/municipios`, mas não para `/logo.png` ou `/favicon.svg`, deixando-as sujeitas ao interceptador do SPA.
+  3. *Inexistência de fallback:* Se a imagem falhasse por timeout ou erro de rota, o badge ficava como um quadrado branco vazio sem qualquer indicador visual.
+- **Implementações Técnicas:**
+  - `client/src/assets/logo.png`: copiado para a pasta de assets rastreada pelo Vite.
+  - `client/src/components/Sidebar.jsx`:
+    - Adicionado import direto do asset: `import logoImg from '../assets/logo.png'`.
+    - Criado componente `SidebarBrandLogo` com fallback triplo: (1) asset compilado com hash anti-cache do Vite, (2) fallback de rede para `/logo.png`, e (3) fallback vetorial SVG `BrandRunnerLogo` de alta nitidez com as cores oficiais da marca.
+  - `client/src/components/LoginPage.jsx`: atualizado para importar `logoImg` de `../assets/logo.png` com fallback em `onError`.
+  - `client/src/components/Sidebar.css`: adicionadas regras de `display: block`, `object-fit: contain` e suporte nativo ao SVG dentro de `.sidebar-brand-badge`.
+  - `server/server.js`: adicionadas rotas explícitas dedicadas para `/logo.png` e `/favicon.svg` servindo diretamente os arquivos estáticos de `dist` ou `public` antes do wildcard de SPA.
+- **Validação Real:**
+  - `node --check server/server.js`: sintaxe válida (exit code 0).
+  - `node server/admin-users.test.mjs`: testes de integridade do servidor aprovados (1101ms).
+  - `npm run lint --prefix client`: **0 erros e 0 warnings** em 29 arquivos.
+  - `npm run build --prefix client`: bundle gerado com sucesso contendo `dist/assets/logo-CPupJpv1.png` (329ms).
+- **Próximo Passo:** Homologação pelo Yuri (PO).
+
+
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead & Fullstack).
+- **Demandas do Yuri (PO):**
+  1. *Descarte de campos ignorados:* Ao desmarcar ou ignorar colunas no mapeamento de planilha (ex: celular, sexo, etc.), esses campos não devem aparecer na base de atletas, na tabela de visualização e nem no formulário de edição cadastral.
+  2. *Aba Planilha Original:* Criação de uma sub-aba dedicada "PLANILHA ORIGINAL" onde 100% dos dados originais e brutos do arquivo Excel/CSV ficam preservados com todas as colunas, busca global e exportação em CSV.
+  3. *Remoção de texto indevido:* Remover o texto informativo *"Cadastro salvo. O botão ENTREGAR KIT está liberado — salvar não registra a entrega."* exibido na ficha do atleta.
+  4. *Reposicionamento do campo Retirado Por:* Reposicionar o card *"👤 ENTREGUE PARA / RETIRADO POR"* para o final da página de detalhes do atleta.
+  5. *Permanência na aba de entrega:* Manter o operador na aba onde é feita a entrega dos kits (`entrega`) ao fechar a ficha do atleta ou desfazer associações pendentes, sem alternar involuntariamente para a aba de atletas.
+- **Implementações Técnicas:**
+  - `client/src/utils/athleteTable.js`: `buildImportColumnSchema` atualizado para descartar colunas marcadas como `ignore` ou não mapeadas (removida a regra legada que forçava colunas ignoradas como custom fields).
+  - `client/src/components/ImportarAtletasModal.jsx` & `AssociarPlanilhasModal.jsx`: colunas ignoradas não são atribuídas aos objetos dos atletas. Adicionado salvamento estruturado de `originalSheet: { fileName, headers, rows, totalRows, importedAt }` repassado no callback `onImportSuccess`.
+  - `server/server.js`: persistência e retorno de `originalSheet` implementados nos endpoints de atletas (`GET/POST /api/events/:eventId/athletes`, `POST /chunks`, `PUT /status`).
+  - `client/src/utils/eventsApi.js`: trânsito de `originalSheet` em `apiFetchAthletes`, `apiSaveAthletes` e `apiSaveAthletesChunked`.
+  - `client/src/components/OperacaoPage.jsx`:
+    - Adicionado suporte a `originalSheet` e nova sub-aba *"PLANILHA ORIGINAL (TODOS OS CAMPOS)"* com contadores, busca em tempo real em todas as colunas, paginação e exportação CSV (`btn-download-original-csv`).
+    - Removido o elemento `<p className="athlete-detail-action-hint">`.
+    - Movido o card `.athlete-entregue-para-card` para o rodapé da página (após os dados cadastrais e custom fields).
+    - `executeCloseAthleteDetail` e `handleUndoAssociation` ajustados para permanecer em `setActiveTab('entrega')`.
+  - `client/src/components/OperacaoPage.css`: estilização responsiva do banner e botão de exportação da planilha original.
+- **Validação Real:**
+  - `node --check server/server.js`: sintaxe válida (exit code 0).
+  - `node server/admin-users.test.mjs`: 1 test passed (1127ms).
+  - `npm run lint --prefix client`: oxlint 0 warnings, 0 errors em 29 arquivos.
+  - `npm run build --prefix client`: bundle de produção gerado com sucesso em 457ms.
+- **Próximo Passo:** Homologação pelo Yuri (PO).
+
+
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead & Fullstack).
 - **Demanda do Yuri (PO via áudio 02:33 com print):**

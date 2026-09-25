@@ -6,6 +6,7 @@ import {
   buildImportColumnSchema,
   isReservedAthleteCustomField,
 } from '../utils/athleteTable.js'
+import { normalizeSexo } from '../utils/athleteDetail.js'
 import './ImportarAtletasModal.css'
 
 function CloseIcon() {
@@ -101,6 +102,9 @@ export default function ImportarAtletasModal({
   const [parsedRows, setParsedRows] = useState([])
   const [columnMapping, setColumnMapping] = useState({})
   const [importStats, setImportStats] = useState({ imported: 0, warnings: [] })
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
+  const [fileName, setFileName] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef(null)
 
@@ -255,6 +259,7 @@ export default function ImportarAtletasModal({
   // Leitura de Arquivo (.csv ou .xlsx)
   async function handleFileSelected(file) {
     if (!file) return
+    setFileName(file.name || '')
 
     if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
       try {
@@ -337,8 +342,10 @@ export default function ImportarAtletasModal({
     setStep(2)
   }
 
-  // Executar Importação na Etapa 2
-  function handleExecuteImport() {
+  // Executar Importação na Etapa 3 e gravar imediatamente no servidor
+  async function handleExecuteImport() {
+    if (importing) return
+    setImportError('')
     const warnings = []
     const importedAthletes = []
     const existingMap = new Set(existingAthletes.map((a) => String(a.id)))
@@ -373,15 +380,9 @@ export default function ImportarAtletasModal({
       Object.entries(columnMapping).forEach(([colIdxStr, fieldKey]) => {
         const colIdx = Number(colIdxStr)
         const val = row[colIdx] !== undefined ? String(row[colIdx]).trim() : ''
-        const headerLabel = String(parsedHeaders[colIdx] || '').trim()
 
-        if (fieldKey === 'ignore') {
-          // PO: nenhum campo da planilha anexada pode ser perdido — a coluna
-          // marcada como "Não importar" vira campo personalizado com o nome
-          // original do cabeçalho e aparece na grade da aba Atletas.
-          if (headerLabel && !isReservedAthleteCustomField(headerLabel)) {
-            athlete.customFields[headerLabel] = val
-          }
+        if (!fieldKey || fieldKey === 'ignore') {
+          // Explicitamente ignorado pelo usuário: NÃO importar para a base de atletas
           return
         }
 
@@ -396,6 +397,8 @@ export default function ImportarAtletasModal({
           athlete.nome = val.toUpperCase()
         } else if (val && fieldKey === 'nome_peito') {
           athlete.nome_peito = val.toUpperCase()
+        } else if (val && fieldKey === 'sexo') {
+          athlete.sexo = normalizeSexo(val)
         } else if (val) {
           athlete[fieldKey] = val
         }
@@ -417,6 +420,52 @@ export default function ImportarAtletasModal({
       importedAthletes.push(athlete)
     })
 
+    if (importedAthletes.length === 0) {
+      setImportError(warnings[0] || 'Nenhum atleta válido foi encontrado na planilha. Verifique o mapeamento das colunas.')
+      return
+    }
+
+    // Auto-extração de kits para planilhas que já vêm com número e chip associados
+    const extractedKits = importedAthletes
+      .filter((a) => a.numero && a.chip)
+      .map((a) => ({
+        numero: String(a.numero).trim(),
+        chip: String(a.chip).trim(),
+        qrCode: String(a.qrCode || a.numero).trim(),
+        status: a.status === 'ENTREGUE' ? 'ENTREGUE' : 'ASSOCIADO',
+      }))
+
+    setImporting(true)
+    let saved = false
+    try {
+      if (onImportSuccess) {
+        saved = Boolean(await onImportSuccess(importedAthletes, {
+          isInitialImport: true,
+          columns: buildImportColumnSchema(parsedHeaders, columnMapping),
+          kits: extractedKits.length > 0 ? extractedKits : undefined,
+          originalSheet: {
+            fileName: fileName || 'planilha_importada.xlsx',
+            headers: parsedHeaders,
+            rows: parsedRows,
+            totalRows: parsedRows.length,
+            importedAt: new Date().toISOString(),
+          },
+        }))
+      } else {
+        saved = true
+      }
+    } catch (err) {
+      console.error('Erro ao salvar planilha importada:', err)
+      saved = false
+    } finally {
+      setImporting(false)
+    }
+
+    if (!saved) {
+      setImportError('Não foi possível salvar a planilha no servidor. Verifique a conexão e tente novamente.')
+      return
+    }
+
     setImportStats({
       imported: importedAthletes.length,
       warnings,
@@ -427,27 +476,21 @@ export default function ImportarAtletasModal({
     setStep(4)
   }
 
-  // Concluir e persistir
+  // Concluir após gravação confirmada
   function handleFinish() {
-    if (importStats.athletes && importStats.athletes.length > 0) {
-      if (onImportSuccess) {
-        onImportSuccess(importStats.athletes, {
-          isInitialImport: true,
-          columns: importStats.columns || [],
-        })
-      }
-    }
     onClose()
   }
 
   // Reiniciar fluxo para importar outro
   function handleReset() {
     setStep(1)
+    setFileName('')
     setRawText('')
     setParsedHeaders([])
     setParsedRows([])
     setColumnMapping({})
     setImportStats({ imported: 0, warnings: [] })
+    setImportError('')
   }
 
   return (
@@ -748,11 +791,17 @@ export default function ImportarAtletasModal({
             )}
 
             {/* Rodapé da Etapa 3 */}
+            {importError && (
+              <p className="kit-scanner-feedback" role="alert" style={{ color: '#ef4444', textAlign: 'center', margin: '14px 0 0', fontWeight: 600, fontSize: '13px' }}>
+                ⚠ {importError}
+              </p>
+            )}
             <div className="importar-modal-actions">
               <button
                 type="button"
                 className="btn-importar-cancel"
                 onClick={() => setStep(2)}
+                disabled={importing}
               >
                 ← VOLTAR AO MAPEAMENTO
               </button>
@@ -760,8 +809,9 @@ export default function ImportarAtletasModal({
                 type="button"
                 className="btn-importar-primary"
                 onClick={handleExecuteImport}
+                disabled={importing}
               >
-                <span>CONFIRMAR E IMPORTAR ATLETAS</span>
+                <span>{importing ? 'SALVANDO PLANILHA NO SERVIDOR…' : 'CONFIRMAR E IMPORTAR ATLETAS'}</span>
                 <span className="btn-arrow">→</span>
               </button>
             </div>

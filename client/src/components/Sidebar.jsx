@@ -1,5 +1,42 @@
 import { useState } from 'react'
+import logoImg from '../assets/logo.png'
 import './Sidebar.css'
+
+function BrandRunnerLogo({ size = 32 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Entregas RUN">
+      <circle cx="24" cy="24" r="23" fill="#ffffff" stroke="#ff5200" strokeWidth="2" />
+      <circle cx="34" cy="14" r="4.5" fill="#0c142c" />
+      <path d="M28 17l-5 6-6-2-4 5h4l3-3 4 1.5 5-5.5z" fill="#0c142c" />
+      <path d="M24 23l-3 7-7 2 1 3 8-2.5 3-6.5z" fill="#0c142c" />
+      <path d="M28 24l5 6 6-1v-3l-4 .5-4-5z" fill="#ff5200" />
+      <path d="M12 28h8v2h-8zM10 32h11v2H10zM14 36h8v2h-8z" fill="#ff5200" />
+    </svg>
+  )
+}
+
+function SidebarBrandLogo({ className = '', alt = 'Entregas RUN' }) {
+  const [hasError, setHasError] = useState(false)
+
+  if (hasError) {
+    return <BrandRunnerLogo size={className === 'mobile-top-logo' ? 24 : 32} />
+  }
+
+  return (
+    <img
+      src={logoImg}
+      alt={alt}
+      className={className}
+      onError={(e) => {
+        if (e.currentTarget.src !== window.location.origin + '/logo.png') {
+          e.currentTarget.src = '/logo.png'
+        } else {
+          setHasError(true)
+        }
+      }}
+    />
+  )
+}
 
 function LayoutGridIcon() {
   return (
@@ -115,7 +152,7 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
         </button>
 
         <div className="mobile-top-brand" onClick={() => handleNav('dashboard')}>
-          <img src="/logo.png" alt="Entregas RUN" className="mobile-top-logo" />
+          <SidebarBrandLogo className="mobile-top-logo" alt="Entregas RUN" />
           <span className="mobile-top-title">ENTREGAS RUN</span>
         </div>
 
@@ -138,7 +175,7 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
         <div className="sidebar-top">
           <div className="sidebar-brand">
             <div className="sidebar-brand-badge" onClick={() => handleNav('dashboard')} style={{ cursor: 'pointer' }} title="Ir para o Dashboard">
-              <img src="/logo.png" alt="Entregas RUN" />
+              <SidebarBrandLogo alt="Entregas RUN" />
             </div>
             <span className="sidebar-brand-title-mobile">ENTREGAS RUN</span>
             

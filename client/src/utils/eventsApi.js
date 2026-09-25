@@ -119,19 +119,26 @@ export async function apiFetchAthletes(eventId) {
     })
     if (!res.ok) return null
     const data = await res.json()
-    return data.ok ? { athletes: data.athletes || [], schema: data.schema || [], kits: data.kits || [] } : null
+    return data.ok
+      ? {
+          athletes: data.athletes || [],
+          schema: data.schema || [],
+          kits: data.kits || [],
+          originalSheet: data.originalSheet || null,
+        }
+      : null
   } catch (err) {
     console.warn(`[eventsApi] Erro ao buscar atletas do evento ${eventId}:`, err)
     return null
   }
 }
 
-export async function apiSaveAthletes(eventId, athletes, schema = [], kits) {
+export async function apiSaveAthletes(eventId, athletes, schema = [], kits, originalSheet) {
   if (!eventId || !Array.isArray(athletes)) return false
   // Listas grandes (ex: 1.011 atletas) vão fatiadas para não estourar
   // o payload único e permitir retry por fatia no servidor.
   if (athletes.length > 300) {
-    return apiSaveAthletesChunked(eventId, athletes, schema, kits, 250)
+    return apiSaveAthletesChunked(eventId, athletes, schema, kits, 250, originalSheet)
   }
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes`, {
@@ -140,7 +147,12 @@ export async function apiSaveAthletes(eventId, athletes, schema = [], kits) {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify({ athletes, schema, ...(kits === undefined ? {} : { kits }) }),
+      body: JSON.stringify({
+        athletes,
+        schema,
+        ...(kits === undefined ? {} : { kits }),
+        ...(originalSheet === undefined ? {} : { originalSheet }),
+      }),
     })
     if (!res.ok) return false
     const data = await res.json()
@@ -151,7 +163,7 @@ export async function apiSaveAthletes(eventId, athletes, schema = [], kits) {
   }
 }
 
-export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kits, chunkSize = 250) {
+export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kits, chunkSize = 250, originalSheet) {
   if (!eventId || !Array.isArray(athletes)) return false
   const uploadId = `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
   const totalChunks = Math.max(1, Math.ceil(athletes.length / chunkSize))
@@ -169,13 +181,19 @@ export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kit
           chunkIndex: i,
           totalChunks,
           athletesChunk: chunk,
-          ...(i === 0 ? { schema, ...(kits === undefined ? {} : { kits }) } : {}),
+          ...(i === 0
+            ? {
+                schema,
+                ...(kits === undefined ? {} : { kits }),
+                ...(originalSheet === undefined ? {} : { originalSheet }),
+              }
+            : {}),
         }),
       })
       if (!res.ok) {
         // Servidor antigo sem rota de chunks: cai para o POST único
         if (res.status === 404 && totalChunks > 1) {
-          return apiSaveAthletesSingle(eventId, athletes, schema, kits)
+          return apiSaveAthletesSingle(eventId, athletes, schema, kits, originalSheet)
         }
         return false
       }
@@ -189,7 +207,7 @@ export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kit
   }
 }
 
-async function apiSaveAthletesSingle(eventId, athletes, schema = [], kits) {
+async function apiSaveAthletesSingle(eventId, athletes, schema = [], kits, originalSheet) {
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes`, {
       method: 'POST',
@@ -197,7 +215,12 @@ async function apiSaveAthletesSingle(eventId, athletes, schema = [], kits) {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify({ athletes, schema, ...(kits === undefined ? {} : { kits }) }),
+      body: JSON.stringify({
+        athletes,
+        schema,
+        ...(kits === undefined ? {} : { kits }),
+        ...(originalSheet === undefined ? {} : { originalSheet }),
+      }),
     })
     if (!res.ok) return false
     const data = await res.json()

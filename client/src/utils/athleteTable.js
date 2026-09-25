@@ -57,20 +57,10 @@ export function buildImportColumnSchema(headers = [], columnMapping = {}) {
   headers.forEach((header, columnIndex) => {
     const mappedField = columnMapping[columnIndex]
 
-    // Colunas marcadas como "Não importar" entram como campo personalizado
-    // com o nome original — a grade sempre exibe todos os campos do arquivo.
+    // Se o usuário selecionou "Não importar" (ignore) ou a coluna não foi mapeada,
+    // ela NÃO entra no schema da tabela operacional de atletas.
+    // Todos os campos originais da planilha continuam preservados na aba "Planilha Original".
     if (!mappedField || mappedField === 'ignore') {
-      const cleanHeader = String(header || '').trim()
-      if (!cleanHeader || isReservedAthleteCustomField(cleanHeader)) return
-      const normalizedKey = normalizeColumnKey(`custom:${cleanHeader}`)
-      if (!normalizedKey || seen.has(normalizedKey)) return
-      seen.add(normalizedKey)
-      schema.push({
-        key: `custom:${cleanHeader}`,
-        customKey: cleanHeader,
-        label: cleanHeader.toLocaleUpperCase('pt-BR'),
-        type: 'custom',
-      })
       return
     }
 

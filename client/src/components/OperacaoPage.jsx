@@ -24,11 +24,12 @@ import {
   getAthleteColumnWidth,
   getAthleteTableColumns,
   getAthleteTableValue,
-  mergeAthleteColumnSchemas,
 } from '../utils/athleteTable.js'
 import { getEspelhoConfig, publishEspelhoState } from '../utils/espelhoSync.js'
 import KitQrScannerModal from './KitQrScannerModal.jsx'
+import PendingKitDecisionModal from './PendingKitDecisionModal.jsx'
 import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
+import './PendingKitDecisionModal.css'
 import './OperacaoPage.css'
 
 function QrCodeIcon({ size = 16 }) {
@@ -120,6 +121,18 @@ function ClipboardIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
       <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+    </svg>
+  )
+}
+
+function FileSpreadsheetIcon({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <path d="M8 13h8" />
+      <path d="M8 17h8" />
+      <path d="M10 9h1" />
     </svg>
   )
 }
@@ -367,7 +380,6 @@ export default function OperacaoPage({
 
   // Selected athlete for detailed kit delivery view (Photo reference)
   const [selectedAthlete, setSelectedAthlete] = useState(null)
-  const [detailSourceTab, setDetailSourceTab] = useState(null)
   const [detailForm, setDetailForm] = useState(null)
   const [detailInitialForm, setDetailInitialForm] = useState(null)
   const [detailFeedback, setDetailFeedback] = useState('')
@@ -475,8 +487,75 @@ export default function OperacaoPage({
     }
   })
 
+  // Planilha Original Bruta (todos os campos do arquivo anexado)
+  const [originalSheet, setOriginalSheet] = useState(() => {
+    try {
+      if (!currentEvent.id) return null
+      const saved = localStorage.getItem(`entregas_run_original_sheet_${currentEvent.id}`)
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
+
+  useEffect(() => {
+    try {
+      if (currentEvent.id) {
+        if (originalSheet) {
+          localStorage.setItem(`entregas_run_original_sheet_${currentEvent.id}`, JSON.stringify(originalSheet))
+        } else {
+          localStorage.removeItem(`entregas_run_original_sheet_${currentEvent.id}`)
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [originalSheet, currentEvent.id])
+
   // Estado do sync com o servidor (visível no console + cura divergência)
   const [athletesSync, setAthletesSync] = useState({ state: 'idle', at: null })
+
+  const associationLockRef = useRef(false)
+  const [associationSaving, setAssociationSaving] = useState(false)
+  const [pendingKitDecision, setPendingKitDecision] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`entregas_run_kit_decision_${event?.id}`) || 'null')
+    } catch {
+      return null
+    }
+  })
+  const [decisionSaving, setDecisionSaving] = useState(false)
+  const [decisionError, setDecisionError] = useState('')
+  const decisionLockRef = useRef(false)
+  const skipNextAthletesAutosaveRef = useRef(false)
+  const didMountAthletesAutosaveRef = useRef(false)
+  const athletesAutosaveTimerRef = useRef(null)
+  const athleteSaveQueueRef = useRef(Promise.resolve())
+  const saveAthletesInOrder = useCallback((...args) => {
+    const save = athleteSaveQueueRef.current.then(() => apiSaveAthletes(...args))
+    athleteSaveQueueRef.current = save.catch(() => false)
+    return save
+  }, [])
+
+  function cancelAthletesAutosave() {
+    if (athletesAutosaveTimerRef.current) {
+      clearTimeout(athletesAutosaveTimerRef.current)
+      athletesAutosaveTimerRef.current = null
+    }
+  }
+
+  const hasPendingKitDecision = pendingKitDecision?.eventId === currentEvent.id
+
+  useEffect(() => {
+    if (!pendingKitDecision || pendingKitDecision.eventId !== currentEvent.id || selectedAthlete) return
+    const athlete = athletes.find((item) => String(item.id) === pendingKitDecision.athleteId)
+    if (!athlete) return
+    setSelectedAthlete(athlete)
+    const draft = buildAthleteDetailDraft(athlete)
+    setDetailForm(draft)
+    setDetailInitialForm(draft)
+    setActiveTab('entrega')
+  }, [athletes, currentEvent.id, pendingKitDecision, selectedAthlete])
 
   // Save athletes to localStorage e sincroniza com o servidor central
   // Upload fatiado automático p/ listas grandes; falha vira estado visível
@@ -493,10 +572,21 @@ export default function OperacaoPage({
       // ignore
     }
 
+    if (!didMountAthletesAutosaveRef.current) {
+      didMountAthletesAutosaveRef.current = true
+      return undefined
+    }
+
+    if (skipNextAthletesAutosaveRef.current) {
+      skipNextAthletesAutosaveRef.current = false
+      return undefined
+    }
+
     if (currentEvent.id && Array.isArray(athletes) && athletes.length > 0) {
       setAthletesSync((prev) => (prev.state === 'saving' ? prev : { state: 'saving', at: Date.now() }))
       const timer = setTimeout(() => {
-        apiSaveAthletes(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
+        athletesAutosaveTimerRef.current = null
+        saveAthletesInOrder(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet)
           .then((saved) => {
             setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
             if (!saved) console.warn(`[operacao] Sync de atletas falhou p/ evento ${currentEvent.id} — tentando de novo no próximo ciclo.`)
@@ -506,9 +596,13 @@ export default function OperacaoPage({
             setAthletesSync({ state: 'error', at: Date.now() })
           })
       }, 600)
-      return () => clearTimeout(timer)
+      athletesAutosaveTimerRef.current = timer
+      return () => {
+        clearTimeout(timer)
+        if (athletesAutosaveTimerRef.current === timer) athletesAutosaveTimerRef.current = null
+      }
     }
-  }, [athletes, athleteColumnSchema, kits, currentEvent.id])
+  }, [athletes, athleteColumnSchema, kits, originalSheet, currentEvent.id, saveAthletesInOrder])
 
   useEffect(() => {
     try {
@@ -531,11 +625,16 @@ export default function OperacaoPage({
     if (!currentEvent.id) return () => { isMounted = false }
     if (athletes.length === 0) {
       apiFetchAthletes(currentEvent.id).then((result) => {
-        if (isMounted && result && Array.isArray(result.athletes) && result.athletes.length > 0) {
-          setAthletes(result.athletes)
+        if (isMounted && result) {
+          if (Array.isArray(result.athletes) && result.athletes.length > 0) {
+            setAthletes(result.athletes)
+          }
           if (Array.isArray(result.kits)) setKits(result.kits)
           if (Array.isArray(result.schema) && result.schema.length > 0) {
             setAthleteColumnSchema(result.schema)
+          }
+          if (result.originalSheet) {
+            setOriginalSheet(result.originalSheet)
           }
         }
       })
@@ -543,7 +642,7 @@ export default function OperacaoPage({
       apiFetchAthletes(currentEvent.id).then((result) => {
         if (!isMounted) return
         if (result && Array.isArray(result.athletes) && result.athletes.length === 0) {
-          apiSaveAthletes(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
+          saveAthletesInOrder(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet)
             .then((saved) => {
               if (isMounted) setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
             })
@@ -989,41 +1088,79 @@ export default function OperacaoPage({
   // Selected comprovante modal / preview
   const [selectedComprovante, setSelectedComprovante] = useState(null)
 
-  function handleImportSuccess(newAthletes, options = {}) {
+  async function handleImportSuccess(newAthletes, options = {}) {
     let nextKits = kits
     if (Array.isArray(options.kits)) {
       setKits(options.kits)
       nextKits = options.kits
-    }
-    let nextSchema = athleteColumnSchema
-    if (Array.isArray(options.columns) && options.columns.length > 0) {
-      nextSchema = mergeAthleteColumnSchemas(athleteColumnSchema, options.columns)
-      setAthleteColumnSchema(nextSchema)
+    } else {
+      // Auto-extração para planilha completa com atletas que já possuem número e chip
+      const autoKits = (newAthletes || [])
+        .filter((a) => a.numero && a.chip)
+        .map((a) => ({
+          numero: String(a.numero).trim(),
+          chip: String(a.chip).trim(),
+          qrCode: String(a.qrCode || a.numero).trim(),
+          status: a.status === 'ENTREGUE' ? 'ENTREGUE' : 'ASSOCIADO',
+        }))
+      if (autoKits.length > 0) {
+        setKits(autoKits)
+        nextKits = autoKits
+      }
     }
 
+    let nextSchema = athleteColumnSchema
+    if (Array.isArray(options.columns) && options.columns.length > 0) {
+      nextSchema = options.columns
+      setAthleteColumnSchema(nextSchema)
+    }
+    let nextOriginalSheet = originalSheet
+    if (options.originalSheet) {
+      setOriginalSheet(options.originalSheet)
+      nextOriginalSheet = options.originalSheet
+    }
+
+    // Calcula mergedAthletes de forma síncrona para garantir persistência imediata
+    const prev = athletes || []
     let mergedAthletes = []
-    setAthletes((prev) => {
+    if (options?.isInitialImport || prev.length === 0) {
+      mergedAthletes = [...newAthletes]
+    } else {
       const existingMap = new Map(prev.map((a) => [String(a.id || a.numero), a]))
       for (const a of newAthletes) {
         existingMap.set(String(a.id || a.numero), a)
       }
       mergedAthletes = Array.from(existingMap.values())
-      try {
-        localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(mergedAthletes))
-        if (options?.isInitialImport) {
-          localStorage.setItem(`entregas_run_original_athletes_${currentEvent.id}`, JSON.stringify(mergedAthletes))
-        }
-      } catch {
-        // ignore
-      }
-      return mergedAthletes
-    })
+    }
 
+    setAthletes(mergedAthletes)
+    try {
+      localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(mergedAthletes))
+    } catch {
+      // ignore
+    }
+
+    cancelAthletesAutosave()
+    let saveResult = true
     if (currentEvent?.id && mergedAthletes.length > 0) {
       setAthletesSync({ state: 'saving', at: Date.now() })
-      apiSaveAthletes(currentEvent.id, mergedAthletes, nextSchema, Array.isArray(nextKits) ? nextKits : undefined)
-        .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
-        .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
+      try {
+        const saved = await saveAthletesInOrder(
+          currentEvent.id,
+          mergedAthletes,
+          nextSchema,
+          Array.isArray(nextKits) ? nextKits : undefined,
+          nextOriginalSheet
+        )
+        setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
+        saveResult = Boolean(saved)
+      } catch {
+        setAthletesSync({ state: 'error', at: Date.now() })
+        saveResult = false
+      }
+    }
+    if (saveResult) {
+      skipNextAthletesAutosaveRef.current = true
     }
 
     const importedDelivered = (newAthletes || []).filter((a) => a.status === 'ENTREGUE')
@@ -1049,6 +1186,7 @@ export default function OperacaoPage({
         return merged.sort((a, b) => compareAthleteNumbers(a.id, b.id))
       })
     }
+    return saveResult
   }
 
   function handleExportPlanilha() {
@@ -1217,7 +1355,6 @@ export default function OperacaoPage({
       setDetailInitialForm(buildAthleteDetailDraft(fallbackAthlete))
     }
     setDetailFeedback('')
-    setDetailSourceTab(activeTab)
     setActiveTab('entrega')
     publishEspelho('ATENDENDO', athlete)
   }
@@ -1265,8 +1402,8 @@ export default function OperacaoPage({
     setScannedKit(unassignedKit)
   }
 
-  function confirmKitAssociation() {
-    if (!scannerAthlete || !scannedKit) return
+  async function confirmKitAssociation() {
+    if (!scannerAthlete || !scannedKit || associationLockRef.current || hasPendingKitDecision) return
     const source = athletes.find((a) => matchesAthleteReference(a, scannerAthlete))
     if (!source || !canAssociateAthleteKit(source)) {
       setScanFeedback('Este atleta já está associado ou teve o kit entregue. Atualize a ficha para continuar.')
@@ -1283,17 +1420,37 @@ export default function OperacaoPage({
     }
     const updated = {
       ...source,
+      _kitPreviousNumero: String(source.numero || ''),
       numero: String(scannedKit.numero),
       chip: String(scannedKit.chip),
       qrCode: String(scannedKit.qrCode),
     }
     const nextAthletes = athletes.map((a) => matchesAthleteReference(a, source) ? updated : a)
-    setAthletes(nextAthletes)
-    if (currentEvent?.id) {
-      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
-        .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
-        .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
+    cancelAthletesAutosave()
+    associationLockRef.current = true
+    setAssociationSaving(true)
+    const saved = currentEvent?.id && await saveAthletesInOrder(
+      currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet
+    )
+    associationLockRef.current = false
+    setAssociationSaving(false)
+    setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
+    if (!saved) {
+      setScanFeedback('Não foi possível salvar a associação. Confira a conexão e tente novamente.')
+      return
     }
+    skipNextAthletesAutosaveRef.current = true
+    setAthletes(nextAthletes)
+    const decision = {
+      eventId: currentEvent.id,
+      athleteId: String(updated.id),
+      athleteName: updated.nome,
+      numero: updated.numero,
+      chip: updated.chip,
+      resolution: null,
+    }
+    localStorage.setItem(`entregas_run_kit_decision_${currentEvent.id}`, JSON.stringify(decision))
+    setPendingKitDecision(decision)
 
     // Abre a tela/ficha do atleta na aba de entrega com os botões ENTREGAR KIT e DESFAZER
     setSelectedAthlete(updated)
@@ -1307,18 +1464,16 @@ export default function OperacaoPage({
 
     setScannerAthlete(null)
     setScannedKit(null)
+    setScanFeedback('')
   }
 
   function executeCloseAthleteDetail() {
-    const returnTab = detailSourceTab
     setSelectedAthlete(null)
     setDetailForm(null)
     setDetailInitialForm(null)
     setDetailFeedback('')
     setDetailSourceTab(null)
-    if (returnTab && returnTab !== 'entrega') {
-      setActiveTab(returnTab)
-    }
+    setActiveTab('entrega')
     publishEspelho('LIVRE')
   }
 
@@ -1326,6 +1481,7 @@ export default function OperacaoPage({
   executeCloseRef.current = executeCloseAthleteDetail
 
   function closeAthleteDetail({ force = false } = {}) {
+    if (hasPendingKitDecision) return false
     if (!force && detailHasChanges) {
       const shouldDiscard = window.confirm(
         'Existem alterações não salvas. Deseja descartar e voltar para a lista?'
@@ -1338,16 +1494,19 @@ export default function OperacaoPage({
   }
 
   function handleGuardedNavigate(page, id) {
+    if (hasPendingKitDecision) return
     if (!closeAthleteDetail()) return
     onNavigate(page, id)
   }
 
   function handleGuardedLogout() {
+    if (hasPendingKitDecision) return
     if (!closeAthleteDetail()) return
     onLogout()
   }
 
   function handleOperationTabChange(tab) {
+    if (hasPendingKitDecision) return
     if (tab !== 'entrega' && !closeAthleteDetail()) return
     setActiveTab(tab)
   }
@@ -1462,8 +1621,8 @@ export default function OperacaoPage({
   const deliverBlockedByEdits = canEditAthlete && detailHasPendingEdits
 
   // Desfazer Associação / Entrega: limpa completamente chip, qrCode, entrega e status
-  function handleUndoAssociation() {
-    if (!selectedAthlete) return
+  function handleUndoAssociation({ skipServerSave = false } = {}) {
+    if (!selectedAthlete) return null
 
     const athleteRef = selectedAthlete
     const wasEntregue =
@@ -1472,7 +1631,7 @@ export default function OperacaoPage({
 
     if (wasEntregue && !canUndo) {
       alert('Apenas Supervisores ou Administradores podem desfazer entregas já concluídas.')
-      return
+      return null
     }
 
     const updatedAthlete = {
@@ -1487,7 +1646,10 @@ export default function OperacaoPage({
 
     // Se o número de peito foi associado via kit de leitura ou importação sem número fixo,
     // ou se o kit associado corresponde a este número, limpa o número também
-    if (athleteRef._origNumero === '' || athleteRef._wasUnassignedNumber || athleteRef.id?.startsWith('import-')) {
+    if (Object.prototype.hasOwnProperty.call(athleteRef, '_kitPreviousNumero')) {
+      updatedAthlete.numero = athleteRef._kitPreviousNumero
+      delete updatedAthlete._kitPreviousNumero
+    } else if (athleteRef._origNumero === '' || athleteRef._wasUnassignedNumber || athleteRef.id?.startsWith('import-')) {
       if (Array.isArray(kits) && kits.some((k) => String(k.numero).trim() === String(athleteRef.numero).trim())) {
         updatedAthlete.numero = ''
       }
@@ -1530,18 +1692,18 @@ export default function OperacaoPage({
     }
 
     // Persistência no backend / volume
-    if (currentEvent?.id) {
-      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
+    if (currentEvent?.id && !skipServerSave) {
+      saveAthletesInOrder(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet)
         .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
         .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
     }
 
     // Se NÃO estava entregue (era apenas associação de kit pendente):
-    // Volta direto para a lista de atletas na aba 'atletas' para escolher um novo atleta!
+    // Volta direto para a lista de entrega na aba 'entrega' para escolher um novo atleta!
     if (!wasEntregue) {
       executeCloseAthleteDetail()
-      setActiveTab('atletas')
-      return
+      setActiveTab('entrega')
+      return updatedAthlete
     }
 
     const nextDraft = buildAthleteDetailDraft(updatedAthlete)
@@ -1550,6 +1712,7 @@ export default function OperacaoPage({
     setDetailInitialForm(nextDraft)
     setDetailFeedback('Associação desfeita com sucesso! Chip, QR Code e status foram limpos.')
     publishEspelho('ATENDENDO', updatedAthlete)
+    return updatedAthlete
   }
 
   // Handle Add Athlete Submission (Dinâmico para Tabela Importada / Associada)
@@ -1750,17 +1913,17 @@ export default function OperacaoPage({
     return newAudit
   }
 
-  function handleSaveAndDeliver() {
-    if (detailActionLockRef.current || !selectedAthlete) return
+  function handleSaveAndDeliver({ recipientOverride } = {}) {
+    if (detailActionLockRef.current || !selectedAthlete) return null
 
     detailActionLockRef.current = true
     setDetailActionInProgress(true)
     try {
       const sourceAthlete = selectedAthlete
       const customRecipient = String(
-        (detailForm && detailForm.entreguePara ? detailForm.entreguePara : '') ||
-        selectedAthlete.entreguePara ||
-        ''
+        recipientOverride !== undefined
+          ? recipientOverride
+          : ((detailForm && detailForm.entreguePara ? detailForm.entreguePara : '') || selectedAthlete.entreguePara || '')
       ).trim()
 
       const athleteToDeliver = !canEditAthlete
@@ -1772,10 +1935,10 @@ export default function OperacaoPage({
             ...(persistDetailDraft({ showFeedback: false }) || selectedAthlete),
             entreguePara: customRecipient,
           }
-      if (!athleteToDeliver) return
+      if (!athleteToDeliver) return null
 
       const auditRecord = handleDeliverKit(athleteToDeliver, sourceAthlete)
-      if (!auditRecord) return
+      if (!auditRecord) return null
 
       const deliveredAthlete = {
         ...athleteToDeliver,
@@ -1791,11 +1954,57 @@ export default function OperacaoPage({
       setDetailFeedback('✓ Kit entregue com sucesso!')
       publishEspelho('ENTREGUE', deliveredAthlete)
       setKitSearch('')
+      return deliveredAthlete
     } finally {
       window.setTimeout(() => {
         detailActionLockRef.current = false
         setDetailActionInProgress(false)
       }, 0)
+    }
+  }
+
+  async function resolvePendingKitDecision(action, recipient = '') {
+    if (!pendingKitDecision || !selectedAthlete || decisionLockRef.current) return
+    decisionLockRef.current = true
+    setDecisionSaving(true)
+    setDecisionError('')
+    try {
+      cancelAthletesAutosave()
+      let nextDecision = pendingKitDecision
+      let nextAthletes = athletes
+      if (!pendingKitDecision.resolution) {
+        skipNextAthletesAutosaveRef.current = true
+        const updated = action === 'deliver'
+          ? handleSaveAndDeliver({ recipientOverride: recipient })
+          : handleUndoAssociation({ skipServerSave: true })
+        if (!updated) {
+          skipNextAthletesAutosaveRef.current = false
+          setDecisionError('Não foi possível concluir a ação. Confira os dados e tente novamente.')
+          return
+        }
+        nextAthletes = athletes.map((athlete) =>
+          matchesAthleteReference(athlete, selectedAthlete) ? updated : athlete
+        )
+        localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(nextAthletes))
+        nextDecision = { ...pendingKitDecision, resolution: action }
+        localStorage.setItem(`entregas_run_kit_decision_${currentEvent.id}`, JSON.stringify(nextDecision))
+        setPendingKitDecision(nextDecision)
+      }
+      const saved = await saveAthletesInOrder(
+        currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet
+      )
+      setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
+      if (!saved) {
+        setDecisionError('A ação foi registrada neste navegador, mas não foi salva no servidor. Tente salvar novamente.')
+        return
+      }
+      localStorage.removeItem(`entregas_run_kit_decision_${currentEvent.id}`)
+      setPendingKitDecision(null)
+    } catch {
+      setDecisionError('Não foi possível salvar a decisão. Confira a conexão e tente novamente.')
+    } finally {
+      setDecisionSaving(false)
+      decisionLockRef.current = false
     }
   }
 
@@ -1914,6 +2123,94 @@ export default function OperacaoPage({
       ),
     [visibleAthleteTableColumns]
   )
+
+  // Planilha Original Bruta: headers, rows, busca e paginação
+  const effectiveOriginalSheet = useMemo(() => {
+    if (originalSheet && Array.isArray(originalSheet.headers) && originalSheet.headers.length > 0) {
+      return originalSheet
+    }
+    if (!athletes || athletes.length === 0) return null
+
+    // Fallback gracioso para eventos existentes sem originalSheet salvo
+    const standardPresent = [
+      { key: 'numero', label: 'NÚMERO' },
+      { key: 'nome', label: 'NOME' },
+      { key: 'doc', label: 'DOCUMENTO' },
+      { key: 'chip', label: 'CHIP' },
+      { key: 'sexo', label: 'SEXO' },
+      { key: 'nascimento', label: 'NASCIMENTO' },
+      { key: 'modalidade', label: 'MODALIDADE' },
+      { key: 'categoria', label: 'CATEGORIA' },
+      { key: 'camiseta', label: 'CAMISETA' },
+      { key: 'equipe', label: 'EQUIPE' },
+      { key: 'cidade', label: 'CIDADE' },
+      { key: 'contato', label: 'CONTATO' },
+      { key: 'morador', label: 'MORADOR' },
+      { key: 'nacionalidade', label: 'NACIONALIDADE' },
+      { key: 'kit', label: 'KIT' },
+      { key: 'status', label: 'STATUS' },
+    ].filter((col) => col.key === 'numero' || col.key === 'nome' || athletes.some((a) => a[col.key] != null && String(a[col.key]).trim() !== ''))
+
+    const customKeysSet = new Set()
+    athletes.forEach((a) => {
+      if (a.customFields && typeof a.customFields === 'object') {
+        Object.keys(a.customFields).forEach((k) => customKeysSet.add(k))
+      }
+    })
+    const customKeys = Array.from(customKeysSet)
+
+    const headers = [...standardPresent.map((c) => c.label), ...customKeys.map((k) => k.toUpperCase())]
+    const rows = athletes.map((a) => {
+      const standardVals = standardPresent.map((c) => a[c.key] ?? '')
+      const customVals = customKeys.map((k) => a.customFields?.[k] ?? '')
+      return [...standardVals, ...customVals]
+    })
+
+    return {
+      fileName: 'base_atletas.xlsx',
+      headers,
+      rows,
+      totalRows: rows.length,
+      importedAt: currentEvent?.createdAt || null,
+      isReconstructed: true,
+    }
+  }, [originalSheet, athletes, currentEvent?.createdAt])
+
+  const [originalSheetSearch, setOriginalSheetSearch] = useState('')
+  const [originalSheetPage, setOriginalSheetPage] = useState(1)
+  const ORIGINAL_SHEET_PER_PAGE = 50
+  const originalSheetTableRef = useRef(null)
+
+  const filteredOriginalRows = useMemo(() => {
+    if (!effectiveOriginalSheet || !Array.isArray(effectiveOriginalSheet.rows)) return []
+    const q = originalSheetSearch.trim().toLowerCase()
+    if (!q) return effectiveOriginalSheet.rows
+    return effectiveOriginalSheet.rows.filter((row) =>
+      row.some((cell) => cell != null && String(cell).toLowerCase().includes(q))
+    )
+  }, [effectiveOriginalSheet, originalSheetSearch])
+
+  const totalOriginalPages = Math.max(1, Math.ceil(filteredOriginalRows.length / ORIGINAL_SHEET_PER_PAGE))
+  const currentOriginalPage = Math.min(originalSheetPage, totalOriginalPages)
+  const originalPageStart = (currentOriginalPage - 1) * ORIGINAL_SHEET_PER_PAGE
+  const originalPageEnd = Math.min(originalPageStart + ORIGINAL_SHEET_PER_PAGE, filteredOriginalRows.length)
+  const paginatedOriginalRows = filteredOriginalRows.slice(originalPageStart, originalPageEnd)
+
+  function handleDownloadOriginalCsv() {
+    if (!effectiveOriginalSheet || !effectiveOriginalSheet.headers?.length) return
+    const headersLine = effectiveOriginalSheet.headers.map((h) => `"${String(h || '').replace(/"/g, '""')}"`).join(';')
+    const rowsLines = (effectiveOriginalSheet.rows || []).map((row) =>
+      row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(';')
+    )
+    const csvContent = '\uFEFF' + [headersLine, ...rowsLines].join('\r\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${effectiveOriginalSheet.fileName ? effectiveOriginalSheet.fileName.replace(/\.[^.]+$/, '') : 'planilha_original'}_completa.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   // Filtered Athletes for Tab 1 (Kit Search - traz tanto quem já recebeu kit quanto pendente)
   const searchResultsKit = useMemo(() => {
@@ -2070,7 +2367,18 @@ export default function OperacaoPage({
             onClick={() => handleOperationTabChange('atletas')}
           >
             <UsersTabIcon />
-            <span>ATLETAS</span>
+            <span className="tab-label-full">ATLETAS ({visibleAthleteTableColumns.length} CAMPOS)</span>
+            <span className="tab-label-short">ATLETAS</span>
+          </button>
+
+          <button
+            type="button"
+            className={`operacao-subtab ${effectiveTab === 'original' ? 'active' : ''}`}
+            onClick={() => handleOperationTabChange('original')}
+          >
+            <FileSpreadsheetIcon />
+            <span className="tab-label-full">PLANILHA ORIGINAL (TODOS OS CAMPOS)</span>
+            <span className="tab-label-short">ORIGINAL</span>
           </button>
 
           <button
@@ -2181,13 +2489,6 @@ export default function OperacaoPage({
                   </button>
                 </div>
 
-                {!isOperator && detailForm.status !== 'ENTREGUE' && (
-                  <p className={`athlete-detail-action-hint ${detailHasPendingEdits ? 'pending-warning' : ''}`}>
-                    {detailHasPendingEdits
-                      ? '⚠ Alterações pendentes: clique em SALVAR ALTERAÇÕES para liberar o botão de entrega.'
-                      : 'Cadastro salvo. O botão ENTREGAR KIT está liberado — salvar não registra a entrega.'}
-                  </p>
-                )}
 
                 {detailFeedback && !detailHasChanges && (
                   <div className="athlete-detail-feedback" role="status">
@@ -2251,29 +2552,6 @@ export default function OperacaoPage({
                   </div>
                 )}
 
-                {/* Card: RETIRADO POR / ENTREGUE PARA (acessível para Operador e Supervisor) */}
-                <div className="athlete-entregue-para-card" style={{ marginBottom: '16px' }}>
-                  <div className="athlete-form-group">
-                    <label className="athlete-form-label" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>👤 ENTREGUE PARA / RETIRADO POR</span>
-                      <small style={{ fontWeight: 400, color: '#64748b' }}>(Se terceiro estiver retirando, digite o nome aqui antes de entregar)</small>
-                    </label>
-                    <input
-                      type="text"
-                      className="athlete-form-input entregue-para-input"
-                      disabled={detailForm.status === 'ENTREGUE' && !canUndo}
-                      value={detailForm.entreguePara || ''}
-                      placeholder="Deixe em branco para o próprio atleta ou digite o nome do terceiro"
-                      onChange={(e) =>
-                        setDetailForm({
-                          ...detailForm,
-                          entreguePara: e.target.value,
-                        })
-                      }
-                      style={{ maxWidth: '100%', fontSize: '15px', fontWeight: 500 }}
-                    />
-                  </div>
-                </div>
 
                 {isOperator && (
                   <div className="operator-permission-notice">
@@ -2331,7 +2609,7 @@ export default function OperacaoPage({
                       </div>
                     )}
 
-                    {(activeColumnKeys.has('sexo') || Boolean(detailForm.sexo)) && (
+                    {activeColumnKeys.has('sexo') && (
                       <div className="athlete-form-group">
                         <label className="athlete-form-label">SEXO</label>
                         <select
@@ -2349,7 +2627,7 @@ export default function OperacaoPage({
                   </div>
 
                   {/* Linha 2: NASCIMENTO (se presente) */}
-                  {(activeColumnKeys.has('nascimento') || Boolean(detailForm.nascimento)) && (
+                  {activeColumnKeys.has('nascimento') && (
                     <div className="detail-form-row-4">
                       <div className="athlete-form-group">
                         <label className="athlete-form-label">NASCIMENTO</label>
@@ -2542,7 +2820,7 @@ export default function OperacaoPage({
                         </div>
                       )}
 
-                      {(activeColumnKeys.has('contato') || Boolean(detailForm.contato)) && (
+                      {activeColumnKeys.has('contato') && (
                         <div className="athlete-form-group">
                           <label className="athlete-form-label">CONTATO</label>
                           <input
@@ -2560,7 +2838,7 @@ export default function OperacaoPage({
                         </div>
                       )}
 
-                      {(activeColumnKeys.has('cidade') || Boolean(detailForm.cidade)) && (
+                      {activeColumnKeys.has('cidade') && (
                         <div className="athlete-form-group">
                           <label className="athlete-form-label">CIDADE</label>
                           <input
@@ -2641,6 +2919,30 @@ export default function OperacaoPage({
                   )}
                   </fieldset>
                 </form>
+
+                {/* Card: RETIRADO POR / ENTREGUE PARA (posicionado no final da página) */}
+                <div className="athlete-entregue-para-card" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                  <div className="athlete-form-group">
+                    <label className="athlete-form-label" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>👤 ENTREGUE PARA / RETIRADO POR</span>
+                      <small style={{ fontWeight: 400, color: '#64748b' }}>(Se terceiro estiver retirando, digite o nome aqui antes de entregar)</small>
+                    </label>
+                    <input
+                      type="text"
+                      className="athlete-form-input entregue-para-input"
+                      disabled={detailForm.status === 'ENTREGUE' && !canUndo}
+                      value={detailForm.entreguePara || ''}
+                      placeholder="Deixe em branco para o próprio atleta ou digite o nome do terceiro"
+                      onChange={(e) =>
+                        setDetailForm({
+                          ...detailForm,
+                          entreguePara: e.target.value,
+                        })
+                      }
+                      style={{ maxWidth: '100%', fontSize: '15px', fontWeight: 500 }}
+                    />
+                  </div>
+                </div>
               </div>
             ) : (
               /* VIEW B: LISTA NORMAL DE ENTREGA (BUSCA + ÚLTIMAS ENTREGAS) */
@@ -2950,6 +3252,199 @@ export default function OperacaoPage({
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: PLANILHA ORIGINAL (TODOS OS CAMPOS BRUTOS DO ARQUIVO) */}
+        {effectiveTab === 'original' && (
+          <div className="operacao-tab-content original-sheet-tab-content">
+            {/* Top Toolbar */}
+            <div className="atletas-toolbar">
+              <div className="atletas-search-wrap">
+                <SearchIcon />
+                <input
+                  type="text"
+                  className="atletas-search-input"
+                  placeholder="Pesquisar em todas as colunas da planilha original..."
+                  value={originalSheetSearch}
+                  onChange={(e) => {
+                    setOriginalSheetSearch(e.target.value)
+                    setOriginalSheetPage(1)
+                  }}
+                />
+                {originalSheetSearch && (
+                  <button
+                    type="button"
+                    className="atletas-search-clear-btn"
+                    onClick={() => {
+                      setOriginalSheetSearch('')
+                      setOriginalSheetPage(1)
+                    }}
+                    title="Limpar busca"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="atletas-actions-group">
+                {effectiveOriginalSheet && effectiveOriginalSheet.rows?.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn-download-original-csv"
+                    onClick={handleDownloadOriginalCsv}
+                    title="Baixar planilha original com todos os campos em CSV"
+                  >
+                    <DownloadIcon />
+                    <span>EXPORTAR CSV</span>
+                  </button>
+                )}
+                {canEditAthlete && (
+                  <button
+                    type="button"
+                    className="importar-trigger-btn"
+                    onClick={() => setShowImportModal(true)}
+                    title="Anexar nova planilha Excel ou CSV"
+                  >
+                    <span>↑ ANEXAR PLANILHA</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Informational Header Badge */}
+            {effectiveOriginalSheet && (
+              <div className="original-sheet-banner">
+                <div className="original-sheet-banner-left">
+                  <div className="original-sheet-badge-icon">
+                    <FileSpreadsheetIcon size={20} color="#0284c7" />
+                  </div>
+                  <div>
+                    <strong className="original-sheet-file-title">
+                      {effectiveOriginalSheet.fileName || 'Planilha Original Anexada'}
+                    </strong>
+                    <span className="original-sheet-file-sub">
+                      {effectiveOriginalSheet.headers?.length || 0} colunas originais • {effectiveOriginalSheet.rows?.length || 0} linhas no arquivo bruto
+                      {effectiveOriginalSheet.importedAt && ` • Anexada em ${new Date(effectiveOriginalSheet.importedAt).toLocaleString('pt-BR')}`}
+                    </span>
+                  </div>
+                </div>
+                <div className="original-sheet-banner-right">
+                  <span className="original-sheet-tag">
+                    ✓ Cópia Integral Preservada
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Scroll Navigation Hints */}
+            {effectiveOriginalSheet && effectiveOriginalSheet.headers?.length > 6 && (
+              <div className="atletas-scroll-hint-bar" aria-hidden="true">
+                <button
+                  type="button"
+                  className="atletas-scroll-btn"
+                  onClick={() => originalSheetTableRef.current?.scrollBy({ left: -240, behavior: 'smooth' })}
+                  title="Rolar para a esquerda"
+                >
+                  ‹
+                </button>
+                <span className="atletas-scroll-hint-label">
+                  Deslize para navegar entre todas as {effectiveOriginalSheet.headers.length} colunas da planilha original
+                </span>
+                <button
+                  type="button"
+                  className="atletas-scroll-btn"
+                  onClick={() => originalSheetTableRef.current?.scrollBy({ left: 240, behavior: 'smooth' })}
+                  title="Rolar para a direita"
+                >
+                  ›
+                </button>
+              </div>
+            )}
+
+            {/* Table Container */}
+            <div className="atletas-table-container">
+              <div className="table-responsive" ref={originalSheetTableRef}>
+                <table className="atletas-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '50px', textAlign: 'center' }}>#</th>
+                      {(effectiveOriginalSheet?.headers || []).map((header, idx) => (
+                        <th key={idx}>{String(header || `COLUNA ${idx + 1}`).trim().toUpperCase()}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!effectiveOriginalSheet || paginatedOriginalRows.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={(effectiveOriginalSheet?.headers?.length || 1) + 1}
+                          className="empty-table-cell"
+                        >
+                          {!effectiveOriginalSheet
+                            ? 'Nenhuma planilha original anexada ainda. Anexe um arquivo XLSX ou CSV para visualizar a cópia integral aqui.'
+                            : 'Nenhum registro encontrado para a busca realizada.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedOriginalRows.map((row, rowIdx) => {
+                        const globalIndex = originalPageStart + rowIdx + 1
+                        return (
+                          <tr key={rowIdx}>
+                            <td style={{ textAlign: 'center', fontWeight: 700, color: '#64748b' }}>
+                              {globalIndex}
+                            </td>
+                            {effectiveOriginalSheet.headers.map((_, colIdx) => {
+                              const cellValue = row[colIdx] != null && String(row[colIdx]).trim() !== ''
+                                ? String(row[colIdx])
+                                : '—'
+                              return (
+                                <td key={colIdx} title={cellValue === '—' ? undefined : cellValue}>
+                                  {cellValue}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Footer with Pagination */}
+              <div className="atletas-table-footer">
+                <span>
+                  {!effectiveOriginalSheet || filteredOriginalRows.length === 0
+                    ? `0 linhas exibidas.`
+                    : `Mostrando ${originalPageStart + 1}-${originalPageEnd} de ${filteredOriginalRows.length} linhas (total: ${effectiveOriginalSheet.rows.length}) • ${effectiveOriginalSheet.headers.length} colunas originais.`}
+                </span>
+
+                {filteredOriginalRows.length > ORIGINAL_SHEET_PER_PAGE && (
+                  <div className="atletas-pagination" role="navigation" aria-label="Paginação da planilha original">
+                    <button
+                      type="button"
+                      className="atletas-page-btn"
+                      disabled={currentOriginalPage <= 1}
+                      onClick={() => setOriginalSheetPage((p) => Math.max(1, p - 1))}
+                    >
+                      ← ANTERIOR
+                    </button>
+                    <span className="atletas-page-indicator">
+                      Página {currentOriginalPage} de {totalOriginalPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="atletas-page-btn"
+                      disabled={currentOriginalPage >= totalOriginalPages}
+                      onClick={() => setOriginalSheetPage((p) => Math.min(totalOriginalPages, p + 1))}
+                    >
+                      PRÓXIMA →
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -3764,12 +4259,24 @@ export default function OperacaoPage({
         {scannerAthlete && (
           <KitQrScannerModal
             isOpen={Boolean(scannerAthlete)}
-            onClose={() => { setScannerAthlete(null); setScannedKit(null) }}
+            onClose={() => { if (!associationSaving) { setScannerAthlete(null); setScannedKit(null) } }}
             onRead={handleKitRead}
             athlete={scannerAthlete}
             kit={scannedKit}
             feedback={scanFeedback}
             onConfirm={confirmKitAssociation}
+            confirming={associationSaving}
+          />
+        )}
+
+        {hasPendingKitDecision && (
+          <PendingKitDecisionModal
+            decision={pendingKitDecision}
+            busy={decisionSaving || !selectedAthlete}
+            error={decisionError}
+            onDeliver={(recipient) => resolvePendingKitDecision('deliver', recipient)}
+            onUndo={() => resolvePendingKitDecision('undo')}
+            onRetry={() => resolvePendingKitDecision(pendingKitDecision.resolution)}
           />
         )}
 
