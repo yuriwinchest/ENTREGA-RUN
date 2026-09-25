@@ -1,6 +1,33 @@
 # Handoff
 
-## 2026-09-25 — Ajuste de Rótulo da Aba Atletas, Remoção do Botão Anexar e Condição de Planilha Original (Fase A)
+## 2026-09-25 — Redesign Visual e Ergonomia Responsiva da Aba Auditoria (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead, Ana UI/UX & Fullstack).
+- **Demanda do Yuri (PO via imagem e mensagem):**
+  "outro ajsuta aogra de letate veja essa aba auditoria esta muito feio esse campos ai melhroa esse ai lembrando semrpe que temque tambem ajsuta para celulares"
+  - Na imagem enviada pelo PO, o título `HISTÓRICO DE ENTREGAS` quebrava feio em 3 linhas ("HISTÓRICO / DE / ENTREGAS"), espremido por 5 controles compridos amontoados em linha horizontal, truncando o campo de busca ("Buscar entrega (nome, peito..."), com botões desalinhados e botão ATUALIZAR em laranja destoante.
+  - No celular/mobile, a barra quebrava os botões ou sobrepunha elementos.
+- **Implementações Técnicas (Diretrizes Ana UI/UX):**
+  - `client/src/components/OperacaoPage.jsx`:
+    - Separação em dois níveis hierárquicos limpos:
+      1. `audit-card-head`: cabeçalho superior espaçoso com o título `HISTÓRICO DE ENTREGAS` em linha única (`white-space: nowrap`), badge moderno com dot de status ativo verde (`N registro(s)`), subtítulo explicativo e grupo de ações de relatório à direita (`EXPORTAR CSV`, `GERAR PDF` e `ATUALIZAR` estilizado com elegância).
+      2. `audit-card-toolbar`: toolbar dedicada para filtros e navegação com fundo suave `#f8fafc` e borda delimitadora sutil `#e2e8f0`. Campo de busca amplo (`flex: 1`) com ícone, placeholder completo e botão `✕` para limpar busca instantaneamente. Seletor de registros por página harmonizado e alinhado (`audit-per-page-wrap`).
+  - `client/src/components/OperacaoPage.css`:
+    - Redesign desktop dos botões (`.btn-audit-action`, `.btn-audit-pdf`, `.btn-audit-refresh`) com tipografia Montserrat 800, padding consistente (38px de altura) e transições suaves.
+    - Barra de busca com foco em anel laranja da marca PaceTime (`#ff5200`).
+    - Responsividade Mobile e Celulares (`@media (max-width: 768px)` e `@media (max-width: 640px)`):
+      - O cabeçalho se organiza em bloco vertical com espaçamento generoso de 16px/14px.
+      - Ações de relatório formam uma grade touch-friendly (3 colunas com botões de 42px de altura).
+      - Campo de busca ganha 100% de largura com 42px de altura, ideal para teclado de smartphone.
+      - Seletor por página ocupa a largura e se alinha com o rótulo "Exibir:".
+      - Indicador touch da tabela de auditoria orienta deslize horizontal suave.
+      - Card `planilha-box-card` (Base Geral de Atletas) ajustado para empilhar botões verticalmente em telas menores que 768px, sem quebrar textos.
+- **Validação Real:**
+  - `npm run lint --prefix client`: 0 erros.
+  - `npm run build --prefix client`: bundle gerado em 359ms com sucesso.
+  - `node --check server/server.js`: sintaxe válida (exit code 0).
+  - `node server/admin-users.test.mjs`: testes aprovados (1123ms).
+- **Próximo Passo:** Homologação pelo Yuri (PO) após deploy automático.
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead & Fullstack).
 - **Demanda do Yuri (PO via imagem e mensagem):**

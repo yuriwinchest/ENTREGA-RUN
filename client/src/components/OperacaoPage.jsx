@@ -3655,66 +3655,43 @@ export default function OperacaoPage({
 
             {/* 2. CARD: TABELA DE AUDITORIA / HISTÓRICO DE ENTREGAS */}
             <div className="audit-table-card">
-              <div className="audit-table-header">
-                <div className="audit-table-header-left">
+              {/* Top Header: Título, Badge, Subtítulo e Ações de Relatório */}
+              <div className="audit-card-head">
+                <div className="audit-card-title-group">
                   <div className="table-title-row">
                     <h3 className="audit-table-title">HISTÓRICO DE ENTREGAS</h3>
-                    <span className="audit-counter-badge">{filteredAudits.length} registro(s)</span>
+                    <span className="audit-counter-badge">
+                      <span className="audit-badge-dot" />
+                      {filteredAudits.length} registro(s)
+                    </span>
                   </div>
                   <p className="audit-table-subtitle">
-                    Relatório completo e comprovantes de todas as retiradas de kits deste evento.
+                    Relatório oficial e comprovantes individuais de todas as retiradas de kits deste evento.
                   </p>
                 </div>
-                <div className="audit-table-header-right">
-                  <div className="filtro-search-input-wrap" style={{ minWidth: '220px' }}>
-                    <SearchIcon />
-                    <input
-                      type="text"
-                      placeholder="Buscar entrega (nome, peito, CPF)..."
-                      value={auditSearch}
-                      onChange={(e) => {
-                        setAuditSearch(e.target.value)
-                        setAuditPage(1)
-                      }}
-                    />
-                  </div>
+
+                <div className="audit-card-actions-group">
                   <button
                     type="button"
-                    className="btn-filtro-action"
+                    className="btn-audit-action"
                     onClick={handleExportAuditsCsv}
-                    title="Exportar entregas em CSV"
+                    title="Exportar todas as entregas em formato CSV"
                   >
                     <DownloadIcon />
                     <span>EXPORTAR CSV</span>
                   </button>
                   <button
                     type="button"
-                    className="btn-filtro-action"
+                    className="btn-audit-action btn-audit-pdf"
                     onClick={handlePrintAuditPdf}
-                    title="Gerar relatório de entregas em PDF"
+                    title="Gerar e imprimir relatório de entregas em PDF"
                   >
                     <FilePdfIcon />
                     <span>GERAR PDF</span>
                   </button>
-                  <div className="per-page-selector">
-                    <CustomSelect
-                      className="per-page-select-custom"
-                      value={auditPerPage}
-                      onChange={(val) => {
-                        setAuditPerPage(Number(val))
-                        setAuditPage(1)
-                      }}
-                      options={[
-                        { value: 25, label: '25 por página' },
-                        { value: 50, label: '50 por página' },
-                        { value: 100, label: '100 por página' },
-                        { value: 200, label: '200 por página' },
-                      ]}
-                    />
-                  </div>
                   <button
                     type="button"
-                    className="btn-refresh-audit"
+                    className="btn-audit-action btn-audit-refresh"
                     onClick={() => {
                       try {
                         const saved = localStorage.getItem(`entregas_run_audits_${currentEvent.id}`)
@@ -3726,11 +3703,59 @@ export default function OperacaoPage({
                       }
                       setAuditPage(1)
                     }}
-                    title="Atualizar lista"
+                    title="Atualizar lista com as entregas mais recentes"
                   >
                     <RefreshIcon />
                     <span>ATUALIZAR</span>
                   </button>
+                </div>
+              </div>
+
+              {/* Toolbar: Barra de Pesquisa Ampla e Seletor de Itens por Página */}
+              <div className="audit-card-toolbar">
+                <div className="audit-search-field">
+                  <SearchIcon />
+                  <input
+                    type="text"
+                    className="audit-search-input"
+                    placeholder="Buscar entrega por nome do atleta, número de peito, CPF ou chip..."
+                    value={auditSearch}
+                    onChange={(e) => {
+                      setAuditSearch(e.target.value)
+                      setAuditPage(1)
+                    }}
+                  />
+                  {auditSearch && (
+                    <button
+                      type="button"
+                      className="audit-search-clear-btn"
+                      onClick={() => {
+                        setAuditSearch('')
+                        setAuditPage(1)
+                      }}
+                      title="Limpar busca"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="audit-per-page-wrap">
+                  <span className="audit-per-page-label">Exibir:</span>
+                  <CustomSelect
+                    className="per-page-select-custom"
+                    value={auditPerPage}
+                    onChange={(val) => {
+                      setAuditPerPage(Number(val))
+                      setAuditPage(1)
+                    }}
+                    options={[
+                      { value: 25, label: '25 por página' },
+                      { value: 50, label: '50 por página' },
+                      { value: 100, label: '100 por página' },
+                      { value: 200, label: '200 por página' },
+                    ]}
+                  />
                 </div>
               </div>
 
