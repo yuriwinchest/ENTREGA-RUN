@@ -1,5 +1,27 @@
 # Handoff
 
+## 2026-09-24 — Paginação de 50 Atletas, Rolagem Total da Tabela e Card In-App de Kit Pendente (Fase B)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead & Frontend).
+- **Demanda do Yuri (PO via áudio e capturas de tela):**
+  1. *Paginação de 50 por página:* Alterar a exibição da lista de atletas de 10 para **50 atletas por página**.
+  2. *Rolagem horizontal livre (sem colunas fixas):* As duas primeiras colunas ficavam fixadas (`sticky`) sobrepondo os demais dados ao rolar lateralmente. O PO solicitou remover qualquer coluna fixa, permitindo que todas as colunas rolem naturalmente de forma fluida, preservando a responsividade tanto no mobile quanto no desktop.
+  3. *Eliminar pop-up nativo confuso de confirmação de entrega ao sair:* Ao voltar da ficha do atleta que tem número/chip associado mas kit não entregue, o navegador exibia um `window.confirm` com "OK" e "Cancelar" vindo de cima. Se o operador clicasse em "OK" sem ler, o kit era entregue por engano. O PO solicitou remover o alerta de cima e exibir um card dentro do próprio aplicativo, que feche ao tocar em qualquer área, sem botões que induzam a entrega acidental, mantendo o kit como pendente.
+- **Ações Realizadas:**
+  1. **Paginação de 50 por página (`OperacaoPage.jsx`):**
+     - Atualizada a constante `ATHLETES_PER_PAGE` de `10` para `50`. A grade, cálculo de páginas, indicadores de navegação e rodapé agora operam em blocos de 50 registros.
+  2. **Rolagem horizontal 100% livre (`OperacaoPage.jsx` e `OperacaoPage.css`):**
+     - Removidas as classes `sticky-athlete-column`, `sticky-athlete-column-0` e `sticky-athlete-column-1` dos elementos `th` e `td`.
+     - Removidas as regras CSS de fixação e sombras que prendiam colunas no mobile e no desktop. Todas as colunas agora rolam organicamente dentro de `.table-responsive` com `-webkit-overflow-scrolling: touch` e `pan-x pan-y`, mantendo largura mínima proporcional e legibilidade perfeita em qualquer tamanho de tela.
+  3. **Card In-App de Kit Pendente (`OperacaoPage.jsx` e `OperacaoPage.css`):**
+     - Removido o `window.confirm` bloqueante ao fechar ou voltar da ficha do atleta.
+     - Implementado o componente de card in-app `pending-kit-notice-overlay`, estilizado internamente na aplicação com ícone de pacote âmbar, mensagem clara de que o kit continua **PENDENTE**, e instrução explícita de que a entrega só ocorre via botão verde "ENTREGAR KIT".
+     - Fechamento imediato ao clicar em qualquer área da tela (backdrop, card, botão "ENTENDIDO, VOLTAR À LISTA" ou tecla Escape), finalizando o retorno à lista sem qualquer risco de entrega acidental.
+- **Validação Real:**
+  - `oxlint`: 0 warnings, 0 errors em 29 arquivos do frontend.
+  - `npm run build`: bundle compilado com sucesso em 1.25s (`index-CsH89xu3.js` e `index-Cu03FAlb.css`).
+- **Próximo Passo:** Commitar e subir via `git push origin main` para a esteira CI/CD aplicar o deploy na VPS.
+
 ## 2026-09-24 — Dashboard Dinâmico de Entrega de Kits e Ocultação do Botão de Associar (Fase B)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead & Frontend).

@@ -349,7 +349,7 @@ export default function OperacaoPage({
   const [atletaSearch, setAtletaSearch] = useState('')
   const [atletaFilter, setAtletaFilter] = useState('TODOS')
   const [atletaPage, setAtletaPage] = useState(1)
-  const ATHLETES_PER_PAGE = 10
+  const ATHLETES_PER_PAGE = 50
 
   // Modal Novo Atleta
   const [showAddAthleteModal, setShowAddAthleteModal] = useState(false)
@@ -866,6 +866,8 @@ export default function OperacaoPage({
 
   // Modal Associar Planilhas (Atletas + Chips)
   const [showAssociarModal, setShowAssociarModal] = useState(false)
+  // Card interno: aviso de kit pendente ao fechar a ficha (substitui window.confirm nativo)
+  const [showPendingKitNotice, setShowPendingKitNotice] = useState(false)
 
   // Auditoria state
   const [audits, setAudits] = useState(() => {
@@ -1278,6 +1280,23 @@ export default function OperacaoPage({
     setScannedKit(null)
   }
 
+  function executeCloseAthleteDetail() {
+    const returnTab = detailSourceTab
+    setSelectedAthlete(null)
+    setDetailForm(null)
+    setDetailInitialForm(null)
+    setDetailFeedback('')
+    setDetailSourceTab(null)
+    setShowPendingKitNotice(false)
+    if (returnTab && returnTab !== 'entrega') {
+      setActiveTab(returnTab)
+    }
+    publishEspelho('LIVRE')
+  }
+
+  const executeCloseRef = useRef(executeCloseAthleteDetail)
+  executeCloseRef.current = executeCloseAthleteDetail
+
   function closeAthleteDetail({ force = false } = {}) {
     if (!force && detailHasChanges) {
       const shouldDiscard = window.confirm(
@@ -1286,36 +1305,33 @@ export default function OperacaoPage({
       if (!shouldDiscard) return false
     }
 
-    // Se o atleta tem número ou chip associado mas o kit ainda está pendente de entrega
+    // Se o atleta tem número ou chip associado mas o kit ainda está pendente de entrega,
+    // abre o card informativo in-app (que fecha ao tocar em qualquer lugar, mantendo como pendente).
     if (!force && detailForm && detailForm.status !== 'ENTREGUE') {
       const hasAssociatedKit =
         Boolean(detailForm.chip) ||
         (Boolean(detailForm.numero) && detailForm.numero !== '—' && detailForm.numero !== '')
       if (hasAssociatedKit) {
-        const deliverNow = window.confirm(
-          'Este atleta já possui número/chip associado, mas o kit ainda não foi entregue.\n\n' +
-          '• Clique em OK para CONFIRMAR A ENTREGA DO KIT agora.\n' +
-          '• Clique em Cancelar para sair mantendo o kit como PENDENTE.'
-        )
-        if (deliverNow) {
-          handleSaveAndDeliver()
-          return true
-        }
+        setShowPendingKitNotice(true)
+        return false
       }
     }
 
-    const returnTab = detailSourceTab
-    setSelectedAthlete(null)
-    setDetailForm(null)
-    setDetailInitialForm(null)
-    setDetailFeedback('')
-    setDetailSourceTab(null)
-    if (returnTab && returnTab !== 'entrega') {
-      setActiveTab(returnTab)
-    }
-    publishEspelho('LIVRE')
+    executeCloseAthleteDetail()
     return true
   }
+
+  useEffect(() => {
+    if (!showPendingKitNotice) return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        executeCloseRef.current?.()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showPendingKitNotice])
 
   function handleGuardedNavigate(page, id) {
     if (!closeAthleteDetail()) return
@@ -1833,7 +1849,7 @@ export default function OperacaoPage({
     return sortAthletesBySearchQuery(matches, rawQ)
   }, [athletes, atletaSearch, atletaFilter])
 
-  // Paginação da grade de atletas (10 por página). O reset para a página 1
+  // Paginação da grade de atletas (50 por página). O reset para a página 1
   // acontece durante a renderização (padrão oficial do React para "ajustar
   // estado quando uma prop muda"), sem efeito extra em cascata.
   const [atletaPageResetKey, setAtletaPageResetKey] = useState(`${atletaSearch}|${atletaFilter}`)
@@ -2817,10 +2833,9 @@ export default function OperacaoPage({
                   <thead>
                     <tr>
                       <th style={{ width: '110px', textAlign: 'center' }}>LEITURA</th>
-                      {visibleAthleteTableColumns.map((column, columnIndex) => (
+                      {visibleAthleteTableColumns.map((column) => (
                         <th
                           key={column.key}
-                          className={columnIndex < 2 ? `sticky-athlete-column sticky-athlete-column-${columnIndex}` : ''}
                         >
                           {column.label}
                         </th>
@@ -2858,12 +2873,12 @@ export default function OperacaoPage({
                               <span>LER</span>
                             </button>}
                           </td>
-                          {visibleAthleteTableColumns.map((column, columnIndex) => {
+                          {visibleAthleteTableColumns.map((column) => {
                             const cellValue = getAthleteTableValue(a, column)
                             return (
                               <td
                                 key={column.key}
-                                className={`${columnIndex < 2 ? `sticky-athlete-column sticky-athlete-column-${columnIndex}` : ''} ${column.key === 'nome' ? 'athlete-name-cell' : ''}`.trim()}
+                                className={column.key === 'nome' ? 'athlete-name-cell' : undefined}
                                 title={cellValue === '—' ? undefined : cellValue}
                               >
                                 {cellValue}
@@ -3759,6 +3774,43 @@ export default function OperacaoPage({
             existingAthletes={athletes}
             onImportSuccess={handleImportSuccess}
           />
+        )}
+
+        {/* CARD IN-APP: AVISO DE KIT PENDENTE AO VOLTAR À LISTA */}
+        {showPendingKitNotice && (
+          <div
+            className="pending-kit-notice-overlay"
+            onClick={executeCloseAthleteDetail}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Aviso de kit pendente de entrega"
+          >
+            <div
+              className="pending-kit-notice-card"
+              onClick={executeCloseAthleteDetail}
+            >
+              <div className="pending-kit-notice-icon-wrap">
+                <PackageIcon />
+              </div>
+              <h3 className="pending-kit-notice-title">Kit permanece PENDENTE</h3>
+              <p className="pending-kit-notice-text">
+                Este atleta já possui número/chip associado, mas o kit <strong>ainda não foi entregue</strong>.
+              </p>
+              <p className="pending-kit-notice-subtext">
+                O registro continua como <strong>PENDENTE</strong>. Para confirmar a entrega a qualquer momento, abra a ficha do atleta e clique no botão verde <strong>ENTREGAR KIT</strong>.
+              </p>
+              <div className="pending-kit-notice-dismiss">
+                <span>Toque em qualquer área para voltar à lista</span>
+              </div>
+              <button
+                type="button"
+                className="pending-kit-notice-btn"
+                onClick={executeCloseAthleteDetail}
+              >
+                ENTENDIDO, VOLTAR À LISTA
+              </button>
+            </div>
+          </div>
         )}
 
         {/* MODAL: COMPROVANTE DE RETIRADA (2 VIAS) */}
