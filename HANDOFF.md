@@ -1,5 +1,14 @@
 # Handoff
 
+## 2026-09-25 — Publicação verificada da sincronização da Renascença (Fase B)
+
+- **Autor:** Codex/Tony (GPT-6). Pedido: publicar a correção após pausa dos operadores, preservando os dados da corrida ativa.
+- **Arquivos alterados nesta etapa:** apenas `HANDOFF.md`; a implementação e o gate foram mesclados pelo PR #4 (`33f12922d3d3`) e publicados pelo GitHub Actions run `36188308403`.
+- **Validação real:** antes do merge, duas leituras consecutivas mostraram 353 atletas e 130 entregas sem mudança; backup local privado DPAPI foi gravado, descriptografado e conferido por SHA-256. Appwrite tinha 353 atletas e 130 entregas. CI, preflight e deploy terminaram com sucesso. Na VPS, o deploy conferiu hashes do snapshot, saúde do novo contêiner e integridade de 2 eventos, 8255 atletas e 131 entregas no volume, além de todos os eventos, atletas e entregas anteriores via API.
+- **Verificação pública após o deploy:** `https://entregasrunning.com.br/api/health` respondeu saudável. A Corrida da Renascença manteve 353 atletas; a API e o Appwrite mostraram 131 entregas. Comparação independente da cópia prévia com a API encontrou zero entregas ausentes e zero alterações em número, chip, data, operador e destinatário nas 130 entregas anteriores. O resumo do evento passou a mostrar 131 entregas.
+- **Riscos/pendências:** o teste do login e da atualização visual em cada dispositivo ainda depende da homologação do Yuri. A cópia DPAPI é pontual; o espelho Appwrite é assíncrono. A 131ª entrega ocorreu perto da troca, mas constou no volume, na API e no Appwrite nas verificações finais. O ID da corrida é exigido pelo gate de deploy atual e precisará ser revisto quando essa corrida for removida.
+- **Próximo passo:** Yuri e os operadores entram novamente e conferem a lista no navegador; acompanhar novas entregas entre dispositivos sem restaurar planilha local antiga. Esta entrada documental está na branch isolada após o merge para evitar um segundo deploy durante a operação.
+
 ## 2026-09-25 — Sincronização segura da Corrida da Renascença (Fase B)
 
 - **Autor:** Codex/Tony (GPT-6). Revisão de disponibilidade de Vitor executada por agente delegado, somente leitura.
