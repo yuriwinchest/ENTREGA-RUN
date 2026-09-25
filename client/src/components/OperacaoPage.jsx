@@ -1461,11 +1461,6 @@ export default function OperacaoPage({
       return
     }
 
-    if (!wasEntregue && userRole === 'SUB_ADMIN') {
-      alert('Perfil Sub-Admin não possui permissão para desfazer associações.')
-      return
-    }
-
     const updatedAthlete = {
       ...athleteRef,
       status: 'PENDENTE',
