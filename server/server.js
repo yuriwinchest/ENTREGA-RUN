@@ -6,6 +6,7 @@ import cors from 'cors'
 import express from 'express'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
+import { hashPassword, verifyPassword } from './passwords.js'
 import {
   appwriteStatus,
   deleteEventFromAppwrite,
@@ -45,8 +46,14 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 function sanitizeUser(user) {
   if (!user || typeof user !== 'object') return user
-  const { password: _password, ...safe } = user
+  const { password: _password, passwordHash: _passwordHash, ...safe } = user
   return safe
+}
+
+function revokeUserSessions(userId) {
+  for (const [token, session] of sessions) {
+    if (session.userId === userId) sessions.delete(token)
+  }
 }
 
 function createSession(user) {
@@ -964,7 +971,7 @@ function readUsersFromDisk() {
     id: 'admin_pacetime',
     name: 'Felipe Admin',
     email: ADMIN_EMAIL,
-    password: ADMIN_PASSWORD,
+    passwordHash: hashPassword(ADMIN_PASSWORD),
     role: 'ADMIN',
     eventId: 'all',
     eventName: 'TODOS OS PROJETOS',
@@ -1009,6 +1016,7 @@ function writeUsersToDisk(users) {
     fs.renameSync(tempFile, USERS_FILE)
   } catch (err) {
     console.error('[server] Erro ao salvar users.json em DATA_DIR:', err)
+    return false
   }
 
   try {
@@ -1021,25 +1029,32 @@ function writeUsersToDisk(users) {
     fs.writeFileSync(tempFb, JSON.stringify(users, null, 2), 'utf-8')
     fs.renameSync(tempFb, targetFb)
   } catch {}
+  return true
 }
 
 // GET /api/users — Lista usuários cadastrados (somente ADMIN ou SUB_ADMIN, sem senhas)
-app.get('/api/users', requireAdminOrSubAdmin, (_req, res) => {
-  res.json({ ok: true, users: inMemoryUsers.map(sanitizeUser) })
+app.get('/api/users', requireAdminOrSubAdmin, (req, res) => {
+  const visibleUsers = req.session.role === 'SUB_ADMIN' && req.session.eventId !== 'all'
+    ? inMemoryUsers.filter((user) => user.eventId === req.session.eventId)
+    : inMemoryUsers
+  res.json({ ok: true, users: visibleUsers.map(sanitizeUser) })
 })
 
-// POST /api/users — Cria ou atualiza usuário com senha gerada (ADMIN ou SUB_ADMIN)
+// POST /api/users — Cria usuário com a senha escolhida pelo administrador.
 app.post('/api/users', requireAdminOrSubAdmin, (req, res) => {
   const body = req.body || {}
   const name = String(body.name || '').trim().toUpperCase()
   const email = String(body.email || '').trim().toLowerCase()
-  const password = String(body.password || '').trim()
+  const password = typeof body.password === 'string' ? body.password : ''
   const role = ['ADMIN', 'SUB_ADMIN', 'SUPERVISOR', 'OPERADOR'].includes(body.role) ? body.role : 'OPERADOR'
   const eventId = String(body.eventId || 'all').trim()
   const eventName = String(body.eventName || 'TODOS OS PROJETOS').trim()
 
   if (req.session?.role === 'SUB_ADMIN' && role === 'ADMIN') {
     return res.status(403).json({ ok: false, message: 'Sub-Admin não tem permissão para criar usuários Super Admin.' })
+  }
+  if (req.session?.role === 'SUB_ADMIN' && req.session.eventId !== 'all' && eventId !== req.session.eventId) {
+    return res.status(403).json({ ok: false, message: 'O usuário deve pertencer ao evento do Sub-Admin.' })
   }
 
   if (!name || !email || !EMAIL_RE.test(email)) {
@@ -1049,28 +1064,27 @@ app.post('/api/users', requireAdminOrSubAdmin, (req, res) => {
     return res.status(400).json({ ok: false, message: 'Senha deve ter pelo menos 6 caracteres.' })
   }
 
-  const existingIdx = inMemoryUsers.findIndex((u) => u.email && u.email.toLowerCase() === email)
+  if (inMemoryUsers.some((u) => u.email && u.email.toLowerCase() === email)) {
+    return res.status(409).json({ ok: false, message: 'Já existe um usuário com este e-mail.' })
+  }
   const newUser = {
-    id: body.id || (existingIdx >= 0 ? inMemoryUsers[existingIdx].id : `user-${Date.now()}`),
+    id: `user-${crypto.randomUUID()}`,
     name,
     email,
-    password,
+    passwordHash: hashPassword(password),
     role,
     eventId,
     eventName,
     status: body.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
     deliveries: Number(body.deliveries || 0),
     avatar: name.substring(0, 2).toUpperCase(),
+    createdBy: req.session.userId,
+    createdAt: new Date().toISOString(),
     updatedAt: Date.now(),
   }
-
-  if (existingIdx >= 0) {
-    inMemoryUsers[existingIdx] = { ...inMemoryUsers[existingIdx], ...newUser }
-  } else {
-    inMemoryUsers.unshift(newUser)
-  }
-
-  writeUsersToDisk(inMemoryUsers)
+  const nextUsers = [newUser, ...inMemoryUsers]
+  if (!writeUsersToDisk(nextUsers)) return res.status(500).json({ ok: false, message: 'Não foi possível salvar o usuário.' })
+  inMemoryUsers = nextUsers
   res.status(201).json({ ok: true, user: sanitizeUser(newUser) })
 })
 
@@ -1092,6 +1106,13 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
     if (body.role === 'ADMIN') {
       return res.status(403).json({ ok: false, message: 'Sub-Admin não pode promover usuários para Super Admin.' })
     }
+    if (req.session.eventId !== 'all' && (current.eventId !== req.session.eventId || (body.eventId !== undefined && String(body.eventId) !== req.session.eventId))) {
+      return res.status(403).json({ ok: false, message: 'Usuário fora do evento do Sub-Admin.' })
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'password') && (typeof body.password !== 'string' || body.password.length < 6)) {
+    return res.status(400).json({ ok: false, message: 'Senha deve ter pelo menos 6 caracteres.' })
   }
 
   const updated = {
@@ -1105,17 +1126,19 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
     updatedAt: Date.now(),
   }
 
-  if (body.password && typeof body.password === 'string' && body.password.trim().length >= 6) {
-    updated.password = body.password.trim()
+  if (typeof body.password === 'string') {
+    updated.passwordHash = hashPassword(body.password)
+    delete updated.password
   }
-
-  inMemoryUsers[idx] = updated
-  writeUsersToDisk(inMemoryUsers)
+  const nextUsers = inMemoryUsers.map((item, index) => index === idx ? updated : item)
+  if (!writeUsersToDisk(nextUsers)) return res.status(500).json({ ok: false, message: 'Não foi possível salvar o usuário.' })
+  inMemoryUsers = nextUsers
+  if (body.password !== undefined || body.role !== undefined || body.status !== undefined || body.eventId !== undefined) revokeUserSessions(userId)
   res.json({ ok: true, user: sanitizeUser(updated) })
 })
 
 // DELETE /api/users/:id — Remove usuário
-app.delete('/api/users/:id', requireAdmin, (req, res) => {
+app.delete('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   const userId = String(req.params.id || '').trim()
   if (userId === 'admin_pacetime' || userId === inMemoryUsers.find(u => u.email === ADMIN_EMAIL)?.id) {
     return res.status(400).json({ ok: false, message: 'Não é possível remover o administrador principal.' })
@@ -1125,9 +1148,14 @@ app.delete('/api/users/:id', requireAdmin, (req, res) => {
   if (idx === -1) {
     return res.status(404).json({ ok: false, message: 'Usuário não encontrado.' })
   }
-
-  inMemoryUsers.splice(idx, 1)
-  writeUsersToDisk(inMemoryUsers)
+  const target = inMemoryUsers[idx]
+  if (req.session.role === 'SUB_ADMIN' && (target.role === 'ADMIN' || target.createdBy !== req.session.userId || (req.session.eventId !== 'all' && target.eventId !== req.session.eventId))) {
+    return res.status(403).json({ ok: false, message: 'Sub-Admin só pode remover usuários que criou no próprio evento.' })
+  }
+  const nextUsers = inMemoryUsers.filter((u) => u.id !== userId)
+  if (!writeUsersToDisk(nextUsers)) return res.status(500).json({ ok: false, message: 'Não foi possível remover o usuário.' })
+  inMemoryUsers = nextUsers
+  revokeUserSessions(userId)
   res.json({ ok: true, message: 'Usuário removido com sucesso.' })
 })
 
@@ -1144,24 +1172,12 @@ app.post('/api/login', loginLimiter, (req, res) => {
 
   const normalizedEmail = email.trim().toLowerCase()
 
-  // 1. Administrador Geral (Padrão ou via ENV)
-  if (normalizedEmail === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-    const adminUser = {
-      id: 'admin_pacetime',
-      name: 'Felipe Admin',
-      email: normalizedEmail,
-      role: 'ADMIN',
-      eventId: 'all',
-      eventName: 'TODOS OS PROJETOS',
-    }
-    return res.json({ ok: true, user: adminUser, token: createSession(adminUser) })
-  }
-
-  // 2. Usuários cadastrados no sistema (Operadores, Supervisores, Admins)
+  // Usuários cadastrados, incluindo o Super Admin. A senha salva prevalece
+  // sobre a configuração inicial do ambiente após uma redefinição manual.
   const foundUser = inMemoryUsers.find(
-    (u) => u.email && u.email.toLowerCase() === normalizedEmail && u.password === password
+    (u) => u.email && u.email.toLowerCase() === normalizedEmail
   )
-  if (foundUser) {
+  if (foundUser && (verifyPassword(password, foundUser.passwordHash) || (!foundUser.passwordHash && foundUser.password === password))) {
     if (foundUser.status === 'INATIVO') {
       return res.status(403).json({
         ok: false,

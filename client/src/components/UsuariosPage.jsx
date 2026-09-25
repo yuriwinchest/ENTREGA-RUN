@@ -116,14 +116,6 @@ function EyeIcon({ off, size = 16 }) {
   )
 }
 
-function SparklesIcon({ size = 15 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-    </svg>
-  )
-}
-
 const ROLE_OPTIONS = [
   {
     value: 'OPERADOR',
@@ -140,8 +132,8 @@ const ROLE_OPTIONS = [
   {
     value: 'SUB_ADMIN',
     label: 'SUB-ADMIN',
-    description: 'Gestão sem exclusão',
-    detail: 'Cria eventos e entrega kits, sem permissão de exclusão ou alteração cadastral'
+    description: 'Gestão da operação',
+    detail: 'Gerencia usuários e auditoria; exclui apenas usuários que criou'
   },
   {
     value: 'ADMIN',
@@ -150,19 +142,6 @@ const ROLE_OPTIONS = [
     detail: 'Acesso total irrestrito, gestão e exclusões'
   }
 ]
-
-// Geração de senha amigável, memorável e de alta entropia (sem caracteres ambíguos)
-function generateEasySecurePassword() {
-  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz'
-  const special = ['@', '#', '!', '$', '%']
-  const randomYear = new Date().getFullYear()
-  const randomSpecial = special[Math.floor(Math.random() * special.length)]
-  let randomTail = ''
-  for (let i = 0; i < 4; i++) {
-    randomTail += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return `Run${randomYear}${randomSpecial}${randomTail}`
-}
 
 export default function UsuariosPage({
   user,
@@ -179,44 +158,22 @@ export default function UsuariosPage({
       return []
     }
   })()
+  const manageableEvents = user?.role === 'SUB_ADMIN' && user.eventId !== 'all'
+    ? availableEvents.filter((event) => event.id === user.eventId)
+    : availableEvents
+  const defaultEvent = manageableEvents[0] || (user?.eventId !== 'all' ? { id: user.eventId, name: user.eventName } : null)
 
-  const [users, setUsers] = useState(() => {
-    try {
-      const saved = localStorage.getItem('entregas_run_users')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const cleaned = parsed.filter(
-            (u) => !['AGNER ISRAEL', 'AGNER ARAUJO', 'entregas1', 'entregas2', 'entregas3'].includes(u.name)
-          )
-          if (cleaned.length > 0) return cleaned
-        }
-      }
-    } catch {
-      // ignore
-    }
-    const defaultUser = {
-      id: user?.id || 'admin_pacetime',
-      name: user?.name || 'FELIPE ADMIN',
-      email: user?.email || 'pacetime@entregas.com',
-      password: '',
-      role: user?.role || 'ADMIN',
-      eventId: 'all',
-      eventName: 'TODOS OS PROJETOS',
-      status: 'ATIVO',
-      deliveries: 0,
-      avatar: (user?.name || 'F').substring(0, 2).toUpperCase(),
-    }
-    return [defaultUser]
-  })
+  const [users, setUsers] = useState([])
+  const [loadError, setLoadError] = useState('')
 
-  // Sincroniza usuários com o servidor central
+  // Remove cache legado que continha senhas em texto puro.
   useEffect(() => {
+    try { localStorage.removeItem('entregas_run_users') } catch {}
     let isMounted = true
     apiFetchUsers().then((serverUsers) => {
-      if (isMounted && Array.isArray(serverUsers) && serverUsers.length > 0) {
-        setUsers(serverUsers)
-      }
+      if (!isMounted) return
+      if (Array.isArray(serverUsers)) setUsers(serverUsers)
+      else setLoadError('Não foi possível carregar os usuários do servidor.')
     })
     return () => {
       isMounted = false
@@ -238,14 +195,17 @@ export default function UsuariosPage({
   const [userToManagePassword, setUserToManagePassword] = useState(null)
   const [showManagePasswordEye, setShowManagePasswordEye] = useState(false)
   const [managePasswordFeedback, setManagePasswordFeedback] = useState('')
+  const [manualPassword, setManualPassword] = useState('')
+  const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const [newUserForm, setNewUserForm] = useState(() => ({
     name: '',
     email: '',
-    password: generateEasySecurePassword(),
+    password: '',
     role: 'OPERADOR',
-    eventId: availableEvents[0]?.id || 'all',
-    eventName: availableEvents[0]?.name || 'TODOS OS EVENTOS',
+    eventId: defaultEvent?.id || 'all',
+    eventName: defaultEvent?.name || 'TODOS OS EVENTOS',
   }))
 
   useEffect(() => {
@@ -267,39 +227,25 @@ export default function UsuariosPage({
     }
   }, [isRoleDropdownOpen, isEventDropdownOpen])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('entregas_run_users', JSON.stringify(users))
-    } catch {
-      // ignore
-    }
-  }, [users])
-
   function handleOpenAddModal() {
     setNewUserForm({
       name: '',
       email: '',
-      password: generateEasySecurePassword(),
+      password: '',
       role: 'OPERADOR',
-      eventId: availableEvents[0]?.id || 'all',
-      eventName: availableEvents[0]?.name || 'TODOS OS PROJETOS',
+      eventId: defaultEvent?.id || 'all',
+      eventName: defaultEvent?.name || 'TODOS OS PROJETOS',
     })
+    setFormError('')
     setShowPasswordInAddModal(false)
     setShowAddUserModal(true)
-  }
-
-  function handleGenerateNewPasswordInForm() {
-    setNewUserForm((prev) => ({
-      ...prev,
-      password: generateEasySecurePassword(),
-    }))
   }
 
   async function handleAddUser(e) {
     e.preventDefault()
     if (!newUserForm.name.trim() || !newUserForm.email.trim()) return
     if (!newUserForm.password || newUserForm.password.length < 6) {
-      alert('A senha deve ter no mínimo 6 caracteres.')
+      setFormError('A senha deve ter no mínimo 6 caracteres.')
       return
     }
 
@@ -309,10 +255,9 @@ export default function UsuariosPage({
       : (selectedEv?.name || newUserForm.eventName || 'PROJETO VINCULADO')
 
     const newUser = {
-      id: `user-${Date.now()}`,
       name: newUserForm.name.trim().toUpperCase(),
       email: newUserForm.email.trim().toLowerCase(),
-      password: newUserForm.password.trim(),
+      password: newUserForm.password,
       role: newUserForm.role,
       eventId: newUserForm.eventId,
       eventName: assignedName,
@@ -321,25 +266,23 @@ export default function UsuariosPage({
       avatar: newUserForm.name.trim().substring(0, 2).toUpperCase(),
     }
 
-    // Salva no estado e no backend
-    setUsers((prev) => [newUser, ...prev.filter((u) => u.email !== newUser.email)])
-    apiCreateUser(newUser).catch(() => {})
-
-    setShowAddUserModal(false)
-
-    // Abre imediatamente o modal com as credenciais prontas para o Yuri copiar para WhatsApp
-    setCreatedUserCredentials({
-      name: newUser.name,
-      email: newUser.email,
-      password: newUser.password,
-      role: newUser.role,
-      eventName: newUser.eventName,
-    })
+    setSaving(true)
+    setFormError('')
+    try {
+      const savedUser = await apiCreateUser(newUser)
+      setUsers((prev) => [savedUser, ...prev])
+      setShowAddUserModal(false)
+      setCreatedUserCredentials({ ...savedUser, password: newUserForm.password })
+    } catch (error) {
+      setFormError(error.message || 'Não foi possível salvar o usuário.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const availableRoleOptions = useMemo(() => {
     if (user?.role === 'SUB_ADMIN') {
-      return ROLE_OPTIONS.filter((r) => r.value === 'OPERADOR' || r.value === 'SUPERVISOR')
+      return ROLE_OPTIONS.filter((r) => r.value !== 'ADMIN')
     }
     return ROLE_OPTIONS
   }, [user?.role])
@@ -353,32 +296,38 @@ export default function UsuariosPage({
     }
     const nextStatus = target.status === 'ATIVO' ? 'INATIVO' : 'ATIVO'
 
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, status: nextStatus } : u))
-    )
-    apiUpdateUser(userId, { status: nextStatus }).catch(() => {})
+    try {
+      const savedUser = await apiUpdateUser(userId, { status: nextStatus })
+      setUsers((prev) => prev.map((u) => (u.id === userId ? savedUser : u)))
+    } catch (error) {
+      alert(error.message || 'Não foi possível alterar o usuário.')
+    }
   }
 
   async function handleRemoveUser(userId) {
-    if (user?.role !== 'ADMIN') {
-      alert('Somente o Super Admin tem permissão para remover usuários.')
+    const targetUser = users.find((u) => u.id === userId)
+    if (user?.role === 'SUB_ADMIN' && (targetUser?.createdBy !== user.id || (user.eventId !== 'all' && targetUser?.eventId !== user.eventId))) {
+      alert('Você só pode remover usuários que criou no seu ambiente.')
       return
     }
-    const targetUser = users.find((u) => u.id === userId)
-    if (userId === user?.id || userId === 'admin_pacetime' || targetUser?.role === 'ADMIN') {
+    if (userId === user?.id || userId === 'admin_pacetime') {
       alert('Não é possível remover o administrador principal.')
       return
     }
     if (!window.confirm('Tem certeza que deseja remover este usuário?')) return
 
-    setUsers((prev) => prev.filter((u) => u.id !== userId))
-    apiDeleteUser(userId).catch(() => {})
+    try {
+      await apiDeleteUser(userId)
+      setUsers((prev) => prev.filter((u) => u.id !== userId))
+    } catch (error) {
+      alert(error.message || 'Não foi possível remover o usuário.')
+    }
   }
 
   function handleCopyCredentials(creds) {
     if (!creds) return
     if (!creds.password) {
-      alert('Gere uma nova senha antes de copiar o acesso.')
+      alert('Salve uma senha antes de copiar o acesso.')
       return
     }
     const systemUrl = typeof window !== 'undefined' ? window.location.origin : 'https://entregasrunning.com.br'
@@ -406,16 +355,24 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
       alert('Sub-Admin não tem permissão para redefinir a senha do Super Admin.')
       return
     }
-    const newPass = generateEasySecurePassword()
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, password: newPass } : u))
-    )
-    setUserToManagePassword((prev) => (prev ? { ...prev, password: newPass } : null))
-    setShowManagePasswordEye(true)
-    setManagePasswordFeedback('✓ Nova senha gerada! Copie agora — ela não será exibida de novo.')
-    setTimeout(() => setManagePasswordFeedback(''), 3000)
-
-    apiUpdateUser(userId, { password: newPass }).catch(() => {})
+    if (manualPassword.length < 6) {
+      setManagePasswordFeedback('A senha deve ter no mínimo 6 caracteres.')
+      return
+    }
+    setSaving(true)
+    setManagePasswordFeedback('')
+    try {
+      const savedUser = await apiUpdateUser(userId, { password: manualPassword })
+      setUsers((prev) => prev.map((u) => (u.id === userId ? savedUser : u)))
+      setUserToManagePassword({ ...savedUser, password: manualPassword })
+      setManualPassword('')
+      setShowManagePasswordEye(true)
+      setManagePasswordFeedback('Senha salva. Copie o acesso agora; ela não será exibida de novo.')
+    } catch (error) {
+      setManagePasswordFeedback(error.message || 'Não foi possível salvar a senha.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -427,7 +384,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
           <div className="usuarios-title-wrap">
             <h1 className="usuarios-page-title">USUÁRIOS</h1>
             <p className="usuarios-subtitle">
-              Gerencie os usuários da operação e a função de cada um. Operador apenas entrega o kit; Supervisor entrega e pode alterar os dados do atleta; Sub-Admin gerencia a operação sem poder de exclusão; Super Admin tem acesso total irrestrito.
+              Gerencie os usuários da operação. O Sub-Admin acessa auditoria, cria usuários e remove apenas quem criou. O Super Admin gerencia todos.
               <br />
               Crie logins com senha gerada automaticamente e envie facilmente para a equipe no WhatsApp.
             </p>
@@ -454,6 +411,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
           </div>
         </header>
 
+        {loadError && <p role="alert" className="alert-feedback-error">{loadError}</p>}
         <section className="users-grid">
           {users.map((item) => (
             <article key={item.id} className="user-card">
@@ -500,6 +458,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                         })
                         setShowManagePasswordEye(false)
                         setManagePasswordFeedback('')
+                        setManualPassword('')
                       }}
                     >
                       <KeyIcon size={14} />
@@ -517,7 +476,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     </button>
                   )}
 
-                  {user?.role === 'ADMIN' && item.id !== user?.id && item.id !== 'admin_pacetime' && item.role !== 'ADMIN' && (
+                  {(user?.role === 'ADMIN' || (user?.role === 'SUB_ADMIN' && item.createdBy === user.id && item.role !== 'ADMIN' && (user.eventId === 'all' || item.eventId === user.eventId))) && item.id !== user?.id && item.id !== 'admin_pacetime' && (
                     <button
                       type="button"
                       className="icon-action-btn"
@@ -577,19 +536,9 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   />
                 </div>
 
-                {/* NOVO: CAMPO DE SENHA COM GERAÇÃO AUTOMÁTICA */}
                 <div className="form-group">
                   <div className="form-label-row">
                     <label className="form-label">SENHA DE ACESSO</label>
-                    <button
-                      type="button"
-                      className="btn-inline-generate"
-                      onClick={handleGenerateNewPasswordInForm}
-                      title="Gerar uma nova senha aleatória e segura"
-                    >
-                      <SparklesIcon size={13} />
-                      <span>GERAR SENHA</span>
-                    </button>
                   </div>
                   <div className="password-input-wrapper">
                     <input
@@ -598,6 +547,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                       placeholder="Mínimo 6 caracteres"
                       value={newUserForm.password}
                       onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                      minLength={6}
                       required
                     />
                     <button
@@ -649,7 +599,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                                 setNewUserForm((prev) => ({
                                   ...prev,
                                   role: opt.value,
-                                  ...(opt.value === 'ADMIN' || opt.value === 'SUB_ADMIN'
+                                  ...((opt.value === 'ADMIN' || opt.value === 'SUB_ADMIN') && (user?.role === 'ADMIN' || user?.eventId === 'all')
                                     ? { eventId: 'all', eventName: 'TODOS OS PROJETOS' }
                                     : {}),
                                 }))
@@ -698,7 +648,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                         <span className="role-trigger-name">
                           {newUserForm.eventId === 'all'
                             ? 'TODOS OS PROJETOS (Acesso Global)'
-                            : (availableEvents.find((e) => e.id === newUserForm.eventId)?.name || newUserForm.eventName || 'SELECIONE A CORRIDA')}
+                            : (manageableEvents.find((e) => e.id === newUserForm.eventId)?.name || newUserForm.eventName || 'SELECIONE A CORRIDA')}
                         </span>
                       </div>
                       <ChevronDownIcon className={`role-chevron ${isEventDropdownOpen ? 'rotated' : ''}`} />
@@ -706,7 +656,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                     {isEventDropdownOpen && (
                       <div className="role-options-list" role="listbox">
-                        {(newUserForm.role === 'ADMIN' || newUserForm.role === 'SUB_ADMIN') && (
+                        {(newUserForm.role === 'ADMIN' || newUserForm.role === 'SUB_ADMIN') && (user?.role === 'ADMIN' || user?.eventId === 'all') && (
                           <button
                             type="button"
                             className={`role-option-item ${newUserForm.eventId === 'all' ? 'selected' : ''}`}
@@ -736,12 +686,12 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                           </button>
                         )}
 
-                        {availableEvents.length === 0 ? (
+                        {manageableEvents.length === 0 ? (
                           <div className="empty-events-select-msg">
                             Nenhum projeto cadastrado no momento. Cadastre um evento primeiro na aba Eventos.
                           </div>
                         ) : (
-                          availableEvents.map((ev) => {
+                          manageableEvents.map((ev) => {
                             const isSelected = newUserForm.eventId === ev.id
                             return (
                               <button
@@ -782,6 +732,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   </div>
                 </div>
 
+                {formError && <p role="alert" className="alert-feedback-error">{formError}</p>}
                 <div className="modal-actions-row">
                   <button
                     type="button"
@@ -790,8 +741,8 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   >
                     Cancelar
                   </button>
-                  <button type="submit" className="modal-btn-save">
-                    Adicionar Usuário
+                  <button type="submit" className="modal-btn-save" disabled={saving}>
+                    {saving ? 'Salvando...' : 'Adicionar Usuário'}
                   </button>
                 </div>
               </form>
@@ -906,7 +857,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                       <strong className="cred-field-value pass-value">
                         {userToManagePassword.password
                           ? (showManagePasswordEye ? userToManagePassword.password : '••••••••••••')
-                          : 'Oculta por segurança — gere uma nova abaixo'}
+                          : 'Oculta por segurança — digite uma nova abaixo'}
                       </strong>
                       <button
                         type="button"
@@ -918,6 +869,19 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                       </button>
                     </div>
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="manual-password">NOVA SENHA</label>
+                  <input
+                    id="manual-password"
+                    className="form-input"
+                    type="password"
+                    minLength={6}
+                    placeholder="Digite a senha desejada"
+                    value={manualPassword}
+                    onChange={(event) => setManualPassword(event.target.value)}
+                  />
                 </div>
 
                 <div className="creds-actions-group">
@@ -934,9 +898,10 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     type="button"
                     className="btn-reset-password"
                     onClick={() => handleResetPasswordForUser(userToManagePassword.id)}
+                    disabled={saving || manualPassword.length < 6}
                   >
-                    <SparklesIcon size={15} />
-                    <span>GERAR NOVA SENHA</span>
+                    <KeyIcon size={15} />
+                    <span>{saving ? 'SALVANDO...' : 'SALVAR SENHA'}</span>
                   </button>
 
                   <button
