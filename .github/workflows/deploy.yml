@@ -82,12 +82,7 @@ jobs:
             if [ -f /etc/caddy/Caddyfile ]; then
               if ! grep -q "entregasrunning.com.br" /etc/caddy/Caddyfile; then
                 echo "Adicionando entregasrunning.com.br e www ao Caddyfile..."
-                cat << 'EOF' >> /etc/caddy/Caddyfile
-
-entregasrunning.com.br, www.entregasrunning.com.br {
-    reverse_proxy 127.0.0.1:3050
-}
-EOF
+                printf "\nentregasrunning.com.br, www.entregasrunning.com.br {\n    reverse_proxy 127.0.0.1:3050\n}\n" >> /etc/caddy/Caddyfile
                 caddy validate --config /etc/caddy/Caddyfile && (systemctl reload caddy || caddy reload || true)
                 echo "Caddy recarregado com o novo domínio!"
               else
