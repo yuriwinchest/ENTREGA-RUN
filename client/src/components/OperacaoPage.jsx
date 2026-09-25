@@ -656,9 +656,24 @@ export default function OperacaoPage({
         setAthletesSync({ state: 'error', at: Date.now() })
         return
       }
+      let serverAthletes = result.athletes
+      const decision = pendingKitDecisionRef.current
+      if (decision?.eventId === currentEvent.id && decision.resolution) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(`entregas_run_athletes_${currentEvent.id}`) || '[]')
+          const pendingAthlete = Array.isArray(cached) && cached.find((item) => String(item.id) === String(decision.athleteId))
+          if (pendingAthlete) {
+            serverAthletes = serverAthletes.map((item) =>
+              String(item.id) === String(decision.athleteId) ? pendingAthlete : item
+            )
+          }
+        } catch {
+          // A decisão continua aberta para nova tentativa manual.
+        }
+      }
       serverHydratedRef.current = true
       skipNextAthletesAutosaveRef.current = true
-      setAthletes(result.athletes)
+      setAthletes(serverAthletes)
       if (Array.isArray(result.kits)) setKits(result.kits)
       if (Array.isArray(result.schema)) setAthleteColumnSchema(result.schema)
       setOriginalSheet(result.originalSheet || null)
