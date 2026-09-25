@@ -1,5 +1,30 @@
 # Handoff
 
+## 2026-09-24 — Responsividade Mobile Completa do Dashboard do Evento para Android e iOS (Fase B)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead & Frontend).
+- **Demanda do Yuri (PO via áudio 23:08):**
+  Ajustar a responsividade para aparelhos celulares e tablets (Android e iOS) da página de **Dashboard do evento** (`EventDashboardPage`), acessada através do botão "DASHBOARD" dentro dos cards de eventos. A página quebrava em telas menores por não ter regras mobile aplicadas, mantendo espaçamentos laterais de desktop (36px), títulos extensos sem quebra e múltiplos gráficos lado a lado espremendo os elementos.
+- **Ações Realizadas:**
+  1. **Layout e Espaçamento Mobile (`EventDashboardPage.css`):**
+     - O container principal `.event-dash-layout` e `.event-dash-main` foram alinhados com o layout vertical mobile, com preenchimento lateral compacto (14px) e compensação inferior dinâmica (`calc(88px + env(safe-area-inset-bottom, 0px))`), impedindo sobreposição pela barra de navegação inferior.
+     - Header e banner do evento ajustados para fluxo em coluna em telas menores: título do evento com tamanho fluido (20px) e quebra de palavras (`word-break: break-word`), sem overflow horizontal.
+  2. **Controle de Abas Touch-Friendly (`EventDashboardPage.css`):**
+     - A barra de abas (`.event-tabs-bar` e `.event-tabs-pill`) agora ocupa 100% da largura em estilo segmented control touch-friendly, dividindo igualmente o espaço entre "📊 Visão Geral" e "📦 Entrega de Kit" no celular.
+  3. **Métricas Compactas e Gráficos Responsivos (`EventDashboardPage.css`):**
+     - As métricas analíticas (`.dash-three-metrics`) foram refinadas para caberem perfeitamente nas resoluções comuns de celulares Android e iPhones (320px–430px), mantendo ícones, rótulos e percentuais alinhados sem truncar.
+     - A grade `.dash-two-charts` foi convertida de 2 colunas fixas para 1 coluna vertical no mobile (`@media (max-width: 768px)`), permitindo que os gráficos de rosca (Distribuição por Status e Distribuição por Gênero) e os comparativos de kits e camisetas usem a largura total disponível.
+     - Ajustados gráficos de barras horizontais (`.delivery-chart-rows`), rótulos com quebra automática e listas de equipes (`.teams-list`) com truncamento seguro de texto longo.
+  4. **Padronização de Componentes e Estado Vazio (`EventDashboardPage.jsx` e `EventDashboardPage.css`):**
+     - Substituídos estilos inline do estado vazio pelas classes `.event-dash-empty-state`, `.event-dash-empty-title`, `.event-dash-empty-desc` e `.event-dash-empty-btn`.
+     - Adicionado estilo explícito para `.tutorial-open-btn`.
+  5. **Suporte a Safe Area iOS (`Sidebar.css`):**
+     - A barra `.mobile-bottom-nav` recebeu suporte nativo a `env(safe-area-inset-bottom, 0px)` para modelos recentes de iPhone com barra indicadora de início.
+- **Validação Real:**
+  - `oxlint`: 0 warnings e 0 errors em 29 arquivos do frontend.
+  - `npm run build`: bundle de produção gerado com sucesso em 1.34s (`index-Dg_pb-Om.css` e `index-W2eXI5CH.js`).
+- **Próximo Passo:** Enviar alterações para `main` e acompanhar a conclusão do workflow no GitHub Actions para validação pelo Yuri.
+
 ## 2026-09-24 — Paginação de 50 Atletas, Rolagem Total da Tabela e Card In-App de Kit Pendente (Fase B)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead & Frontend).

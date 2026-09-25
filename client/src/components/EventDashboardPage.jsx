@@ -234,38 +234,17 @@ export default function EventDashboardPage({
 
         {error && <p role="alert" className="event-dashboard-feedback">Não foi possível atualizar os dados. {athletes.length ? 'Exibindo a última consulta. ' : ''}Uma nova tentativa será feita automaticamente.</p>}
         {loading ? <p role="status" className="event-dashboard-feedback">Carregando dados do evento…</p> : athletes.length === 0 && error ? null : athletes.length === 0 ? (
-          <div style={{
-            background: '#fff',
-            border: '1.5px dashed #e2e8f0',
-            borderRadius: '16px',
-            padding: '60px 24px',
-            textAlign: 'center',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '14px',
-            margin: '24px'
-          }}>
+          <div className="event-dash-empty-state">
             <PackageIcon />
-            <p style={{ margin: 0, color: '#64748b', fontSize: '16px', fontWeight: 600 }}>
+            <p className="event-dash-empty-title">
               Nenhum dado de atletas cadastrado para este evento ainda.
             </p>
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px', maxWidth: '440px', lineHeight: 1.5 }}>
+            <p className="event-dash-empty-desc">
               Importe uma planilha oficial de atletas ou cadastre manualmente para visualizar gráficos e métricas analíticas em tempo real.
             </p>
             <button
               type="button"
-              style={{
-                marginTop: '6px',
-                background: '#ff5200',
-                color: '#fff',
-                border: 'none',
-                padding: '10px 22px',
-                borderRadius: '10px',
-                fontWeight: 700,
-                fontSize: '13px',
-                cursor: 'pointer'
-              }}
+              className="event-dash-empty-btn"
               onClick={() => onNavigate('operacao', event?.id)}
             >
               IR PARA OPERAÇÃO DO EVENTO
