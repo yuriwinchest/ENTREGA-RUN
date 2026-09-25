@@ -134,6 +134,8 @@ export default function AssociarPlanilhasModal({
 }) {
   // Passos: 1 (Uploads & Config), 2 (Pré-visualização), 3 (Concluído)
   const [step, setStep] = useState(1)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
 
   // Planilha 1: Atletas
   const [atletasFile, setAtletasFile] = useState(null)
@@ -403,8 +405,9 @@ export default function AssociarPlanilhasModal({
   }
 
   // Concluir e persistir
-  function handleConfirmImport() {
-    if (associatedList.length === 0) return
+  async function handleConfirmImport() {
+    if (associatedList.length === 0 || importing) return
+    setImportError('')
 
     // Limpar propriedades temporárias
     const cleanList = associatedList.map(({ _hasCollision, ...rest }) => rest)
@@ -432,10 +435,22 @@ export default function AssociarPlanilhasModal({
         mappingByColumn[columnIndex] = `custom:${String(header).trim()}`
       })
 
-      onImportSuccess(cleanList, {
-        columns: buildImportColumnSchema(atletasHeaders, mappingByColumn),
-        kits: kitRows,
-      })
+      setImporting(true)
+      let saved = false
+      try {
+        saved = Boolean(await onImportSuccess(cleanList, {
+          columns: buildImportColumnSchema(atletasHeaders, mappingByColumn),
+          kits: kitRows,
+        }))
+      } catch {
+        saved = false
+      } finally {
+        setImporting(false)
+      }
+      if (!saved) {
+        setImportError('Não foi possível salvar as planilhas no servidor. Confira a conexão e tente novamente.')
+        return
+      }
     }
 
     setStep(3)
@@ -946,6 +961,7 @@ export default function AssociarPlanilhasModal({
               )}
 
               {/* AÇÕES DA PRÉVIA */}
+              {importError && <p className="kit-scanner-feedback" role="alert">{importError}</p>}
               <div className="associar-modal-actions" style={{ marginTop: '16px' }}>
                 <button type="button" className="btn-associar-cancel" onClick={() => setStep(1)}>
                   ← VOLTAR E AJUSTAR
@@ -954,9 +970,10 @@ export default function AssociarPlanilhasModal({
                   type="button"
                   className="btn-associar-primary confirm-btn"
                   onClick={handleConfirmImport}
+                  disabled={importing}
                 >
                   <CheckCircleLargeIcon />
-                  <span>CONFIRMAR E IMPORTAR {associatedList.length} ATLETAS</span>
+                  <span>{importing ? 'SALVANDO PLANILHAS…' : `CONFIRMAR E IMPORTAR ${associatedList.length} ATLETAS`}</span>
                 </button>
               </div>
             </div>

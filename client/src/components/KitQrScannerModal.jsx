@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
 import './KitQrScannerModal.css'
 
-export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, kit, feedback, onConfirm }) {
+export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, kit, feedback, onConfirm, confirming = false }) {
   const videoRef = useRef(null)
   const deliveredRef = useRef(false)
   const onReadRef = useRef(onRead)
@@ -154,7 +154,7 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
             <h2 id="kit-scanner-title">Fazer leitura</h2>
             {athlete?.nome && <p className="kit-scanner-athlete">Atleta: {athlete.nome}</p>}
           </div>
-          <button type="button" className="kit-scanner-close" aria-label="Fechar leitor" onClick={onClose}>×</button>
+          <button type="button" className="kit-scanner-close" aria-label="Fechar leitor" onClick={onClose} disabled={confirming}>×</button>
         </header>
         <div className="kit-scanner-body">
           {kit ? (
@@ -168,7 +168,10 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
               <p style={{ marginTop: '16px', marginBottom: '16px', fontSize: '13.5px', color: '#334155' }}>
                 Confirme para associar este kit a <strong>{athlete?.nome || 'este atleta'}</strong>.
               </p>
-              <button type="button" className="kit-scanner-confirm" onClick={() => onConfirm()}>Confirmar associação</button>
+              {feedback && <p className="kit-scanner-feedback" role="alert">{feedback}</p>}
+              <button type="button" className="kit-scanner-confirm" onClick={() => onConfirm()} disabled={confirming}>
+                {confirming ? 'Salvando associação…' : 'Confirmar associação'}
+              </button>
             </div>
           ) : (
             <>

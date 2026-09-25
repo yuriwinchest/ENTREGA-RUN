@@ -1,5 +1,15 @@
 # Handoff
 
+## 2026-09-25 — Decisão obrigatória após associação e importação de planilha completa (Fase B)
+
+- **Autor:** Codex/Tony (GPT-6).
+- **Pedido do Yuri:** Após confirmar associação de kit, exigir escolha entre entregar ou desfazer antes de voltar a operar; corrigir importação da planilha única já associada; confirmar senha manual publicada.
+- **Arquivos alterados:** `client/src/App.jsx`, `client/src/components/OperacaoPage.jsx`, `client/src/components/PendingKitDecisionModal.jsx`, `client/src/components/PendingKitDecisionModal.css`, `client/src/components/KitQrScannerModal.jsx`, `client/src/components/ImportarAtletasModal.jsx`, `client/src/components/AssociarPlanilhasModal.jsx`, `client/src/components/UsuariosPage.jsx` e este `HANDOFF.md`.
+- **Implementação:** Associação aguarda confirmação do servidor; abre diálogo obrigatório com entrega, desfazer e campo opcional de retirada por terceiro. A decisão pendente reaparece após recarga, bloqueia a ficha, abas e navegação de histórico; erro de salvamento mantém a ação para repetir. Desfazer restaura o número anterior. Salvamentos da lista são serializados para evitar que uma gravação antiga sobrescreva a decisão nova. A importação de planilha única só mostra conclusão depois de salvar no servidor; falha preserva a prévia para nova tentativa. O mesmo retorno de salvamento passou a ser aguardado na importação com duas planilhas. Ajustado texto da tela de usuários para descrever a senha manual já implementada.
+- **Validação real local:** Playwright/Chrome com APIs simuladas: associação por código manual, falha e repetição de associação, diálogo obrigatório após recarga, Escape e navegação de histórico bloqueados, entrega para terceiro, falha e repetição do salvamento de entrega após recarga, desfazer com número restaurado, importação de XLSX com mapeamento manual e repetição após HTTP 503, e importação separada de atletas e kits. Os quatro cenários finais passaram. `npm run lint --prefix client` sem avisos e `npm run build --prefix client` concluído.
+- **Riscos/pendências:** Os testes de UI usaram dados fictícios e respostas de API simuladas; a homologação no evento real cabe ao Yuri. Este registro ainda não confirma publicação nem teste em produção.
+- **Próximo passo:** Publicar por PR com CI, acompanhar deploy e healthcheck, depois Yuri homologar o fluxo real.
+
 ## 2026-09-25 — Correção da Imagem de Fundo/Banner do Telão (Espelho) e Persistência (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead & Fullstack).
