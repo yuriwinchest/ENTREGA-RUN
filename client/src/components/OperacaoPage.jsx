@@ -26,6 +26,7 @@ import {
   getAthleteTableValue,
 } from '../utils/athleteTable.js'
 import { getEspelhoConfig, publishEspelhoState } from '../utils/espelhoSync.js'
+import { getRecentDeliveries } from '../utils/deliveryFeed.js'
 import KitQrScannerModal from './KitQrScannerModal.jsx'
 import PendingKitDecisionModal from './PendingKitDecisionModal.jsx'
 import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
@@ -535,6 +536,7 @@ export default function OperacaoPage({
   const savingAthletesRef = useRef(0)
   const selectedAthleteRef = useRef(selectedAthlete)
   const pendingKitDecisionRef = useRef(pendingKitDecision)
+  const refreshAthletesRef = useRef(null)
   useEffect(() => { selectedAthleteRef.current = selectedAthlete }, [selectedAthlete])
   useEffect(() => { pendingKitDecisionRef.current = pendingKitDecision }, [pendingKitDecision])
   const saveAthletesInOrder = useCallback((...args) => {
@@ -679,6 +681,7 @@ export default function OperacaoPage({
       setOriginalSheet(result.originalSheet || null)
       setAthletesSync({ state: 'ok', at: Date.now() })
     }
+    refreshAthletesRef.current = refresh
     void refresh()
     const timer = window.setInterval(() => {
       if (document.visibilityState !== 'hidden') void refresh()
@@ -688,6 +691,7 @@ export default function OperacaoPage({
       isMounted = false
       window.clearInterval(timer)
       window.removeEventListener('focus', refresh)
+      if (refreshAthletesRef.current === refresh) refreshAthletesRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentEvent.id])
@@ -1032,8 +1036,8 @@ export default function OperacaoPage({
               atletaChip: athlete.chip || '',
               tipo: athlete.entreguePara && athlete.entreguePara.trim().toUpperCase() !== athlete.nome.trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
               retiradoPor: athlete.entreguePara || athlete.nome,
-              operadorNome: athlete.entreguePor || user?.name || 'Felipe Admin',
-              operadorEmail: user?.email || 'pacetime@entregas.com',
+              operadorNome: athlete.entreguePor || 'Não informado',
+              operadorEmail: '',
               pontoEntrega: 'Guichê Principal',
               kit: athlete.kit || '',
               camiseta: athlete.camiseta || '',
@@ -1095,8 +1099,8 @@ export default function OperacaoPage({
             atletaChip: athlete.chip || '',
             tipo: athlete.entreguePara && athlete.entreguePara.trim().toUpperCase() !== athlete.nome.trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
             retiradoPor: athlete.entreguePara || athlete.nome,
-            operadorNome: athlete.entreguePor || user?.name || 'Felipe Admin',
-            operadorEmail: user?.email || 'pacetime@entregas.com',
+            operadorNome: athlete.entreguePor || 'Não informado',
+            operadorEmail: '',
             pontoEntrega: 'Guichê Principal',
             kit: athlete.kit || '',
             camiseta: athlete.camiseta || '',
@@ -2264,34 +2268,13 @@ export default function OperacaoPage({
 
   // Exibe apenas as 5 últimas entregas em ordem de recência (o mais recente no topo)
   const recentDeliveries = useMemo(() => {
-    return deliveries.slice(0, 5)
-  }, [deliveries])
+    return getRecentDeliveries(athletes)
+  }, [athletes])
 
   const hasDeliveries = recentDeliveries.length > 0
 
   function handleRefreshDeliveries() {
-    setDeliveries((prev) => {
-      const existingIds = new Set(prev.map((d) => String(d.id)))
-      const newlyAdded = []
-
-      for (const a of athletes) {
-        if (a.status === 'ENTREGUE' && !existingIds.has(String(a.numero))) {
-          newlyAdded.push({
-            id: a.numero,
-            name: a.nome,
-            doc: a.doc,
-            category: a.categoria || 'GERAL',
-            size: a.camiseta || 'M',
-            kit: a.kit || '',
-            time: a.entregueEm || 'Entregue',
-            dataHora: a.entregueEm || new Date().toLocaleString('pt-BR'),
-          })
-          existingIds.add(String(a.numero))
-        }
-      }
-
-      return [...newlyAdded, ...prev]
-    })
+    void refreshAthletesRef.current?.()
   }
 
   return (
@@ -3080,6 +3063,10 @@ export default function OperacaoPage({
                               {item.doc && <span className="athlete-doc">— {item.doc}</span>}
                             </div>
                             <div className="delivery-tags">
+                              <span className="delivery-meta">
+                                {item.dataHora || 'Horário não informado'}
+                                {item.operadorNome ? ` · ${item.operadorNome}` : ''}
+                              </span>
                               <span className="tag-green">✓ ENTREGUE</span>
                             </div>
                           </div>
