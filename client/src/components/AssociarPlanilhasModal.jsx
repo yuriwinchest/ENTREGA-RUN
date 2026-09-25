@@ -432,6 +432,9 @@ export default function AssociarPlanilhasModal({
         mappingByColumn[columnIndex] = `custom:${String(header).trim()}`
       })
 
+      const mappedCount = Object.keys(mappingByColumn).length
+      const hasSpecificFields = atletasHeaders.length > mappedCount
+
       onImportSuccess(cleanList, {
         columns: buildImportColumnSchema(atletasHeaders, mappingByColumn),
         kits: kitRows,
@@ -441,6 +444,7 @@ export default function AssociarPlanilhasModal({
           rows: atletasRows,
           totalRows: atletasRows.length,
           importedAt: new Date().toISOString(),
+          hasSpecificFields: Boolean(hasSpecificFields),
         },
       })
     }

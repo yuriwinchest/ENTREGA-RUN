@@ -361,7 +361,6 @@ export default function OperacaoPage({
   const canUndo = isAdmin || userRole === 'SUPERVISOR'
 
   const [activeTab, setActiveTab] = useState('entrega')
-  const effectiveTab = (!isAdmin && activeTab === 'auditoria') ? 'entrega' : activeTab
   const [kitSearch, setKitSearch] = useState('')
   const [atletaSearch, setAtletaSearch] = useState('')
   const [atletaFilter, setAtletaFilter] = useState('TODOS')
@@ -2139,57 +2138,37 @@ export default function OperacaoPage({
     [visibleAthleteTableColumns]
   )
 
-  // Planilha Original Bruta: headers, rows, busca e paginação
+  // Planilha Original: apenas quando uma planilha real for anexada/importada com campos específicos
   const effectiveOriginalSheet = useMemo(() => {
-    if (originalSheet && Array.isArray(originalSheet.headers) && originalSheet.headers.length > 0) {
+    if (
+      originalSheet &&
+      Array.isArray(originalSheet.headers) &&
+      originalSheet.headers.length > 0 &&
+      Array.isArray(originalSheet.rows) &&
+      originalSheet.rows.length > 0
+    ) {
       return originalSheet
     }
-    if (!athletes || athletes.length === 0) return null
+    return null
+  }, [originalSheet])
 
-    // Fallback gracioso para eventos existentes sem originalSheet salvo
-    const standardPresent = [
-      { key: 'numero', label: 'NÚMERO' },
-      { key: 'nome', label: 'NOME' },
-      { key: 'doc', label: 'DOCUMENTO' },
-      { key: 'chip', label: 'CHIP' },
-      { key: 'sexo', label: 'SEXO' },
-      { key: 'nascimento', label: 'NASCIMENTO' },
-      { key: 'modalidade', label: 'MODALIDADE' },
-      { key: 'categoria', label: 'CATEGORIA' },
-      { key: 'camiseta', label: 'CAMISETA' },
-      { key: 'equipe', label: 'EQUIPE' },
-      { key: 'cidade', label: 'CIDADE' },
-      { key: 'contato', label: 'CONTATO' },
-      { key: 'morador', label: 'MORADOR' },
-      { key: 'nacionalidade', label: 'NACIONALIDADE' },
-      { key: 'kit', label: 'KIT' },
-      { key: 'status', label: 'STATUS' },
-    ].filter((col) => col.key === 'numero' || col.key === 'nome' || athletes.some((a) => a[col.key] != null && String(a[col.key]).trim() !== ''))
-
-    const customKeysSet = new Set()
-    athletes.forEach((a) => {
-      if (a.customFields && typeof a.customFields === 'object') {
-        Object.keys(a.customFields).forEach((k) => customKeysSet.add(k))
-      }
-    })
-    const customKeys = Array.from(customKeysSet)
-
-    const headers = [...standardPresent.map((c) => c.label), ...customKeys.map((k) => k.toUpperCase())]
-    const rows = athletes.map((a) => {
-      const standardVals = standardPresent.map((c) => a[c.key] ?? '')
-      const customVals = customKeys.map((k) => a.customFields?.[k] ?? '')
-      return [...standardVals, ...customVals]
-    })
-
-    return {
-      fileName: 'base_atletas.xlsx',
-      headers,
-      rows,
-      totalRows: rows.length,
-      importedAt: currentEvent?.createdAt || null,
-      isReconstructed: true,
+  const showOriginalSheetTab = useMemo(() => {
+    if (!effectiveOriginalSheet) return false
+    // Se a importação marcou explicitamente que houve campos específicos / ignorados
+    if (effectiveOriginalSheet.hasSpecificFields === true) return true
+    // Se o número de colunas na planilha original é maior que o número de colunas da tabela de atletas
+    const athleteColsCount = visibleAthleteTableColumns?.length || athleteColumnSchema?.length || 0
+    if (athleteColsCount > 0 && effectiveOriginalSheet.headers.length > athleteColsCount) {
+      return true
     }
-  }, [originalSheet, athletes, currentEvent?.createdAt])
+    return Boolean(effectiveOriginalSheet.hasSpecificFields)
+  }, [effectiveOriginalSheet, visibleAthleteTableColumns, athleteColumnSchema])
+
+  const effectiveTab = useMemo(() => {
+    if (!isAdmin && activeTab === 'auditoria') return 'entrega'
+    if (activeTab === 'original' && !showOriginalSheetTab) return 'entrega'
+    return activeTab
+  }, [isAdmin, activeTab, showOriginalSheetTab])
 
   const [originalSheetSearch, setOriginalSheetSearch] = useState('')
   const [originalSheetPage, setOriginalSheetPage] = useState(1)
@@ -2382,19 +2361,21 @@ export default function OperacaoPage({
             onClick={() => handleOperationTabChange('atletas')}
           >
             <UsersTabIcon />
-            <span className="tab-label-full">ATLETAS ({visibleAthleteTableColumns.length} CAMPOS)</span>
+            <span className="tab-label-full">ATLETAS</span>
             <span className="tab-label-short">ATLETAS</span>
           </button>
 
-          <button
-            type="button"
-            className={`operacao-subtab ${effectiveTab === 'original' ? 'active' : ''}`}
-            onClick={() => handleOperationTabChange('original')}
-          >
-            <FileSpreadsheetIcon />
-            <span className="tab-label-full">PLANILHA ORIGINAL (TODOS OS CAMPOS)</span>
-            <span className="tab-label-short">ORIGINAL</span>
-          </button>
+          {showOriginalSheetTab && (
+            <button
+              type="button"
+              className={`operacao-subtab ${effectiveTab === 'original' ? 'active' : ''}`}
+              onClick={() => handleOperationTabChange('original')}
+            >
+              <FileSpreadsheetIcon />
+              <span className="tab-label-full">PLANILHA ORIGINAL</span>
+              <span className="tab-label-short">ORIGINAL</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -3313,16 +3294,6 @@ export default function OperacaoPage({
                   >
                     <DownloadIcon />
                     <span>EXPORTAR CSV</span>
-                  </button>
-                )}
-                {canEditAthlete && (
-                  <button
-                    type="button"
-                    className="importar-trigger-btn"
-                    onClick={() => setShowImportModal(true)}
-                    title="Anexar nova planilha Excel ou CSV"
-                  >
-                    <span>↑ ANEXAR PLANILHA</span>
                   </button>
                 )}
               </div>

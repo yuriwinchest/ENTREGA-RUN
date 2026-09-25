@@ -1,6 +1,29 @@
 # Handoff
 
-## 2026-09-25 — Correção do Travamento de Navegação de Abas/Páginas e Resolução de Assets 404 (Fase A)
+## 2026-09-25 — Ajuste de Rótulo da Aba Atletas, Remoção do Botão Anexar e Condição de Planilha Original (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead & Fullstack).
+- **Demanda do Yuri (PO via imagem e mensagem):**
+  1. *Remoção do botão Anexar Planilha:* O botão `↑ ANEXAR PLANILHA` exibido na aba de Planilha Original não existe ali. Toda e qualquer anexação de planilha é realizada exclusivamente pela aba Auditoria (`IMPORTAR JÁ ASSOCIADO` ou `IMPORTAR COM ASSOCIAÇÃO`).
+  2. *Rótulo limpo da aba Atletas:* A aba deve se chamar simplesmente `ATLETAS`, sem o sufixo `(2 CAMPOS)` ou qualquer contagem de campos.
+  3. *Exibição condicional da aba Planilha Original:* A aba `PLANILHA ORIGINAL` só deve existir e ser exibida quando o usuário anexar uma planilha e importar campos específicos (ou seja, quando houver colunas ignoradas na planilha que precisam ser preservadas na versão original). Caso contrário, a aba não aparece na navegação superior.
+- **Implementações Técnicas:**
+  - `client/src/components/ImportarAtletasModal.jsx` & `client/src/components/AssociarPlanilhasModal.jsx`:
+    - Adicionada detecção de campos específicos (`hasSpecificFields`): marcada como verdadeira se houver colunas ignoradas ou se o total de colunas da planilha for superior ao total de colunas mapeadas.
+    - O objeto `originalSheet` é persistido com a flag `hasSpecificFields: true`.
+  - `client/src/components/OperacaoPage.jsx`:
+    - Removida a reconstrução artificial de planilha falsa a partir dos atletas (eliminando o fallback que forçava a aba a existir para eventos normais).
+    - `effectiveOriginalSheet` agora só existe quando houver `originalSheet` real com linhas e cabeçalhos.
+    - Criado memo `showOriginalSheetTab` que avalia se a planilha foi importada com campos específicos (`hasSpecificFields === true` ou mais colunas que a tabela de atletas).
+    - Aba `PLANILHA ORIGINAL` condicionada a `{showOriginalSheetTab && (...)}`.
+    - Rótulo da aba `ATLETAS` limpo para apenas `ATLETAS`.
+    - Botão `↑ ANEXAR PLANILHA` removido da toolbar da Planilha Original.
+- **Validação Real:**
+  - `npm run lint --prefix client`: 0 erros.
+  - `npm run build --prefix client`: bundle gerado com sucesso pelo Vite em 353ms.
+  - `node --check server/server.js`: sintaxe válida (exit code 0).
+  - `node server/admin-users.test.mjs`: testes aprovados (1141ms).
+- **Próximo Passo:** Homologação pelo Yuri (PO) após deploy automático.
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead & Fullstack).
 - **Demanda do Yuri (PO via texto/console):**

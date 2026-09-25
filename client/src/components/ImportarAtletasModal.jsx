@@ -435,6 +435,10 @@ export default function ImportarAtletasModal({
         status: a.status === 'ENTREGUE' ? 'ENTREGUE' : 'ASSOCIADO',
       }))
 
+    const hasIgnoredColumns = parsedHeaders.some((_, idx) => !columnMapping[idx] || columnMapping[idx] === 'ignore')
+    const mappedFieldsCount = Object.values(columnMapping).filter((v) => v && v !== 'ignore').length
+    const hasSpecificFields = hasIgnoredColumns || (parsedHeaders.length > mappedFieldsCount)
+
     setImporting(true)
     let saved = false
     try {
@@ -449,6 +453,7 @@ export default function ImportarAtletasModal({
             rows: parsedRows,
             totalRows: parsedRows.length,
             importedAt: new Date().toISOString(),
+            hasSpecificFields: Boolean(hasSpecificFields),
           },
         }))
       } else {
