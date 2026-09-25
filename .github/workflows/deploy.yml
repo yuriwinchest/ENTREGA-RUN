@@ -63,6 +63,7 @@ jobs:
             test -f data/users.json
             command -v flock
             command -v tar
+            command -v sha256sum
             docker inspect entregas-run-web >/dev/null
             docker compose version
             curl --silent --fail --max-time 5 http://127.0.0.1:3050/api/health >/dev/null

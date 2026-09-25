@@ -77,7 +77,13 @@ mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="$BACKUP_DIR/users-before-$SHORT_SHA-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
 tar -C "$APP_DIR" -czf "$BACKUP_FILE" data/users.json
 tar -tzf "$BACKUP_FILE" >/dev/null
-echo 'Snapshot local do cadastro de usuários verificado.'
+SOURCE_HASH="$(sha256sum "$APP_DIR/data/users.json" | awk '{print $1}')"
+RESTORED_HASH="$(tar -xOzf "$BACKUP_FILE" data/users.json | sha256sum | awk '{print $1}')"
+[[ "$SOURCE_HASH" == "$RESTORED_HASH" ]] || {
+  echo 'Teste de leitura do snapshot falhou; deploy cancelado.' >&2
+  exit 1
+}
+echo 'Snapshot local do cadastro de usuários verificado por leitura e hash.'
 
 git fetch --quiet origin main
 git cat-file -e "$DEPLOY_SHA^{commit}"
