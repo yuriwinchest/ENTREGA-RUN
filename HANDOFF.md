@@ -4,9 +4,9 @@
 
 - **Autor:** Codex/Tony (GPT-6).
 - **Pedido/contexto:** Após o merge de PR #1 (`304b3b9`), a CI e o preflight passaram, mas a imagem nova não respondeu ao healthcheck em 40s. O script executou rollback para a imagem anterior; o log do job não registrou falha no rollback.
-- **Alterações nesta branch diagnóstica:** `.github/workflows/deploy.yml` adiciona ao preflight de PR um teste da imagem candidata já construída em container efêmero com rede desativada, memória/CPU limitadas e volume de dados montado somente para leitura. O container é encerrado ao final. Este `HANDOFF.md` registra a autoria e a evidência.
-- **Validação real até aqui:** Build da mesma imagem no Docker local e `GET /api/health` dentro de container isolado responderam `ok:true`. No teste isolado da VPS, o container saiu antes de 3s e o healthcheck falhou; a opção `--rm` apagou os logs junto com o container. A alteração seguinte retém temporariamente o container para ler somente as últimas 40 linhas do log e remove exatamente o container diagnóstico ao sair.
-- **Risco/próximo passo:** Diagnosticar diferença entre ambiente isolado e Compose da VPS antes de nova troca do serviço. Não testar restauração de dados no container de produção.
+- **Diagnóstico confirmado:** Build da mesma imagem no Docker local e `GET /api/health` dentro de container isolado responderam `ok:true`. No teste isolado da VPS, o container saiu antes de 3s. Com logs retidos, o Node mostrou `EACCES: permission denied, open '/app/server/server.js'`. O script de deploy cria o worktree com `umask 077`; o `COPY server/` preservava permissões restritas e deixava os arquivos com dono root, enquanto o processo roda como usuário node.
+- **Correção candidata:** `Dockerfile` usa `COPY --chown=node:node server/ ./server/`. A CI em `.github/workflows/deploy.yml` torna o diretório `server` inacessível a grupo/outros antes do build, inicia a imagem como usuário node e exige resposta do healthcheck. O teste diagnóstico na VPS foi removido do preflight após isolar a causa.
+- **Risco/próximo passo:** Validar a imagem restrita na CI e repetir o deploy somente com os gates e rollback existentes. Não testar restauração de dados no container de produção.
 
 ## 2026-09-25 — Senha manual e permissões de usuários do Sub-Admin (Fase A)
 
