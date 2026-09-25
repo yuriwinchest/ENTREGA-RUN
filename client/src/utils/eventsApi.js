@@ -2,10 +2,24 @@
  * API client para gerenciamento e sincronização centralizada de eventos.
  */
 
+function getAuthHeaders(extra = {}) {
+  let token = ''
+  try {
+    token = localStorage.getItem('entregas_run_token') || ''
+  } catch {
+    token = ''
+  }
+  return {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  }
+}
+
 export async function apiFetchEvents() {
   try {
     const res = await fetch('/api/events', {
-      headers: { Accept: 'application/json' },
+      headers: getAuthHeaders(),
     })
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
@@ -22,10 +36,9 @@ export async function apiCreateEvent(eventData) {
   try {
     const res = await fetch('/api/events', {
       method: 'POST',
-      headers: {
+      headers: getAuthHeaders({
         'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+      }),
       body: JSON.stringify(eventData),
     })
     if (!res.ok) {
@@ -43,10 +56,9 @@ export async function apiUpdateEvent(eventId, patchData) {
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}`, {
       method: 'PUT',
-      headers: {
+      headers: getAuthHeaders({
         'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+      }),
       body: JSON.stringify(patchData),
     })
     if (!res.ok) {
@@ -64,7 +76,7 @@ export async function apiDeleteEvent(eventId) {
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}`, {
       method: 'DELETE',
-      headers: { Accept: 'application/json' },
+      headers: getAuthHeaders(),
     })
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)

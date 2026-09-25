@@ -97,6 +97,18 @@ function requireAdmin(req, res, next) {
   next()
 }
 
+function requireAdminOrSubAdmin(req, res, next) {
+  const session = getSessionFromReq(req)
+  if (!session) {
+    return res.status(401).json({ ok: false, message: 'Sessão inválida ou expirada. Entre novamente.' })
+  }
+  if (session.role !== 'ADMIN' && session.role !== 'SUB_ADMIN') {
+    return res.status(403).json({ ok: false, message: 'Acesso restrito à administração.' })
+  }
+  req.session = session
+  next()
+}
+
 setInterval(() => {
   const now = Date.now()
   for (const [token, session] of sessions) {
@@ -564,8 +576,16 @@ app.put('/api/events/:eventId', (req, res) => {
   res.json({ ok: true, event: updated })
 })
 
-// DELETE /api/events/:eventId — Remove evento
+// DELETE /api/events/:eventId — Remove evento (somente Super Admin)
 app.delete('/api/events/:eventId', (req, res) => {
+  const session = getSessionFromReq(req)
+  if (session && session.role !== 'ADMIN') {
+    return res.status(403).json({
+      ok: false,
+      message: 'Sub-Admin não tem permissão para excluir eventos. Somente o Super Admin pode realizar exclusões.',
+    })
+  }
+
   const eventId = String(req.params.eventId || '').trim().slice(0, 64)
   const initialLength = inMemoryEvents.length
   inMemoryEvents = inMemoryEvents.filter((e) => e.id !== eventId)
@@ -994,20 +1014,24 @@ function writeUsersToDisk(users) {
   } catch {}
 }
 
-// GET /api/users — Lista usuários cadastrados (somente ADMIN, sem senhas)
-app.get('/api/users', requireAdmin, (_req, res) => {
+// GET /api/users — Lista usuários cadastrados (somente ADMIN ou SUB_ADMIN, sem senhas)
+app.get('/api/users', requireAdminOrSubAdmin, (_req, res) => {
   res.json({ ok: true, users: inMemoryUsers.map(sanitizeUser) })
 })
 
-// POST /api/users — Cria ou atualiza usuário com senha gerada (somente ADMIN)
-app.post('/api/users', requireAdmin, (req, res) => {
+// POST /api/users — Cria ou atualiza usuário com senha gerada (ADMIN ou SUB_ADMIN)
+app.post('/api/users', requireAdminOrSubAdmin, (req, res) => {
   const body = req.body || {}
   const name = String(body.name || '').trim().toUpperCase()
   const email = String(body.email || '').trim().toLowerCase()
   const password = String(body.password || '').trim()
-  const role = ['ADMIN', 'SUPERVISOR', 'OPERADOR'].includes(body.role) ? body.role : 'OPERADOR'
+  const role = ['ADMIN', 'SUB_ADMIN', 'SUPERVISOR', 'OPERADOR'].includes(body.role) ? body.role : 'OPERADOR'
   const eventId = String(body.eventId || 'all').trim()
   const eventName = String(body.eventName || 'TODOS OS PROJETOS').trim()
+
+  if (req.session?.role === 'SUB_ADMIN' && role === 'ADMIN') {
+    return res.status(403).json({ ok: false, message: 'Sub-Admin não tem permissão para criar usuários Super Admin.' })
+  }
 
   if (!name || !email || !EMAIL_RE.test(email)) {
     return res.status(400).json({ ok: false, message: 'Nome e e-mail válido são obrigatórios.' })
@@ -1042,7 +1066,7 @@ app.post('/api/users', requireAdmin, (req, res) => {
 })
 
 // PUT /api/users/:id — Atualiza usuário (dados, função ou redefinição de senha)
-app.put('/api/users/:id', requireAdmin, (req, res) => {
+app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   const userId = String(req.params.id || '').trim()
   const idx = inMemoryUsers.findIndex((u) => u.id === userId)
   if (idx === -1) {
@@ -1052,10 +1076,19 @@ app.put('/api/users/:id', requireAdmin, (req, res) => {
   const current = inMemoryUsers[idx]
   const body = req.body || {}
 
+  if (req.session?.role === 'SUB_ADMIN') {
+    if (current.role === 'ADMIN' || userId === 'admin_pacetime') {
+      return res.status(403).json({ ok: false, message: 'Sub-Admin não pode alterar o Super Admin.' })
+    }
+    if (body.role === 'ADMIN') {
+      return res.status(403).json({ ok: false, message: 'Sub-Admin não pode promover usuários para Super Admin.' })
+    }
+  }
+
   const updated = {
     ...current,
     name: body.name ? String(body.name).trim().toUpperCase() : current.name,
-    role: body.role && ['ADMIN', 'SUPERVISOR', 'OPERADOR'].includes(body.role) ? body.role : current.role,
+    role: body.role && ['ADMIN', 'SUB_ADMIN', 'SUPERVISOR', 'OPERADOR'].includes(body.role) ? body.role : current.role,
     eventId: body.eventId !== undefined ? String(body.eventId) : current.eventId,
     eventName: body.eventName !== undefined ? String(body.eventName) : current.eventName,
     status: body.status && ['ATIVO', 'INATIVO'].includes(body.status) ? body.status : current.status,

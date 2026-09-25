@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import Sidebar from './Sidebar.jsx'
 import {
   apiFetchUsers,
@@ -138,10 +138,16 @@ const ROLE_OPTIONS = [
     detail: 'Entrega kits e pode alterar dados do atleta'
   },
   {
+    value: 'SUB_ADMIN',
+    label: 'SUB-ADMIN',
+    description: 'Gestão sem exclusão',
+    detail: 'Cria eventos e entrega kits, sem permissão de exclusão ou alteração cadastral'
+  },
+  {
     value: 'ADMIN',
-    label: 'ADMIN',
+    label: 'SUPER ADMIN',
     description: 'Acesso total',
-    detail: 'Acesso total, gestão e novos usuários'
+    detail: 'Acesso total irrestrito, gestão e exclusões'
   }
 ]
 
@@ -331,9 +337,20 @@ export default function UsuariosPage({
     })
   }
 
+  const availableRoleOptions = useMemo(() => {
+    if (user?.role === 'SUB_ADMIN') {
+      return ROLE_OPTIONS.filter((r) => r.value === 'OPERADOR' || r.value === 'SUPERVISOR')
+    }
+    return ROLE_OPTIONS
+  }, [user?.role])
+
   async function handleToggleStatus(userId) {
     const target = users.find((u) => u.id === userId)
     if (!target) return
+    if (user?.role === 'SUB_ADMIN' && target.role === 'ADMIN') {
+      alert('Sub-Admin não tem permissão para alterar o status do Super Admin.')
+      return
+    }
     const nextStatus = target.status === 'ATIVO' ? 'INATIVO' : 'ATIVO'
 
     setUsers((prev) =>
@@ -343,7 +360,12 @@ export default function UsuariosPage({
   }
 
   async function handleRemoveUser(userId) {
-    if (userId === user?.id || userId === 'admin_pacetime') {
+    if (user?.role !== 'ADMIN') {
+      alert('Somente o Super Admin tem permissão para remover usuários.')
+      return
+    }
+    const targetUser = users.find((u) => u.id === userId)
+    if (userId === user?.id || userId === 'admin_pacetime' || targetUser?.role === 'ADMIN') {
       alert('Não é possível remover o administrador principal.')
       return
     }
@@ -379,6 +401,11 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
   }
 
   async function handleResetPasswordForUser(userId) {
+    const target = users.find((u) => u.id === userId)
+    if (user?.role === 'SUB_ADMIN' && target?.role === 'ADMIN') {
+      alert('Sub-Admin não tem permissão para redefinir a senha do Super Admin.')
+      return
+    }
     const newPass = generateEasySecurePassword()
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, password: newPass } : u))
@@ -400,7 +427,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
           <div className="usuarios-title-wrap">
             <h1 className="usuarios-page-title">USUÁRIOS</h1>
             <p className="usuarios-subtitle">
-              Gerencie os usuários da operação e a função de cada um. Operador apenas entrega o kit; Supervisor entrega e pode alterar os dados do atleta; Admin tem acesso total.
+              Gerencie os usuários da operação e a função de cada um. Operador apenas entrega o kit; Supervisor entrega e pode alterar os dados do atleta; Sub-Admin gerencia a operação sem poder de exclusão; Super Admin tem acesso total irrestrito.
               <br />
               Crie logins com senha gerada automaticamente e envie facilmente para a equipe no WhatsApp.
             </p>
@@ -439,8 +466,8 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                   <div className="user-badges-row">
                     <span className={`role-pill ${item.role.toLowerCase()}`}>
-                      {item.role === 'ADMIN' ? <ShieldIcon /> : <UserIcon />}
-                      <span>{item.role}</span>
+                      {item.role === 'ADMIN' || item.role === 'SUB_ADMIN' ? <ShieldIcon /> : <UserIcon />}
+                      <span>{item.role === 'SUB_ADMIN' ? 'SUB-ADMIN' : item.role === 'ADMIN' ? 'SUPER ADMIN' : item.role}</span>
                     </span>
 
                     <span className={`status-pill-user ${item.status === 'INATIVO' ? 'inactive' : ''}`}>
@@ -461,32 +488,36 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                 </div>
 
                 <div className="user-card-actions">
-                  <button
-                    type="button"
-                    className="btn-user-cred-action"
-                    title="Redefinir senha do usuário"
-                    onClick={() => {
-                      setUserToManagePassword({
-                        ...item,
-                        password: '',
-                      })
-                      setShowManagePasswordEye(false)
-                      setManagePasswordFeedback('')
-                    }}
-                  >
-                    <KeyIcon size={14} />
-                    <span>SENHA</span>
-                  </button>
+                  {!(user?.role === 'SUB_ADMIN' && item.role === 'ADMIN') && (
+                    <button
+                      type="button"
+                      className="btn-user-cred-action"
+                      title="Redefinir senha do usuário"
+                      onClick={() => {
+                        setUserToManagePassword({
+                          ...item,
+                          password: '',
+                        })
+                        setShowManagePasswordEye(false)
+                        setManagePasswordFeedback('')
+                      }}
+                    >
+                      <KeyIcon size={14} />
+                      <span>SENHA</span>
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    className="btn-deactivate"
-                    onClick={() => handleToggleStatus(item.id)}
-                  >
-                    {item.status === 'ATIVO' ? 'DESATIVAR' : 'ATIVAR'}
-                  </button>
+                  {!(user?.role === 'SUB_ADMIN' && item.role === 'ADMIN') && (
+                    <button
+                      type="button"
+                      className="btn-deactivate"
+                      onClick={() => handleToggleStatus(item.id)}
+                    >
+                      {item.status === 'ATIVO' ? 'DESATIVAR' : 'ATIVAR'}
+                    </button>
+                  )}
 
-                  {item.id !== user?.id && item.id !== 'admin_pacetime' && (
+                  {user?.role === 'ADMIN' && item.id !== user?.id && item.id !== 'admin_pacetime' && item.role !== 'ADMIN' && (
                     <button
                       type="button"
                       className="icon-action-btn"
@@ -607,7 +638,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                     {isRoleDropdownOpen && (
                       <div className="role-options-list" role="listbox">
-                        {ROLE_OPTIONS.map((opt) => {
+                        {availableRoleOptions.map((opt) => {
                           const isSelected = newUserForm.role === opt.value
                           return (
                             <button
@@ -615,7 +646,13 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                               type="button"
                               className={`role-option-item ${isSelected ? 'selected' : ''}`}
                               onClick={() => {
-                                setNewUserForm((prev) => ({ ...prev, role: opt.value }))
+                                setNewUserForm((prev) => ({
+                                  ...prev,
+                                  role: opt.value,
+                                  ...(opt.value === 'ADMIN' || opt.value === 'SUB_ADMIN'
+                                    ? { eventId: 'all', eventName: 'TODOS OS PROJETOS' }
+                                    : {}),
+                                }))
                                 setIsRoleDropdownOpen(false)
                               }}
                               role="option"
@@ -669,7 +706,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                     {isEventDropdownOpen && (
                       <div className="role-options-list" role="listbox">
-                        {newUserForm.role === 'ADMIN' && (
+                        {(newUserForm.role === 'ADMIN' || newUserForm.role === 'SUB_ADMIN') && (
                           <button
                             type="button"
                             className={`role-option-item ${newUserForm.eventId === 'all' ? 'selected' : ''}`}
@@ -686,7 +723,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                           >
                             <div className="role-option-content">
                               <div className="role-option-title-row">
-                                <span className="role-tag-badge admin">GLOBAL</span>
+                                <span className={`role-tag-badge ${newUserForm.role === 'SUB_ADMIN' ? 'sub_admin' : 'admin'}`}>GLOBAL</span>
                                 <span className="role-option-desc">TODOS OS PROJETOS</span>
                               </div>
                               <p className="role-option-detail">Acesso e gestão de todas as corridas do sistema</p>

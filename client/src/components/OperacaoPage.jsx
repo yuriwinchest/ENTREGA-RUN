@@ -341,7 +341,10 @@ export default function OperacaoPage({
 }) {
   const userRole = user?.role || 'ADMIN'
   const isOperator = userRole === 'OPERADOR'
+  const isSubAdmin = userRole === 'SUB_ADMIN'
   const isAdmin = userRole === 'ADMIN'
+  const canEditAthlete = userRole === 'ADMIN' || userRole === 'SUPERVISOR'
+  const canUndo = userRole === 'ADMIN' || userRole === 'SUPERVISOR'
 
   const [activeTab, setActiveTab] = useState('entrega')
   const effectiveTab = (!isAdmin && activeTab === 'auditoria') ? 'entrega' : activeTab
@@ -668,7 +671,7 @@ export default function OperacaoPage({
   }, [detailForm?.chip, detailForm?.id, selectedAthlete?.id, athletes])
 
   function handleOpenAddAthleteModal() {
-    if (isOperator) return
+    if (!canEditAthlete) return
     const initialCustom = {}
     availableCustomColumns.forEach((c) => {
       initialCustom[c.customKey] = ''
@@ -1359,7 +1362,7 @@ export default function OperacaoPage({
   }
 
   function persistDetailDraft({ showFeedback = true } = {}) {
-    if (isOperator || !detailForm || !selectedAthlete) return null
+    if (!canEditAthlete || !detailForm || !selectedAthlete) return null
 
     const normalized = normalizeAthleteDetail(selectedAthlete, detailForm)
     if (!normalized.nome) {
@@ -1465,11 +1468,11 @@ export default function OperacaoPage({
   // Fluxo definido pelo PO: ao editar qualquer campo, a entrega fica
   // bloqueada até salvar; sem alterações pendentes, a entrega é liberada.
   const detailHasPendingEdits = detailHasChanges
-  const deliverBlockedByEdits = !isOperator && detailHasPendingEdits
+  const deliverBlockedByEdits = canEditAthlete && detailHasPendingEdits
 
   // Desfazer Associação / Entrega: limpa completamente chip, qrCode, entrega e status
   function handleUndoAssociation() {
-    if (isOperator || !selectedAthlete) return
+    if (!canUndo || !selectedAthlete) return
 
     const athleteRef = selectedAthlete
 
@@ -1549,7 +1552,7 @@ export default function OperacaoPage({
   // Handle Add Athlete Submission (Dinâmico para Tabela Importada / Associada)
   function handleCreateAthlete(e) {
     e.preventDefault()
-    if (isOperator) return
+    if (!canEditAthlete) return
     const num = String(athleteForm.numero || '').trim()
     const nome = String(athleteForm.nome || '').trim().toUpperCase()
 
@@ -1757,7 +1760,7 @@ export default function OperacaoPage({
         ''
       ).trim()
 
-      const athleteToDeliver = isOperator
+      const athleteToDeliver = !canEditAthlete
         ? {
             ...selectedAthlete,
             entreguePara: customRecipient,
@@ -2087,7 +2090,7 @@ export default function OperacaoPage({
                 <div className="athlete-detail-actions-bar">
                   {detailForm.status === 'ENTREGUE' ? (
                     <>
-                      {!isOperator && (
+                      {canUndo && (
                         <button
                           type="button"
                           className="btn-detail-undo"
@@ -2101,7 +2104,7 @@ export default function OperacaoPage({
                     </>
                   ) : (
                     <>
-                      {!isOperator && (
+                      {canEditAthlete && (
                         <button
                           type="button"
                           className={`btn-detail-save ${detailHasChanges ? 'btn-detail-save-active' : ''}`}
@@ -2122,12 +2125,12 @@ export default function OperacaoPage({
                         disabled={detailActionInProgress || deliverBlockedByEdits}
                         title={deliverBlockedByEdits
                           ? 'Existem alterações não salvas — clique em SALVAR ALTERAÇÕES para liberar a entrega'
-                          : (isOperator ? 'Confirmar entrega do kit' : 'Entregar o kit com os dados salvos')}
+                          : (!canEditAthlete ? 'Confirmar entrega do kit' : 'Entregar o kit com os dados salvos')}
                       >
                         <CheckCircleIcon />
                         <span>ENTREGAR KIT</span>
                       </button>
-                      {!isOperator && (Boolean(detailForm.chip) || Boolean(detailForm.qrCode) || (Boolean(detailForm.numero) && detailForm.numero !== '—')) && (
+                      {canUndo && (Boolean(detailForm.chip) || Boolean(detailForm.qrCode) || (Boolean(detailForm.numero) && detailForm.numero !== '—')) && (
                         <button
                           type="button"
                           className="btn-detail-undo"
@@ -2243,7 +2246,7 @@ export default function OperacaoPage({
                     <input
                       type="text"
                       className="athlete-form-input entregue-para-input"
-                      disabled={detailForm.status === 'ENTREGUE' && isOperator}
+                      disabled={detailForm.status === 'ENTREGUE' && !canUndo}
                       value={detailForm.entreguePara || ''}
                       placeholder="Deixe em branco para o próprio atleta ou digite o nome do terceiro"
                       onChange={(e) =>
@@ -2262,10 +2265,15 @@ export default function OperacaoPage({
                     <span>🔒 Perfil Operador: consulta e entrega de kit liberadas. Alteração de dados cadastrais reservada ao Supervisor.</span>
                   </div>
                 )}
+                {isSubAdmin && (
+                  <div className="operator-permission-notice">
+                    <span>🔒 Perfil Sub-Admin: entrega de kit e gestão liberadas. Alteração cadastral de atleta reservada ao Supervisor/Admin.</span>
+                  </div>
+                )}
 
                 {/* 4. Formulário Completo de Dados do Atleta */}
                 <form className="athlete-detail-form-card" onSubmit={handleSaveDetail}>
-                  <fieldset disabled={isOperator} className="athlete-detail-fieldset">
+                  <fieldset disabled={!canEditAthlete} className="athlete-detail-fieldset">
                   {/* Linha 1: NÚMERO, NOME, DOCUMENTO, SEXO */}
                   <div className="detail-form-row-4">
                     <div className="athlete-form-group">
@@ -2486,7 +2494,7 @@ export default function OperacaoPage({
                         type="text"
                         className={`athlete-form-input ${detailChipCollision ? 'input-error-border' : ''}`}
                         placeholder="Número do chip"
-                        disabled={isOperator}
+                        disabled={!canEditAthlete}
                         value={detailForm.chip || ''}
                         onChange={(e) =>
                           setDetailForm({
@@ -2579,7 +2587,7 @@ export default function OperacaoPage({
                             {finalOpts.length > 0 ? (
                               <select
                                 className="athlete-form-select"
-                                disabled={isOperator}
+                                disabled={!canEditAthlete}
                                 value={v || ''}
                                 onChange={(e) => {
                                   const newVal = e.target.value
@@ -2602,7 +2610,7 @@ export default function OperacaoPage({
                               <input
                                 type="text"
                                 className="athlete-form-input"
-                                disabled={isOperator}
+                                disabled={!canEditAthlete}
                                 value={v || ''}
                                 onChange={(e) => {
                                   const newVal = e.target.value
@@ -2794,7 +2802,7 @@ export default function OperacaoPage({
                   </button>
                 </div>
 
-                {!isOperator && (
+                {canEditAthlete && (
                   <button
                     type="button"
                     className="btn-add-atleta"

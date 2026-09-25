@@ -177,6 +177,18 @@
   color: #475569;
 }
 
+.role-pill.sub_admin {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  color: #4f46e5;
+}
+
+.role-pill.supervisor {
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  color: #2563eb;
+}
+
 .role-pill.operador {
   background: rgba(255, 82, 0, 0.08);
   border: 1px solid rgba(255, 82, 0, 0.25);
@@ -562,6 +574,11 @@
 .role-tag-badge.supervisor {
   background: rgba(37, 99, 235, 0.12);
   color: #2563eb;
+}
+
+.role-tag-badge.sub_admin {
+  background: rgba(99, 102, 241, 0.12);
+  color: #4f46e5;
 }
 
 .role-tag-badge.admin {

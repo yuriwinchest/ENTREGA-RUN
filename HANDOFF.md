@@ -1,5 +1,59 @@
 # Handoff
 
+## 2026-09-25 — Criação do Perfil Sub-Admin com Gestão de Eventos e Kits sem Permissão de Exclusão (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead, Frontend, Backend & SRE).
+- **Demanda do Yuri (PO via áudio 00:11):**
+  Implementar um novo perfil/função de usuário na plataforma: **Sub-Admin** (posicionado abaixo do Super Admin).
+  Regras e limites de acesso definidos pelo PO:
+  1. *Proibição total de exclusão:* O Sub-Admin pode criar eventos e navegar pela plataforma, mas **NÃO pode deletar nada**:
+     - Não pode deletar eventos (nem mesmo os que ele criou).
+     - Não pode deletar usuários da tabela.
+     - Não pode deletar/desfazer entregas de kits ou associações de atletas.
+  2. *Bloqueio de alteração cadastral:* O Sub-Admin **NÃO pode alterar nem editar dados cadastrais dos atletas na tabela** (nome, documento, sexo, modalidade, categoria, camiseta, chip, etc.).
+  3. *Retirada por Terceiro autorizada:* A **única edição permitida na ficha do atleta** é o campo de **quem vai receber / retirado por terceiro** ("👤 ENTREGUE PARA / RETIRADO POR"), permitindo registrar a retirada do kit por outra pessoa antes de confirmar a entrega.
+  4. *Super Admin intacto:* O perfil `ADMIN` (Super Admin) continua com 100% dos poderes irrestritos de gestão, criação, edição e exclusão.
+- **Ações Realizadas:**
+  1. **Backend e Controle de Acesso (`server/server.js`):**
+     - Criado o middleware `requireAdminOrSubAdmin` para permitir que o Sub-Admin acesse `GET /api/users`, `POST /api/users` e `PUT /api/users/:id`.
+     - Implementada proteção rigorosa contra escalada de privilégios: o Sub-Admin é bloqueado com `403 Forbidden` caso tente criar, promover ou editar usuários com perfil `ADMIN` ou o Super Admin principal.
+     - Mantida a rota `DELETE /api/users/:id` restrita exclusivamente ao Super Admin (`requireAdmin`).
+     - Atualizada a rota `DELETE /api/events/:eventId` com verificação de sessão/token, retornando `403 Forbidden` caso o chamador seja Sub-Admin.
+     - Incluído `SUB_ADMIN` na validação de papéis válidos no servidor.
+  2. **API Client Centralizado (`client/src/utils/eventsApi.js`):**
+     - Adicionada função `getAuthHeaders` injetando `Authorization: Bearer <token>` em `apiDeleteEvent`, `apiCreateEvent` e `apiUpdateEvent`.
+  3. **Roteamento e Sidebar (`client/src/App.jsx` e `client/src/components/Sidebar.jsx`):**
+     - Liberada a rota `/usuarios` para `SUB_ADMIN` em `App.jsx`.
+     - Permitido acesso a todos os eventos (`effectiveEventId`) para `SUB_ADMIN`.
+     - Menu `USUÁRIOS` e bottom navigation mobile habilitados para `SUB_ADMIN`.
+     - Badge do rodapé da sidebar exibindo `SUPER ADMIN` para `ADMIN` e `SUB-ADMIN` para `SUB_ADMIN`.
+  4. **Página de Usuários (`client/src/components/UsuariosPage.jsx` e `UsuariosPage.css`):**
+     - Adicionada a opção `SUB_ADMIN` com label "SUB-ADMIN", descrição "Gestão sem exclusão" e detalhe descritivo em `ROLE_OPTIONS`.
+     - Criado `availableRoleOptions`: quando um Sub-Admin acessa o formulário de novo usuário, são exibidas apenas as opções `OPERADOR` e `SUPERVISOR`, impedindo que ele crie novos administradores.
+     - Ocultado e bloqueado o botão de lixeira (exclusão de usuários) para quem não for Super Admin.
+     - Bloqueada a redefinição de senha ou desativação do Super Admin por Sub-Admin.
+     - Criadas classes CSS `.role-pill.sub_admin` e `.role-tag-badge.sub_admin` com paleta índigo refinada (`#4f46e5`).
+  5. **Página de Eventos (`client/src/components/EventosPage.jsx`):**
+     - Inserida a flag `canDelete = user?.role === 'ADMIN'`.
+     - Ocultado o botão de lixeira (excluir evento) nos cards para quem não for Super Admin.
+     - Inserida verificação de segurança em `handleConfirmDelete()` bloqueando a ação caso o usuário não seja Super Admin.
+  6. **Ficha de Operação e Entrega de Kits (`client/src/components/OperacaoPage.jsx`):**
+     - Estabelecidas as permissões:
+       - `canEditAthlete = userRole === 'ADMIN' || userRole === 'SUPERVISOR'`
+       - `canUndo = userRole === 'ADMIN' || userRole === 'SUPERVISOR'`
+     - Para `SUB_ADMIN`:
+       - Exibido banner informativo: `🔒 Perfil Sub-Admin: entrega de kit e gestão liberadas. Alteração cadastral de atleta reservada ao Supervisor/Admin.`
+       - Fieldset de dados cadastrais desabilitado (`disabled={!canEditAthlete}`).
+       - Campo `👤 ENTREGUE PARA / RETIRADO POR` habilitado e funcional antes da entrega do kit.
+       - Botão "ENTREGAR KIT" funcional, registrando o `entreguePara: customRecipient` e confirmando a entrega sem alterar o cadastro original.
+       - Botões "DESFAZER" e "SALVAR ALTERAÇÕES" ocultos para o Sub-Admin.
+       - Botão "+ NOVO" na aba Atletas oculto para quem não possui permissão de edição cadastral.
+- **Validação Real:**
+  - `npm run lint --prefix client` (`oxlint`): 0 warnings e 0 errors em 29 arquivos.
+  - `npm run build --prefix client` (`vite build`): bundle de produção compilado com sucesso em 984ms.
+  - `node --check server/server.js`: sintaxe validada com sucesso sem erros.
+- **Próximo Passo:** Commitar e enviar para o repositório remoto para deploy e homologação pelo Yuri.
+
 ## 2026-09-24 — Sincronização em Tempo Real via SSE e Fidelidade Rigorosa do Espelho (Fase B)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead, Frontend, Backend & SRE).

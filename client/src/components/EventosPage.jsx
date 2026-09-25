@@ -171,6 +171,7 @@ export default function EventosPage({
     location: '',
   })
 
+  const canDelete = user?.role === 'ADMIN'
   const isStep2 = tutorialStep === 2
 
   const filteredEvents = events.filter((event) => {
@@ -232,6 +233,11 @@ export default function EventosPage({
 
   function handleConfirmDelete() {
     if (!deletingEvent) return
+    if (!canDelete) {
+      alert('Somente o Super Admin tem permissão para excluir eventos.')
+      setDeletingEvent(null)
+      return
+    }
     const idToDelete = deletingEvent.id
     setEvents((prev) => prev.filter((ev) => ev.id !== idToDelete))
     apiDeleteEvent(idToDelete).catch(() => {})
@@ -383,14 +389,16 @@ export default function EventosPage({
                       <EditIcon />
                     </button>
 
-                    <button
-                      type="button"
-                      className="icon-action-btn delete"
-                      title="Excluir evento"
-                      onClick={() => setDeletingEvent(event)}
-                    >
-                      <TrashIcon />
-                    </button>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        className="icon-action-btn delete"
+                        title="Excluir evento"
+                        onClick={() => setDeletingEvent(event)}
+                      >
+                        <TrashIcon />
+                      </button>
+                    )}
 
                     {/* Status Pill Button + Dropdown Container */}
                     <div className="status-dropdown-container">

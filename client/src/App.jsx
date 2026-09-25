@@ -183,7 +183,7 @@ export default function App() {
     return ''
   })
 
-  const effectiveEventId = (user?.role !== 'ADMIN' && user?.eventId && user.eventId !== 'all')
+  const effectiveEventId = (user?.role !== 'ADMIN' && user?.role !== 'SUB_ADMIN' && user?.eventId && user.eventId !== 'all')
     ? user.eventId
     : (selectedEventId && events.some((e) => e.id === selectedEventId)
       ? selectedEventId
@@ -238,7 +238,7 @@ export default function App() {
 
   function navigateTo(page, id) {
     let targetPage = page
-    if (targetPage === 'usuarios' && user?.role !== 'ADMIN') {
+    if (targetPage === 'usuarios' && user?.role !== 'ADMIN' && user?.role !== 'SUB_ADMIN') {
       targetPage = 'eventos'
     }
     const targetId = id || effectiveEventId
