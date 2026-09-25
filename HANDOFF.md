@@ -1,5 +1,15 @@
 # Handoff
 
+## 2026-09-25 — Avisos SSE de entregas para superadmin e operador (Fase A)
+
+- **Autor:** Codex/Tony (GPT-6). Revisão inicial de desenho do canal feita por agente Codex somente leitura; implementação e testes executados por Codex/Tony.
+- **Pedido:** atualizar métricas e últimas entregas entre navegadores após uma gravação confirmada, inclusive para o superadmin e o operador do evento.
+- **Arquivos alterados:** `server/server.js`, `server/live-events.http.test.mjs`, `client/src/App.jsx`, `client/src/components/EventDashboardPage.jsx`, `client/src/components/OperacaoPage.jsx`, `client/src/utils/eventsApi.js`, `client/src/utils/eventsApi.test.mjs`, `.github/workflows/deploy.yml` e este `HANDOFF.md`.
+- **Implementação:** endpoint SSE autenticado por Bearer envia somente `eventId` e revisão para sessões autorizadas, após gravação da lista, upload final ou mudança de status confirmada no disco. O navegador busca novamente os dados persistidos ao receber o aviso ou reconectar. Os painéis e a operação continuam com consulta a cada 10 segundos como recuperação. O stream encerra quando a sessão expira/revoga e limita conexões por token/servidor.
+- **Validação real:** servidor local temporário com dois perfis e dois eventos confirmou 401 sem token, aviso ao admin e operador do mesmo evento, isolamento de outro evento e ausência de aviso após escrita inválida. Teste do cliente confirmou Bearer no cabeçalho, URL sem token e quadros SSE divididos. Suite local: 11 testes passaram; lint sem erro (três avisos já existentes), build e `git diff --check` passaram. Nenhum dado da corrida real foi modificado.
+- **Risco/pendência:** SSE informa sobre gravação no disco do servidor, não garante espelhamento concluído no Appwrite nem confirma entrega física. Sessões atuais ficam em memória e se perdem no reinício do contêiner. O teste local não substitui homologação com dois navegadores reais. PR e produção ainda pendentes nesta entrada; publicação deve seguir snapshot, pausa dos operadores, gate de integridade, healthcheck e rollback de imagem, sem restaurar volume por cima de novas entregas.
+- **Próximo passo:** abrir PR para validar CI e preflight sem deploy; depois homologar com o Yuri e só publicar em janela segura.
+
 ## 2026-09-25 — Corrigir últimas entregas do superadmin (Fase B)
 
 - **Autor:** Codex/Tony (GPT-6); investigação independente somente leitura feita por agente Codex de UI.

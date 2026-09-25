@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiFetchAthletes } from '../utils/eventsApi.js'
 import Sidebar from './Sidebar.jsx'
 import './EventDashboardPage.css'
@@ -128,11 +128,13 @@ function DeliveryChart({ title, data, showPendentes = true }) {
 
 export default function EventDashboardPage({
   event,
+  eventUpdate,
   user,
   onNavigate,
   onLogout,
   onOpenTutorial,
 }) {
+  const refreshRef = useRef(null)
   const [activeSubtab, setActiveSubtab] = useState('geral')
   const [hoveredStatus, setHoveredStatus] = useState(null)
   const [hoveredGender, setHoveredGender] = useState(null)
@@ -160,6 +162,7 @@ export default function EventDashboardPage({
         busy = false
       }
     }
+    refreshRef.current = refresh
     refresh()
     const timer = window.setInterval(refresh, 10000)
     window.addEventListener('focus', refresh)
@@ -169,8 +172,15 @@ export default function EventDashboardPage({
       window.clearInterval(timer)
       window.removeEventListener('focus', refresh)
       document.removeEventListener('visibilitychange', refresh)
+      if (refreshRef.current === refresh) refreshRef.current = null
     }
   }, [event?.id])
+
+  useEffect(() => {
+    if (eventUpdate?.revision && (!eventUpdate.eventId || eventUpdate.eventId === event?.id)) {
+      void refreshRef.current?.()
+    }
+  }, [eventUpdate?.revision, event?.id])
 
   const totalCount = athletes.length
   const mascCount = athletes.filter((a) => String(a.sexo || a.gender || '').toUpperCase().startsWith('M')).length

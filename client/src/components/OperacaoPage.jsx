@@ -348,6 +348,7 @@ const INITIAL_ATHLETE_FORM = {
 
 export default function OperacaoPage({
   event,
+  eventUpdate,
   user,
   onUpdateEvent,
   onNavigate,
@@ -695,6 +696,12 @@ export default function OperacaoPage({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentEvent.id])
+
+  useEffect(() => {
+    if (eventUpdate?.revision && (!eventUpdate.eventId || eventUpdate.eventId === currentEvent.id)) {
+      void refreshAthletesRef.current?.()
+    }
+  }, [eventUpdate?.revision, currentEvent.id])
 
   useEffect(() => {
     if (!currentEvent.id || Array.isArray(kits)) return
