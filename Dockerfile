@@ -29,8 +29,9 @@ RUN mkdir -p /app/data && chown -R node:node /app/data
 # Copia código do servidor
 COPY --chown=node:node server/ ./server/
 
-# Copia o build estático do client para servir na mesma origem
-COPY --from=builder /app/client/dist ./client/dist
+# Copia assets públicos e o build estático do client para servir na mesma origem
+COPY --chown=node:node client/public/ ./client/public/
+COPY --chown=node:node --from=builder /app/client/dist ./client/dist
 
 # Usuário não-root para segurança (Crowley)
 USER node

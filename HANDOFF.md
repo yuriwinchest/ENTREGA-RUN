@@ -1,5 +1,36 @@
 # Handoff
 
+## 2026-09-25 — Correção do Travamento de Navegação de Abas/Páginas e Resolução de Assets 404 (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead & Fullstack).
+- **Demanda do Yuri (PO via texto/console):**
+  "ta travando clcia e não mudas agians"
+  Logs do console enviados pelo Yuri:
+  - `Uncaught ReferenceError: setDetailSourceTab is not defined at Rt ... at onClick`
+  - `/logo.png:1 Failed to load resource: the server responded with a status of 404 ()`
+- **Causa Raiz Identificada:**
+  1. *ReferenceError `setDetailSourceTab`:* Dentro de `OperacaoPage.jsx`, a função `executeCloseAthleteDetail()` tentava chamar `setDetailSourceTab(null)`. Toda vez que o operador clicava em qualquer aba ("ATLETAS", "PLANILHA ORIGINAL", "ESTATÍSTICAS", "AUDITORIA") ou em qualquer rota do menu lateral (Sidebar), a guarda de navegação `closeAthleteDetail()` era acionada para fechar o atleta ativo. Como `detailSourceTab` não estava declarado no estado do componente, o JavaScript quebrava com `ReferenceError`, abortando o clique e impedindo qualquer transição de tela ou aba.
+  2. *ReferenceError `auditIncludeComprovantes`:* O export de auditoria referia-se a `auditIncludeComprovantes` sem declaração de estado local.
+  3. *Bloqueio potencial por decisão órfã:* Se existisse uma chave `pendingKitDecision` no `localStorage` apontando para um atleta inexistente ou apagado, a interface ficava com `busy=true` sem permitir dispensar.
+  4. *404 em `/logo.png`:* No `Dockerfile`, a pasta `client/public` não era copiada para a imagem runner final, e o Express tentava `distLogo` e caía num fallback inexistente. Além disso, as permissões do container rodavam como usuário `node` sem chown explícito em `client/dist`.
+- **Implementações Técnicas:**
+  - `client/src/components/OperacaoPage.jsx`:
+    - Declarado `const [_detailSourceTab, setDetailSourceTab] = useState(null)`.
+    - Declarado `const [auditIncludeComprovantes, _setAuditIncludeComprovantes] = useState(true)`.
+    - Blindagem em `useEffect` de `pendingKitDecision`: se o evento ou atleta não existirem na lista de atletas carregada, a decisão órfã é descartada automaticamente via `localStorage.removeItem` e `setPendingKitDecision(null)`, nunca travando a UI.
+  - `server/server.js`:
+    - Rotas `/logo.png` e `/favicon.svg` reescritas com verificação síncrona `fs.existsSync` percorrendo múltiplos caminhos candidatos (`client/dist`, `client/public`, `client/src/assets`) com fallback gracioso para `/favicon.svg`.
+  - `Dockerfile`:
+    - Adicionado `COPY --chown=node:node client/public/ ./client/public/`.
+    - Adicionado `--chown=node:node` em `COPY --from=builder /app/client/dist ./client/dist`.
+- **Validação Real:**
+  - `npm run lint --prefix client`: **0 erros**.
+  - `npm run build --prefix client`: bundle gerado em 645ms.
+  - `node --check server/server.js`: sintaxe válida (exit code 0).
+  - `node server/admin-users.test.mjs`: testes aprovados (1134ms).
+  - Teste em container Docker isolado local: `GET /logo.png` retornou **HTTP 200 OK** (`Content-Type: image/png`, `1237770 bytes`).
+- **Próximo Passo:** Homologação pelo Yuri (PO) após deploy automático.
+
 ## 2026-09-25 — Integração Codex (Decisão Obrigatória de Kit) e Correção da Importação de Planilha Completa (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead & Fullstack) integrado com Codex/Tony.

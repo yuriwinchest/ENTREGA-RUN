@@ -380,6 +380,7 @@ export default function OperacaoPage({
 
   // Selected athlete for detailed kit delivery view (Photo reference)
   const [selectedAthlete, setSelectedAthlete] = useState(null)
+  const [_detailSourceTab, setDetailSourceTab] = useState(null)
   const [detailForm, setDetailForm] = useState(null)
   const [detailInitialForm, setDetailInitialForm] = useState(null)
   const [detailFeedback, setDetailFeedback] = useState('')
@@ -544,17 +545,30 @@ export default function OperacaoPage({
     }
   }
 
-  const hasPendingKitDecision = pendingKitDecision?.eventId === currentEvent.id
+  const hasPendingKitDecision = Boolean(pendingKitDecision && pendingKitDecision.eventId === currentEvent.id)
 
   useEffect(() => {
     if (!pendingKitDecision || pendingKitDecision.eventId !== currentEvent.id || selectedAthlete) return
-    const athlete = athletes.find((item) => String(item.id) === pendingKitDecision.athleteId)
-    if (!athlete) return
-    setSelectedAthlete(athlete)
-    const draft = buildAthleteDetailDraft(athlete)
-    setDetailForm(draft)
-    setDetailInitialForm(draft)
-    setActiveTab('entrega')
+    if (!Array.isArray(athletes) || athletes.length === 0) return
+    const athlete = athletes.find(
+      (item) => String(item.id) === String(pendingKitDecision.athleteId) ||
+                (pendingKitDecision.numero && String(item.numero) === String(pendingKitDecision.numero))
+    )
+    if (athlete) {
+      setSelectedAthlete(athlete)
+      const draft = buildAthleteDetailDraft(athlete)
+      setDetailForm(draft)
+      setDetailInitialForm(draft)
+      setActiveTab('entrega')
+    } else {
+      // Atleta órfão ou inexistente: descarta a decisão pendente inválida para não travar a aplicação
+      try {
+        localStorage.removeItem(`entregas_run_kit_decision_${currentEvent.id}`)
+      } catch {
+        // ignore
+      }
+      setPendingKitDecision(null)
+    }
   }, [athletes, currentEvent.id, pendingKitDecision, selectedAthlete])
 
   // Save athletes to localStorage e sincroniza com o servidor central
@@ -1084,6 +1098,7 @@ export default function OperacaoPage({
   const [auditSearch, setAuditSearch] = useState('')
   const [auditPerPage, setAuditPerPage] = useState(50)
   const [auditPage, setAuditPage] = useState(1)
+  const [auditIncludeComprovantes, _setAuditIncludeComprovantes] = useState(true)
 
   // Selected comprovante modal / preview
   const [selectedComprovante, setSelectedComprovante] = useState(null)

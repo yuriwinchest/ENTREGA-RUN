@@ -446,19 +446,30 @@ app.get('/api/municipios', (_req, res) => {
 
 // Servir assets de marca na raiz sem cair no wildcard de SPA
 app.get('/logo.png', (_req, res) => {
-  const distLogo = path.join(__dirname, '..', 'client', 'dist', 'logo.png')
-  const pubLogo = path.join(__dirname, '..', 'client', 'public', 'logo.png')
-  res.sendFile(distLogo, (err) => {
-    if (err) res.sendFile(pubLogo)
-  })
+  const candidates = [
+    path.join(__dirname, '..', 'client', 'dist', 'logo.png'),
+    path.join(__dirname, '..', 'client', 'public', 'logo.png'),
+    path.join(__dirname, '..', 'client', 'src', 'assets', 'logo.png'),
+  ]
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return res.sendFile(candidate)
+    }
+  }
+  return res.redirect(302, '/favicon.svg')
 })
 
 app.get('/favicon.svg', (_req, res) => {
-  const distFavicon = path.join(__dirname, '..', 'client', 'dist', 'favicon.svg')
-  const pubFavicon = path.join(__dirname, '..', 'client', 'public', 'favicon.svg')
-  res.sendFile(distFavicon, (err) => {
-    if (err) res.sendFile(pubFavicon)
-  })
+  const candidates = [
+    path.join(__dirname, '..', 'client', 'dist', 'favicon.svg'),
+    path.join(__dirname, '..', 'client', 'public', 'favicon.svg'),
+  ]
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return res.sendFile(candidate)
+    }
+  }
+  return res.status(404).end()
 })
 
 // ============================================================
