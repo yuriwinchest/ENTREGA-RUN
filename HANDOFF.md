@@ -1,5 +1,16 @@
 # Handoff
 
+## 2026-09-25 — Corrigir últimas entregas do superadmin (Fase B)
+
+- **Autor:** Codex/Tony (GPT-6); investigação independente somente leitura feita por agente Codex de UI.
+- **Pedido:** fazer o superadmin acompanhar entregas feitas em outro navegador, com horário e operador corretos.
+- **Arquivos alterados:** `client/src/components/OperacaoPage.jsx`, `client/src/components/OperacaoPage.css`, `client/src/utils/deliveryFeed.js`, `client/src/utils/deliveryFeed.test.mjs`, `client/src/utils/auditData.js` e este `HANDOFF.md`.
+- **Causa confirmada:** o polling já trazia os atletas do servidor, porém o card “Últimas entregas” lia `deliveries` do `localStorage` de cada navegador. O botão atualizar só juntava dados locais. A auditoria reconstruída podia atribuir o e-mail do superadmin à entrega de outro operador.
+- **Correção:** card ordenado pela hora `entregueEm` da lista de atletas sincronizada, com operador `entreguePor`; botão atualizar consulta o servidor. Na auditoria, hora e operador persistidos prevalecem sobre o cache local e não se atribui e-mail do observador.
+- **Validação real:** API pública saudável com 353 atletas e 132 entregas no instante da investigação, incluindo horários após 17h; nenhuma alteração em produção nesta etapa. Dois testes de lógica passaram. Chrome real com resposta de API controlada confirmou entrega nova por polling e por botão no perfil de superadmin, nome/hora na auditoria e nenhum POST/PUT de atletas durante a leitura. Lint passou com três avisos preexistentes, build passou e `git diff --check` passou.
+- **Risco/pendência:** ficha de atleta aberta suspende o polling de atletas para preservar edição em andamento; ao voltar à lista, a consulta retoma. O teste com API controlada não substitui homologação do Yuri na conta real. O deploy troca o contêiner único, então deve ocorrer com operadores pausados e snapshot atual conferido. A correção ainda não foi publicada.
+- **Próximo passo:** abrir PR, passar CI e preflight; após confirmação de pausa, publicar com o gate de backup/integridade existente e conferir últimas entregas no navegador do superadmin.
+
 ## 2026-09-25 — Sincronização segura da Corrida da Renascença (Fase B)
 
 - **Autor:** Codex/Tony (GPT-6). Revisão de disponibilidade de Vitor executada por agente delegado, somente leitura.

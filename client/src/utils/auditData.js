@@ -66,6 +66,12 @@ export function enrichAuditRecords(audits, athletes) {
     return {
       ...audit,
       atletaChip: audit?.atletaChip ?? athlete?.chip ?? '',
+      ...(athlete?.status === 'ENTREGUE' ? {
+        dataHora: athlete.entregueEm || audit?.dataHora || '',
+        timestamp: getAuditTimestamp({ dataHora: athlete.entregueEm }) ?? audit?.timestamp,
+        operadorNome: athlete.entreguePor || audit?.operadorNome || 'Não informado',
+        operadorEmail: '',
+      } : {}),
     }
   })
 }
