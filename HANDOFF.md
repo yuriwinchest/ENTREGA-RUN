@@ -1,5 +1,14 @@
 # Handoff
 
+## 2026-09-25 — Publicação das correções administrativas (Fase B)
+
+- **Autor:** Codex/Tony (GPT-6).
+- **Pedido:** Senha manual e persistente, permissões do Sub-Admin para auditoria e gestão de usuários, exclusão limitada aos usuários que ele criou, e publicação para homologação do Yuri.
+- **Arquivos alterados nesta entrada:** `HANDOFF.md`. O código e o workflow desta publicação estão nos PRs #1 e #2, identificados nas entradas anteriores deste arquivo.
+- **Validação real:** PR #1 foi mesclado em `304b3b9`; o primeiro deploy falhou com `EACCES` ao abrir `/app/server/server.js` e restaurou a imagem anterior. PR #2 corrigiu `COPY --chown=node:node` e acrescentou teste de imagem com arquivos restritos na CI. O merge `1ad04a4` passou por build, testes da API, teste do container restrito, preflight remoto, snapshot local de `data/users.json` com leitura/hash, troca da imagem e healthcheck na VPS (GitHub Actions run `36099618656`). `https://entregasrunning.com.br/` retornou HTTP 200 com o bundle `index-b2bFaV3P.js`, e `/api/health` retornou HTTP 200, `appwriteEnabled:true`, `diskWriteError:null`.
+- **Riscos/pendências:** A existência de backup externo e o fluxo visual completo em produção ainda não foram verificados. Yuri faz a homologação funcional; não houve teste destrutivo nem alteração de usuários reais durante esta tarefa. A política de exclusão de eventos continua a anterior, conforme esclarecimento do Yuri.
+- **Próximo passo:** Yuri testar criação/redefinição de senha e permissões do Sub-Admin no navegador, incluindo auditoria e exclusão de um usuário criado por ele.
+
 ## 2026-09-25 — Diagnóstico isolado do deploy administrativo (Fase A)
 
 - **Autor:** Codex/Tony (GPT-6).
