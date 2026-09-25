@@ -28,6 +28,7 @@ import {
 } from '../utils/athleteTable.js'
 import { getEspelhoConfig, publishEspelhoState } from '../utils/espelhoSync.js'
 import KitQrScannerModal from './KitQrScannerModal.jsx'
+import PendingKitDecisionModal from './PendingKitDecisionModal.jsx'
 import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
 import './OperacaoPage.css'
 
@@ -361,6 +362,34 @@ export default function OperacaoPage({
   const [scannerAthlete, setScannerAthlete] = useState(null)
   const [scannedKit, setScannedKit] = useState(null)
   const [scanFeedback, setScanFeedback] = useState('')
+  const [associationSaving, setAssociationSaving] = useState(false)
+  const associationLockRef = useRef(false)
+  const [pendingKitDecision, setPendingKitDecision] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`entregas_run_kit_decision_${event?.id}`) || 'null')
+    } catch {
+      return null
+    }
+  })
+  const [decisionSaving, setDecisionSaving] = useState(false)
+  const [decisionError, setDecisionError] = useState('')
+  const decisionLockRef = useRef(false)
+  const skipNextAthletesAutosaveRef = useRef(false)
+  const didMountAthletesAutosaveRef = useRef(false)
+  const athletesAutosaveTimerRef = useRef(null)
+  const athleteSaveQueueRef = useRef(Promise.resolve())
+  const saveAthletesInOrder = useCallback((...args) => {
+    const save = athleteSaveQueueRef.current.then(() => apiSaveAthletes(...args))
+    athleteSaveQueueRef.current = save.catch(() => false)
+    return save
+  }, [])
+
+  function cancelAthletesAutosave() {
+    if (athletesAutosaveTimerRef.current) {
+      clearTimeout(athletesAutosaveTimerRef.current)
+      athletesAutosaveTimerRef.current = null
+    }
+  }
 
   // Modal Espelho (Acesso e Aparência)
   const [showEspelhoModal, setShowEspelhoModal] = useState(false)
@@ -440,6 +469,15 @@ export default function OperacaoPage({
     pendentes: 0,
     concl: '0.0%',
   }, [event])
+  const hasPendingKitDecision = pendingKitDecision?.eventId === currentEvent.id
+
+  useEffect(() => {
+    try {
+      setPendingKitDecision(JSON.parse(localStorage.getItem(`entregas_run_kit_decision_${currentEvent.id}`) || 'null'))
+    } catch {
+      setPendingKitDecision(null)
+    }
+  }, [currentEvent.id])
 
   // Load and manage athletes per event with localStorage persistence
   const [athletes, setAthletes] = useState(() => {
@@ -478,6 +516,17 @@ export default function OperacaoPage({
   // Estado do sync com o servidor (visível no console + cura divergência)
   const [athletesSync, setAthletesSync] = useState({ state: 'idle', at: null })
 
+  useEffect(() => {
+    if (!pendingKitDecision || pendingKitDecision.eventId !== currentEvent.id || selectedAthlete) return
+    const athlete = athletes.find((item) => String(item.id) === pendingKitDecision.athleteId)
+    if (!athlete) return
+    setSelectedAthlete(athlete)
+    const draft = buildAthleteDetailDraft(athlete)
+    setDetailForm(draft)
+    setDetailInitialForm(draft)
+    setActiveTab('entrega')
+  }, [athletes, currentEvent.id, pendingKitDecision, selectedAthlete])
+
   // Save athletes to localStorage e sincroniza com o servidor central
   // Upload fatiado automático p/ listas grandes; falha vira estado visível
   // (antes o .catch vazio escondia a divergência total x lista zerada).
@@ -493,10 +542,21 @@ export default function OperacaoPage({
       // ignore
     }
 
+    if (!didMountAthletesAutosaveRef.current) {
+      didMountAthletesAutosaveRef.current = true
+      return undefined
+    }
+
+    if (skipNextAthletesAutosaveRef.current) {
+      skipNextAthletesAutosaveRef.current = false
+      return undefined
+    }
+
     if (currentEvent.id && Array.isArray(athletes) && athletes.length > 0) {
       setAthletesSync((prev) => (prev.state === 'saving' ? prev : { state: 'saving', at: Date.now() }))
       const timer = setTimeout(() => {
-        apiSaveAthletes(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
+        athletesAutosaveTimerRef.current = null
+        saveAthletesInOrder(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
           .then((saved) => {
             setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
             if (!saved) console.warn(`[operacao] Sync de atletas falhou p/ evento ${currentEvent.id} — tentando de novo no próximo ciclo.`)
@@ -506,9 +566,13 @@ export default function OperacaoPage({
             setAthletesSync({ state: 'error', at: Date.now() })
           })
       }, 600)
-      return () => clearTimeout(timer)
+      athletesAutosaveTimerRef.current = timer
+      return () => {
+        clearTimeout(timer)
+        if (athletesAutosaveTimerRef.current === timer) athletesAutosaveTimerRef.current = null
+      }
     }
-  }, [athletes, athleteColumnSchema, kits, currentEvent.id])
+  }, [athletes, athleteColumnSchema, kits, currentEvent.id, saveAthletesInOrder])
 
   useEffect(() => {
     try {
@@ -543,7 +607,7 @@ export default function OperacaoPage({
       apiFetchAthletes(currentEvent.id).then((result) => {
         if (!isMounted) return
         if (result && Array.isArray(result.athletes) && result.athletes.length === 0) {
-          apiSaveAthletes(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
+          saveAthletesInOrder(currentEvent.id, athletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
             .then((saved) => {
               if (isMounted) setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
             })
@@ -989,41 +1053,36 @@ export default function OperacaoPage({
   // Selected comprovante modal / preview
   const [selectedComprovante, setSelectedComprovante] = useState(null)
 
-  function handleImportSuccess(newAthletes, options = {}) {
-    let nextKits = kits
-    if (Array.isArray(options.kits)) {
-      setKits(options.kits)
-      nextKits = options.kits
+  async function handleImportSuccess(newAthletes, options = {}) {
+    if (!currentEvent?.id || !Array.isArray(newAthletes) || newAthletes.length === 0) return false
+    const nextKits = Array.isArray(options.kits) ? options.kits : kits
+    const nextSchema = Array.isArray(options.columns) && options.columns.length > 0
+      ? mergeAthleteColumnSchemas(athleteColumnSchema, options.columns)
+      : athleteColumnSchema
+    const existingMap = new Map(athletes.map((athlete) => [String(athlete.id || athlete.numero), athlete]))
+    for (const athlete of newAthletes) {
+      existingMap.set(String(athlete.id || athlete.numero), athlete)
     }
-    let nextSchema = athleteColumnSchema
-    if (Array.isArray(options.columns) && options.columns.length > 0) {
-      nextSchema = mergeAthleteColumnSchemas(athleteColumnSchema, options.columns)
-      setAthleteColumnSchema(nextSchema)
-    }
+    const mergedAthletes = Array.from(existingMap.values())
+    cancelAthletesAutosave()
+    setAthletesSync({ state: 'saving', at: Date.now() })
+    const saved = await saveAthletesInOrder(
+      currentEvent.id, mergedAthletes, nextSchema, Array.isArray(nextKits) ? nextKits : undefined
+    )
+    setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
+    if (!saved) return false
 
-    let mergedAthletes = []
-    setAthletes((prev) => {
-      const existingMap = new Map(prev.map((a) => [String(a.id || a.numero), a]))
-      for (const a of newAthletes) {
-        existingMap.set(String(a.id || a.numero), a)
+    if (Array.isArray(options.kits)) setKits(options.kits)
+    if (nextSchema !== athleteColumnSchema) setAthleteColumnSchema(nextSchema)
+    skipNextAthletesAutosaveRef.current = true
+    setAthletes(mergedAthletes)
+    try {
+      localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(mergedAthletes))
+      if (options.isInitialImport) {
+        localStorage.setItem(`entregas_run_original_athletes_${currentEvent.id}`, JSON.stringify(mergedAthletes))
       }
-      mergedAthletes = Array.from(existingMap.values())
-      try {
-        localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(mergedAthletes))
-        if (options?.isInitialImport) {
-          localStorage.setItem(`entregas_run_original_athletes_${currentEvent.id}`, JSON.stringify(mergedAthletes))
-        }
-      } catch {
-        // ignore
-      }
-      return mergedAthletes
-    })
-
-    if (currentEvent?.id && mergedAthletes.length > 0) {
-      setAthletesSync({ state: 'saving', at: Date.now() })
-      apiSaveAthletes(currentEvent.id, mergedAthletes, nextSchema, Array.isArray(nextKits) ? nextKits : undefined)
-        .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
-        .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
+    } catch {
+      // A cópia local é auxiliar; o servidor já confirmou o recebimento.
     }
 
     const importedDelivered = (newAthletes || []).filter((a) => a.status === 'ENTREGUE')
@@ -1049,6 +1108,7 @@ export default function OperacaoPage({
         return merged.sort((a, b) => compareAthleteNumbers(a.id, b.id))
       })
     }
+    return true
   }
 
   function handleExportPlanilha() {
@@ -1265,8 +1325,8 @@ export default function OperacaoPage({
     setScannedKit(unassignedKit)
   }
 
-  function confirmKitAssociation() {
-    if (!scannerAthlete || !scannedKit) return
+  async function confirmKitAssociation() {
+    if (!scannerAthlete || !scannedKit || associationLockRef.current || hasPendingKitDecision) return
     const source = athletes.find((a) => matchesAthleteReference(a, scannerAthlete))
     if (!source || !canAssociateAthleteKit(source)) {
       setScanFeedback('Este atleta já está associado ou teve o kit entregue. Atualize a ficha para continuar.')
@@ -1283,17 +1343,37 @@ export default function OperacaoPage({
     }
     const updated = {
       ...source,
+      _kitPreviousNumero: String(source.numero || ''),
       numero: String(scannedKit.numero),
       chip: String(scannedKit.chip),
       qrCode: String(scannedKit.qrCode),
     }
     const nextAthletes = athletes.map((a) => matchesAthleteReference(a, source) ? updated : a)
-    setAthletes(nextAthletes)
-    if (currentEvent?.id) {
-      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
-        .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
-        .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
+    cancelAthletesAutosave()
+    associationLockRef.current = true
+    setAssociationSaving(true)
+    const saved = currentEvent?.id && await saveAthletesInOrder(
+      currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined
+    )
+    associationLockRef.current = false
+    setAssociationSaving(false)
+    setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
+    if (!saved) {
+      setScanFeedback('Não foi possível salvar a associação. Confira a conexão e tente novamente.')
+      return
     }
+    skipNextAthletesAutosaveRef.current = true
+    setAthletes(nextAthletes)
+    const decision = {
+      eventId: currentEvent.id,
+      athleteId: String(updated.id),
+      athleteName: updated.nome,
+      numero: updated.numero,
+      chip: updated.chip,
+      resolution: null,
+    }
+    localStorage.setItem(`entregas_run_kit_decision_${currentEvent.id}`, JSON.stringify(decision))
+    setPendingKitDecision(decision)
 
     // Abre a tela/ficha do atleta na aba de entrega com os botões ENTREGAR KIT e DESFAZER
     setSelectedAthlete(updated)
@@ -1326,6 +1406,7 @@ export default function OperacaoPage({
   executeCloseRef.current = executeCloseAthleteDetail
 
   function closeAthleteDetail({ force = false } = {}) {
+    if (hasPendingKitDecision) return false
     if (!force && detailHasChanges) {
       const shouldDiscard = window.confirm(
         'Existem alterações não salvas. Deseja descartar e voltar para a lista?'
@@ -1348,6 +1429,7 @@ export default function OperacaoPage({
   }
 
   function handleOperationTabChange(tab) {
+    if (hasPendingKitDecision) return
     if (tab !== 'entrega' && !closeAthleteDetail()) return
     setActiveTab(tab)
   }
@@ -1462,7 +1544,7 @@ export default function OperacaoPage({
   const deliverBlockedByEdits = canEditAthlete && detailHasPendingEdits
 
   // Desfazer Associação / Entrega: limpa completamente chip, qrCode, entrega e status
-  function handleUndoAssociation() {
+  function handleUndoAssociation({ skipServerSave = false } = {}) {
     if (!selectedAthlete) return
 
     const athleteRef = selectedAthlete
@@ -1472,7 +1554,7 @@ export default function OperacaoPage({
 
     if (wasEntregue && !canUndo) {
       alert('Apenas Supervisores ou Administradores podem desfazer entregas já concluídas.')
-      return
+      return null
     }
 
     const updatedAthlete = {
@@ -1487,7 +1569,10 @@ export default function OperacaoPage({
 
     // Se o número de peito foi associado via kit de leitura ou importação sem número fixo,
     // ou se o kit associado corresponde a este número, limpa o número também
-    if (athleteRef._origNumero === '' || athleteRef._wasUnassignedNumber || athleteRef.id?.startsWith('import-')) {
+    if (Object.prototype.hasOwnProperty.call(athleteRef, '_kitPreviousNumero')) {
+      updatedAthlete.numero = athleteRef._kitPreviousNumero
+      delete updatedAthlete._kitPreviousNumero
+    } else if (athleteRef._origNumero === '' || athleteRef._wasUnassignedNumber || athleteRef.id?.startsWith('import-')) {
       if (Array.isArray(kits) && kits.some((k) => String(k.numero).trim() === String(athleteRef.numero).trim())) {
         updatedAthlete.numero = ''
       }
@@ -1530,8 +1615,8 @@ export default function OperacaoPage({
     }
 
     // Persistência no backend / volume
-    if (currentEvent?.id) {
-      apiSaveAthletes(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
+    if (currentEvent?.id && !skipServerSave) {
+      saveAthletesInOrder(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined)
         .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
         .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
     }
@@ -1541,7 +1626,7 @@ export default function OperacaoPage({
     if (!wasEntregue) {
       executeCloseAthleteDetail()
       setActiveTab('atletas')
-      return
+      return updatedAthlete
     }
 
     const nextDraft = buildAthleteDetailDraft(updatedAthlete)
@@ -1550,6 +1635,7 @@ export default function OperacaoPage({
     setDetailInitialForm(nextDraft)
     setDetailFeedback('Associação desfeita com sucesso! Chip, QR Code e status foram limpos.')
     publishEspelho('ATENDENDO', updatedAthlete)
+    return updatedAthlete
   }
 
   // Handle Add Athlete Submission (Dinâmico para Tabela Importada / Associada)
@@ -1623,7 +1709,7 @@ export default function OperacaoPage({
 
     // Sincroniza atômica com o servidor central
     if (currentEvent?.id) {
-      apiSaveAthletes(currentEvent.id, updatedAthletes, athleteColumnSchema)
+      saveAthletesInOrder(currentEvent.id, updatedAthletes, athleteColumnSchema)
         .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
         .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
     }
@@ -1750,17 +1836,16 @@ export default function OperacaoPage({
     return newAudit
   }
 
-  function handleSaveAndDeliver() {
+  function handleSaveAndDeliver({ recipientOverride } = {}) {
     if (detailActionLockRef.current || !selectedAthlete) return
 
     detailActionLockRef.current = true
     setDetailActionInProgress(true)
     try {
       const sourceAthlete = selectedAthlete
-      const customRecipient = String(
-        (detailForm && detailForm.entreguePara ? detailForm.entreguePara : '') ||
-        selectedAthlete.entreguePara ||
-        ''
+      const customRecipient = String(recipientOverride !== undefined
+        ? recipientOverride
+        : ((detailForm && detailForm.entreguePara ? detailForm.entreguePara : '') || selectedAthlete.entreguePara || '')
       ).trim()
 
       const athleteToDeliver = !canEditAthlete
@@ -1791,11 +1876,57 @@ export default function OperacaoPage({
       setDetailFeedback('✓ Kit entregue com sucesso!')
       publishEspelho('ENTREGUE', deliveredAthlete)
       setKitSearch('')
+      return deliveredAthlete
     } finally {
       window.setTimeout(() => {
         detailActionLockRef.current = false
         setDetailActionInProgress(false)
       }, 0)
+    }
+  }
+
+  async function resolvePendingKitDecision(action, recipient = '') {
+    if (!pendingKitDecision || !selectedAthlete || decisionLockRef.current) return
+    decisionLockRef.current = true
+    setDecisionSaving(true)
+    setDecisionError('')
+    try {
+      cancelAthletesAutosave()
+      let nextDecision = pendingKitDecision
+      let nextAthletes = athletes
+      if (!pendingKitDecision.resolution) {
+        skipNextAthletesAutosaveRef.current = true
+        const updated = action === 'deliver'
+          ? handleSaveAndDeliver({ recipientOverride: recipient })
+          : handleUndoAssociation({ skipServerSave: true })
+        if (!updated) {
+          skipNextAthletesAutosaveRef.current = false
+          setDecisionError('Não foi possível concluir a ação. Confira os dados e tente novamente.')
+          return
+        }
+        nextAthletes = athletes.map((athlete) =>
+          matchesAthleteReference(athlete, selectedAthlete) ? updated : athlete
+        )
+        localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(nextAthletes))
+        nextDecision = { ...pendingKitDecision, resolution: action }
+        localStorage.setItem(`entregas_run_kit_decision_${currentEvent.id}`, JSON.stringify(nextDecision))
+        setPendingKitDecision(nextDecision)
+      }
+      const saved = await saveAthletesInOrder(
+        currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined
+      )
+      setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
+      if (!saved) {
+        setDecisionError('A ação foi registrada neste navegador, mas não foi salva no servidor. Tente salvar novamente.')
+        return
+      }
+      localStorage.removeItem(`entregas_run_kit_decision_${currentEvent.id}`)
+      setPendingKitDecision(null)
+    } catch {
+      setDecisionError('Não foi possível salvar a decisão. Confira a conexão e tente novamente.')
+    } finally {
+      setDecisionSaving(false)
+      decisionLockRef.current = false
     }
   }
 
@@ -3764,12 +3895,24 @@ export default function OperacaoPage({
         {scannerAthlete && (
           <KitQrScannerModal
             isOpen={Boolean(scannerAthlete)}
-            onClose={() => { setScannerAthlete(null); setScannedKit(null) }}
+            onClose={() => { if (!associationSaving) { setScannerAthlete(null); setScannedKit(null) } }}
             onRead={handleKitRead}
             athlete={scannerAthlete}
             kit={scannedKit}
             feedback={scanFeedback}
             onConfirm={confirmKitAssociation}
+            confirming={associationSaving}
+          />
+        )}
+
+        {hasPendingKitDecision && (
+          <PendingKitDecisionModal
+            decision={pendingKitDecision}
+            busy={decisionSaving || !selectedAthlete}
+            error={decisionError}
+            onDeliver={(recipient) => resolvePendingKitDecision('deliver', recipient)}
+            onUndo={() => resolvePendingKitDecision('undo')}
+            onRetry={() => resolvePendingKitDecision(pendingKitDecision.resolution)}
           />
         )}
 

@@ -1,0 +1,39 @@
+.kit-decision-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(7, 21, 38, .82);
+}
+
+.kit-decision-card {
+  width: min(100%, 520px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: clamp(24px, 5vw, 36px);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, .38);
+  text-align: center;
+}
+
+.kit-decision-eyebrow { color: #d65b1b; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.kit-decision-card h2 { margin: 9px 0 10px; color: #14243a; font-size: clamp(24px, 5vw, 30px); }
+.kit-decision-card p { color: #46566c; line-height: 1.5; }
+.kit-decision-details { display: grid; gap: 1px; margin: 22px 0; overflow: hidden; border: 1px solid #dfe6ee; border-radius: 10px; background: #dfe6ee; text-align: left; }
+.kit-decision-details div { display: flex; justify-content: space-between; gap: 16px; padding: 10px 14px; background: #f8fafc; }
+.kit-decision-details dt { color: #607086; }
+.kit-decision-details dd { margin: 0; color: #14243a; font-weight: 800; text-align: right; overflow-wrap: anywhere; }
+.kit-decision-recipient { display: block; margin: 0 0 18px; color: #25364b; font-size: 13px; font-weight: 700; text-align: left; }
+.kit-decision-recipient input { display: block; width: 100%; margin-top: 7px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 9px; font: inherit; font-weight: 400; }
+.kit-decision-recipient input:focus-visible { outline: 3px solid #e76b21; outline-offset: 2px; }
+.kit-decision-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kit-decision-actions button, .kit-decision-card > button { min-height: 48px; padding: 10px 14px; border: 0; border-radius: 9px; font: inherit; font-weight: 800; cursor: pointer; }
+.kit-decision-deliver { background: #15875f; color: #fff; }
+.kit-decision-undo { background: #e9edf2; color: #25364b; }
+.kit-decision-actions button:disabled, .kit-decision-card > button:disabled { cursor: wait; opacity: .6; }
+.kit-decision-actions button:focus-visible, .kit-decision-card > button:focus-visible { outline: 3px solid #e76b21; outline-offset: 3px; }
+.kit-decision-error { padding: 11px; border-radius: 8px; background: #fff0eb; color: #9d3520 !important; }
+@media (max-width: 420px) { .kit-decision-actions { grid-template-columns: 1fr; } }

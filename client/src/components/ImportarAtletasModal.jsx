@@ -101,6 +101,8 @@ export default function ImportarAtletasModal({
   const [parsedRows, setParsedRows] = useState([])
   const [columnMapping, setColumnMapping] = useState({})
   const [importStats, setImportStats] = useState({ imported: 0, warnings: [] })
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef(null)
 
@@ -338,7 +340,9 @@ export default function ImportarAtletasModal({
   }
 
   // Executar Importação na Etapa 2
-  function handleExecuteImport() {
+  async function handleExecuteImport() {
+    if (importing) return
+    setImportError('')
     const warnings = []
     const importedAthletes = []
     const existingMap = new Set(existingAthletes.map((a) => String(a.id)))
@@ -417,11 +421,31 @@ export default function ImportarAtletasModal({
       importedAthletes.push(athlete)
     })
 
+    if (importedAthletes.length === 0) {
+      setImportError(warnings[0] || 'Nenhum atleta válido foi encontrado. Confira o mapeamento das colunas.')
+      return
+    }
+
+    setImporting(true)
+    let saved = false
+    try {
+      saved = Boolean(await onImportSuccess?.(importedAthletes, {
+        isInitialImport: true,
+        columns: buildImportColumnSchema(parsedHeaders, columnMapping),
+      }))
+    } catch {
+      saved = false
+    } finally {
+      setImporting(false)
+    }
+    if (!saved) {
+      setImportError('Não foi possível salvar a planilha no servidor. Confira a conexão e tente novamente.')
+      return
+    }
+
     setImportStats({
       imported: importedAthletes.length,
       warnings,
-      athletes: importedAthletes,
-      columns: buildImportColumnSchema(parsedHeaders, columnMapping),
     })
 
     setStep(4)
@@ -429,14 +453,6 @@ export default function ImportarAtletasModal({
 
   // Concluir e persistir
   function handleFinish() {
-    if (importStats.athletes && importStats.athletes.length > 0) {
-      if (onImportSuccess) {
-        onImportSuccess(importStats.athletes, {
-          isInitialImport: true,
-          columns: importStats.columns || [],
-        })
-      }
-    }
     onClose()
   }
 
@@ -448,6 +464,7 @@ export default function ImportarAtletasModal({
     setParsedRows([])
     setColumnMapping({})
     setImportStats({ imported: 0, warnings: [] })
+    setImportError('')
   }
 
   return (
@@ -748,6 +765,7 @@ export default function ImportarAtletasModal({
             )}
 
             {/* Rodapé da Etapa 3 */}
+            {importError && <p className="kit-scanner-feedback" role="alert">{importError}</p>}
             <div className="importar-modal-actions">
               <button
                 type="button"
@@ -760,8 +778,9 @@ export default function ImportarAtletasModal({
                 type="button"
                 className="btn-importar-primary"
                 onClick={handleExecuteImport}
+                disabled={importing}
               >
-                <span>CONFIRMAR E IMPORTAR ATLETAS</span>
+                <span>{importing ? 'SALVANDO PLANILHA…' : 'CONFIRMAR E IMPORTAR ATLETAS'}</span>
                 <span className="btn-arrow">→</span>
               </button>
             </div>
