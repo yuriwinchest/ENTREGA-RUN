@@ -148,6 +148,62 @@ app.use(
 )
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || true }))
 
+const liveEventClients = new Set()
+let liveEventRevision = 0
+
+function canObserveLiveEvent(session, eventId) {
+  if (session.role === 'ADMIN') return true
+  if (session.eventId && session.eventId !== 'all') return session.eventId === eventId
+  if (session.role === 'OPERADOR') return inMemoryEvents[0]?.id === eventId
+  return true
+}
+
+function notifyLiveEvent(eventId) {
+  const payload = `event: change\ndata: ${JSON.stringify({ eventId, revision: ++liveEventRevision })}\n\n`
+  for (const client of liveEventClients) {
+    const session = getSessionFromReq(client.req)
+    if (!session) {
+      client.res.end()
+      continue
+    }
+    if (canObserveLiveEvent(session, eventId)) {
+      try { client.res.write(payload) } catch { client.res.end() }
+    }
+  }
+}
+
+app.get('/api/events/stream', requireAuth, (req, res) => {
+  const token = req.session.token
+  const tokenConnections = [...liveEventClients].filter((client) => client.token === token).length
+  if (tokenConnections >= 4 || liveEventClients.size >= 500) {
+    return res.status(503).json({ ok: false, message: 'Limite de conexões em tempo real atingido.' })
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  })
+  res.flushHeaders?.()
+  const client = { req, res, token }
+  liveEventClients.add(client)
+  res.write('event: ready\ndata: {}\n\n')
+
+  const heartbeat = setInterval(() => {
+    if (!getSessionFromReq(req)) {
+      res.end()
+      return
+    }
+    res.write(': heartbeat\n\n')
+  }, 15000)
+  heartbeat.unref?.()
+  res.on('close', () => {
+    clearInterval(heartbeat)
+    liveEventClients.delete(client)
+  })
+})
+
 // ============================================================
 // ESPELHO PÚBLICO (segunda tela / QR Code)
 // Quadro de avisos em memória por evento com persistência de configuração:
@@ -706,6 +762,7 @@ app.post('/api/events', (req, res) => {
 
   writeEventsToDisk(inMemoryEvents)
   mirrorEventToAppwrite(newEvent)
+  notifyLiveEvent(eventId)
   res.status(201).json({ ok: true, event: newEvent })
 })
 
@@ -752,6 +809,7 @@ app.put('/api/events/:eventId', (req, res) => {
   inMemoryEvents[index] = updated
   writeEventsToDisk(inMemoryEvents)
   mirrorEventToAppwrite(updated)
+  notifyLiveEvent(eventId)
   res.json({ ok: true, event: updated })
 })
 
@@ -777,6 +835,7 @@ app.delete('/api/events/:eventId', (req, res) => {
 
   writeEventsToDisk(inMemoryEvents)
   void deleteEventFromAppwrite(eventId)
+  notifyLiveEvent(eventId)
   res.json({ ok: true })
 })
 
@@ -1024,6 +1083,7 @@ app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
     writeEventsToDisk(inMemoryEvents)
     mirrorEventToAppwrite(curEv)
   }
+  notifyLiveEvent(safeEventId)
   res.json({ ok: true, count: safeAthletes.length, ...(kitsWarning ? { kitsWarning } : {}) })
 })
 
@@ -1107,6 +1167,7 @@ app.post('/api/events/:eventId/athletes/chunks', athletesJsonParser, (req, res) 
     writeEventsToDisk(inMemoryEvents)
     mirrorEventToAppwrite(curEvChunk)
   }
+  notifyLiveEvent(safeEventId)
   res.json({ ok: true, count: safeMerged.length, done: true })
 })
 
@@ -1151,7 +1212,9 @@ app.put('/api/events/:eventId/athletes/:numero/status', express.json(), (req, re
     entreguePara: entreguePara !== undefined ? entreguePara : data.athletes[idx].entreguePara,
   }
 
-  saveAthletesForEvent(safeEventId, data.athletes, data.schema, undefined, data.originalSheet)
+  if (!saveAthletesForEvent(safeEventId, data.athletes, data.schema, undefined, data.originalSheet)) {
+    return res.status(500).json({ ok: false, message: 'Erro ao persistir status do atleta.' })
+  }
   void updateAthleteStatusInAppwrite(safeEventId, safeNumero, {
     status: data.athletes[idx].status,
     entregueEm: data.athletes[idx].entregueEm,
@@ -1168,6 +1231,7 @@ app.put('/api/events/:eventId/athletes/:numero/status', express.json(), (req, re
     writeEventsToDisk(inMemoryEvents)
     mirrorEventToAppwrite(evStatus)
   }
+  notifyLiveEvent(safeEventId)
   res.json({ ok: true, athlete: data.athletes[idx] })
 })
 

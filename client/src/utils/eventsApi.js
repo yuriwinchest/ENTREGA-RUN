@@ -16,6 +16,63 @@ function getAuthHeaders(extra = {}) {
   }
 }
 
+export function subscribeEventUpdates(onUpdate) {
+  const controller = new AbortController()
+  const { signal } = controller
+
+  async function connect() {
+    let retryMs = 1000
+    while (!signal.aborted) {
+      const headers = getAuthHeaders({ Accept: 'text/event-stream' })
+      if (!headers.Authorization) return
+      try {
+        const response = await fetch('/api/events/stream', { headers, signal, cache: 'no-store' })
+        if (response.status === 401 || response.status === 403) return
+        if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
+        retryMs = 1000
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        while (!signal.aborted) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n/g, '\n')
+          let boundary = buffer.indexOf('\n\n')
+          while (boundary !== -1) {
+            const frame = buffer.slice(0, boundary)
+            buffer = buffer.slice(boundary + 2)
+            const type = frame.match(/^event:\s*(.+)$/m)?.[1]
+            const data = frame.match(/^data:\s*(.+)$/m)?.[1]
+            if ((type === 'ready' || type === 'change') && data) {
+              try {
+                onUpdate({ type, ...JSON.parse(data) })
+              } catch {
+                // Ignora um quadro incompleto; o polling recupera o estado.
+              }
+            }
+            boundary = buffer.indexOf('\n\n')
+          }
+          if (buffer.length > 65536) buffer = ''
+        }
+        await reader.cancel().catch(() => {})
+      } catch (error) {
+        if (signal.aborted) return
+        console.warn('[eventsApi] Canal ao vivo indisponível; tentando reconectar:', error)
+      }
+      if (signal.aborted) return
+      await new Promise((resolve) => {
+        const onAbort = () => { clearTimeout(timer); resolve() }
+        const timer = setTimeout(() => { signal.removeEventListener('abort', onAbort); resolve() }, retryMs)
+        signal.addEventListener('abort', onAbort, { once: true })
+      })
+      retryMs = Math.min(retryMs * 2, 30000)
+    }
+  }
+
+  void connect()
+  return () => controller.abort()
+}
+
 export async function apiFetchEvents() {
   try {
     const res = await fetch('/api/events', {

@@ -29,7 +29,7 @@ jobs:
         working-directory: client
         run: |
           npm ci
-          node --test src/utils/deliveryFeed.test.mjs
+          node --test src/utils/deliveryFeed.test.mjs src/utils/eventsApi.test.mjs
           npm run lint
           npm run build
 
@@ -38,7 +38,7 @@ jobs:
         run: |
           npm ci
           node --check server.js
-          node --test admin-users.test.mjs athleteSync.test.mjs athleteSync.http.test.mjs dataSnapshot.test.mjs
+          node --test --test-concurrency=1 admin-users.test.mjs athleteSync.test.mjs athleteSync.http.test.mjs dataSnapshot.test.mjs live-events.http.test.mjs
 
       - name: Validar Script de Deploy
         run: bash -n scripts/deploy-vps.sh

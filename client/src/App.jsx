@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import DashboardPage from './components/DashboardPage.jsx'
 import EventDashboardPage from './components/EventDashboardPage.jsx'
 import EventosPage from './components/EventosPage.jsx'
@@ -8,7 +8,7 @@ import EspelhoPage from './components/EspelhoPage.jsx'
 import ValidarAtletaPage from './components/ValidarAtletaPage.jsx'
 import TutorialModal from './components/TutorialModal.jsx'
 import UsuariosPage from './components/UsuariosPage.jsx'
-import { apiFetchEvents, apiUpdateEvent } from './utils/eventsApi.js'
+import { apiFetchEvents, apiUpdateEvent, subscribeEventUpdates } from './utils/eventsApi.js'
 
 const MOCK_EVENT_IDS = [
   '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6',
@@ -17,6 +17,8 @@ const MOCK_EVENT_IDS = [
 ]
 
 export default function App() {
+  const syncEventsRef = useRef(null)
+  const [eventUpdate, setEventUpdate] = useState({ eventId: null, revision: 0 })
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem('entregas_run_user')
@@ -95,13 +97,15 @@ export default function App() {
   // Sincroniza eventos locais com o servidor central e puxa atualizações
   useEffect(() => {
     let isMounted = true
+    let lastRequest = 0
 
     async function syncEventsWithServer() {
+      const request = ++lastRequest
       const serverEvents = await apiFetchEvents()
-      if (!isMounted || !Array.isArray(serverEvents)) return
+      if (!isMounted || request !== lastRequest || !Array.isArray(serverEvents)) return
 
       const isRestricted = Boolean(
-        user && user.role !== 'ADMIN' && (user.role === 'OPERADOR' || user.role === 'SUPERVISOR' || (user.eventId && user.eventId !== 'all'))
+        user && user.role !== 'ADMIN' && user.eventId && user.eventId !== 'all'
       )
 
       const finalEvents = isRestricted && user?.eventId
@@ -116,6 +120,7 @@ export default function App() {
       }
     }
 
+    syncEventsRef.current = syncEventsWithServer
     syncEventsWithServer()
 
     // Sincroniza automaticamente quando o usuário voltar para a aba ou desbloquear a tela
@@ -127,13 +132,27 @@ export default function App() {
 
     window.addEventListener('visibilitychange', handleVisibilityOrFocus)
     window.addEventListener('focus', handleVisibilityOrFocus)
+    const timer = window.setInterval(handleVisibilityOrFocus, 10000)
 
     return () => {
       isMounted = false
+      window.clearInterval(timer)
       window.removeEventListener('visibilitychange', handleVisibilityOrFocus)
       window.removeEventListener('focus', handleVisibilityOrFocus)
+      if (syncEventsRef.current === syncEventsWithServer) syncEventsRef.current = null
     }
-  }, [])
+  }, [user?.id, user?.role, user?.eventId])
+
+  useEffect(() => {
+    if (!user) return undefined
+    return subscribeEventUpdates(({ type, eventId }) => {
+      void syncEventsRef.current?.()
+      setEventUpdate((previous) => ({
+        eventId: type === 'ready' ? null : eventId,
+        revision: previous.revision + 1,
+      }))
+    })
+  }, [user?.id])
 
   // Limpa resíduos de dados mockados do navegador
   useEffect(() => {
@@ -404,6 +423,7 @@ export default function App() {
       {currentPage === 'event-dashboard' && (
         <EventDashboardPage
           event={events.find((e) => e.id === effectiveEventId) || assignedEventFallback}
+          eventUpdate={eventUpdate}
           user={user}
           onNavigate={navigateTo}
           onLogout={handleLogout}
@@ -427,6 +447,7 @@ export default function App() {
         <OperacaoPage
           key={effectiveEventId || 'operacao'}
           event={events.find((e) => e.id === effectiveEventId) || assignedEventFallback}
+          eventUpdate={eventUpdate}
           user={user}
           onUpdateEvent={(updatedEvent) => {
             setEvents((prev) =>
