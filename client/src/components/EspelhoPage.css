@@ -192,9 +192,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(8px, 1.4vh, 18px);
-  width: min(92vw, 900px);
-  padding: clamp(16px, 3vh, 40px) clamp(18px, 3vw, 48px);
+  gap: clamp(12px, 1.8vh, 22px);
+  width: min(94vw, 1020px);
+  padding: clamp(16px, 2.5vh, 32px) clamp(18px, 2.5vw, 36px);
   background: rgba(255, 255, 255, 0.06);
   border: 1.5px solid rgba(255, 255, 255, 0.14);
   border-radius: 28px;
@@ -202,6 +202,7 @@
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
   animation: espelhoAthleteIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
 }
 
 @keyframes espelhoAthleteIn {
@@ -220,160 +221,278 @@
   box-shadow: 0 24px 60px rgba(16, 185, 129, 0.22);
 }
 
-.espelho-athlete-topline {
+/* 1. Cards Superiores de Destaque (Idênticos ao topo da ficha de operação) */
+.espelho-top-highlights-row {
   display: flex;
-  align-items: center;
+  gap: 16px;
+  width: 100%;
+  align-items: stretch;
   justify-content: center;
 }
 
-.espelho-athlete-modalidade {
-  font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: clamp(12px, 1.4vw, 18px);
-  font-weight: 900;
-  letter-spacing: 3px;
-  text-transform: uppercase;
+.espelho-highlight-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.16);
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
 }
 
-.espelho-numero-box {
+.espelho-bib-card {
+  flex: 1.8;
+  min-width: 260px;
+  padding: 14px 24px;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  padding: clamp(8px, 1.4vh, 16px) clamp(24px, 4vw, 54px);
-  border-radius: 20px;
-  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.35);
+  gap: 6px;
 }
 
-.espelho-numero-label {
-  font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: clamp(9px, 0.9vw, 12px);
+.espelho-bib-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
   font-weight: 800;
-  letter-spacing: 2.5px;
-  color: rgba(255, 255, 255, 0.65);
   text-transform: uppercase;
 }
 
-.espelho-athlete-numero {
-  margin: 0;
+.espelho-bib-modalidade {
+  font-weight: 900;
+  letter-spacing: 1.5px;
+}
+
+.espelho-bib-categoria {
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 1px;
+}
+
+.espelho-bib-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2px 0;
+}
+
+.espelho-bib-number {
   font-family: Montserrat, Inter, system-ui, sans-serif;
   font-weight: 900;
   line-height: 0.95;
   letter-spacing: 1px;
-  text-shadow: 0 6px 28px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 6px 28px rgba(0, 0, 0, 0.5);
 }
 
-.espelho-athlete-nome {
-  margin: 0;
-  font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: clamp(18px, 2.4vw, 32px);
-  font-weight: 900;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  word-break: break-word;
-}
-
-.espelho-badge-aguardando {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 18px;
-  background: rgba(245, 158, 11, 0.16);
-  border: 1px solid rgba(245, 158, 11, 0.4);
-  color: #fbbf24;
-  border-radius: 999px;
-  font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: clamp(11px, 1.1vw, 14px);
-  font-weight: 800;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-.espelho-athlete-chips-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  justify-content: center;
-  gap: clamp(10px, 1.6vw, 22px);
+.espelho-bib-footer {
   width: 100%;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 6px;
 }
 
-.espelho-athlete-chip {
+.espelho-bib-chip {
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-family: Montserrat, Inter, monospace;
+}
+
+.espelho-shirt-card {
+  flex: 1;
+  min-width: 140px;
+  padding: 14px 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-width: clamp(100px, 14vw, 170px);
-  padding: clamp(10px, 1.6vh, 18px) clamp(14px, 2vw, 26px);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 16px;
 }
 
-.espelho-athlete-chip-value {
+.espelho-shirt-size {
   font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: clamp(20px, 3vw, 40px);
+  font-weight: 900;
+  line-height: 0.95;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.espelho-shirt-label {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.65);
+  text-transform: uppercase;
+}
+
+.espelho-kit-card {
+  flex: 1;
+  min-width: 140px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.espelho-kit-name {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 26px;
   font-weight: 900;
   color: #ffffff;
   text-transform: uppercase;
-  line-height: 1.1;
 }
 
-.espelho-athlete-chip-label {
+.espelho-kit-label {
   font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: clamp(9px, 0.9vw, 12px);
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 2px;
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(255, 255, 255, 0.65);
   text-transform: uppercase;
+}
+
+/* 2. Aviso de Retirada por Terceiro */
+.espelho-third-party-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(245, 158, 11, 0.16);
+  border: 1.5px solid rgba(245, 158, 11, 0.45);
+  border-radius: 14px;
+  padding: 10px 18px;
+  box-sizing: border-box;
+}
+
+.espelho-third-party-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.espelho-third-party-label {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #fbbf24;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.espelho-third-party-name {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 15.5px;
+  font-weight: 900;
+  color: #ffffff;
+  text-transform: uppercase;
+  word-break: break-word;
+}
+
+.espelho-third-party-badge {
+  background: #f59e0b;
+  color: #0c142c;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-left: auto;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* 3. Grid Completo de Dados Rigorosamente Fiel à Planilha Anexada */
+.espelho-athlete-details-card {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.26);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 18px 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.espelho-details-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 10px;
+}
+
+.espelho-details-header-label {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+}
+
+.espelho-details-athlete-name {
+  margin: 0;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: clamp(20px, 2.5vw, 32px);
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  word-break: break-word;
 }
 
 .espelho-athlete-info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px 18px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 14px;
   width: 100%;
-  margin-top: 4px;
 }
 
 .espelho-athlete-info-item {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.18);
-  border-radius: 12px;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
 }
 
 .espelho-athlete-info-label {
   font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: clamp(8.5px, 0.85vw, 11px);
+  font-size: 9.5px;
   font-weight: 800;
-  letter-spacing: 1.6px;
+  letter-spacing: 1.2px;
   color: rgba(255, 255, 255, 0.55);
   text-transform: uppercase;
 }
 
 .espelho-athlete-info-value {
   font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: clamp(12px, 1.3vw, 17px);
-  font-weight: 800;
+  font-size: 13.5px;
+  font-weight: 700;
   color: #ffffff;
   text-transform: uppercase;
   word-break: break-word;
 }
 
+/* 4. Banner Comemorativo de Entrega */
 .espelho-athlete-entregue-banner {
   margin-top: 6px;
   padding: clamp(10px, 1.6vh, 16px) clamp(18px, 3vw, 34px);
   background: linear-gradient(135deg, #059669, #10b981);
   border-radius: 999px;
   font-family: Montserrat, Inter, system-ui, sans-serif;
-  font-size: clamp(13px, 1.6vw, 22px);
+  font-size: clamp(13px, 1.6vw, 20px);
   font-weight: 900;
   letter-spacing: 1.6px;
   color: #ffffff;
@@ -392,6 +511,22 @@
     transform: scale(1.03);
     box-shadow: 0 10px 42px rgba(16, 185, 129, 0.62);
   }
+}
+
+.espelho-badge-aguardando {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  background: rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+  border-radius: 999px;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: clamp(11px, 1.1vw, 14px);
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
 }
 
 /* Indicador de conexão desconectado */
@@ -415,14 +550,25 @@
 
 @media (max-width: 768px) {
   .espelho-athlete-card {
-    width: 94vw;
-    padding: 18px 14px;
+    width: 95vw;
+    padding: 16px 12px;
+    gap: 12px;
+  }
+  .espelho-top-highlights-row {
+    flex-direction: column;
     gap: 10px;
   }
-  .espelho-athlete-numero {
-    font-size: clamp(56px, 18vw, 96px) !important;
+  .espelho-bib-card,
+  .espelho-shirt-card,
+  .espelho-kit-card {
+    min-width: 0;
+    width: 100%;
+  }
+  .espelho-athlete-details-card {
+    padding: 14px 12px;
   }
   .espelho-athlete-info-grid {
     grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
 }

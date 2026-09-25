@@ -107,6 +107,14 @@ export function buildEspelhoAthlete(athlete) {
     nascimento: text(athlete.nascimento),
     nome_peito: text(athlete.nome_peito),
     pcd: text(athlete.pcd),
+    contato: text(athlete.contato),
+    morador: text(athlete.morador),
+    nacionalidade: text(athlete.nacionalidade),
+    entreguePara: text(athlete.entreguePara || athlete.retiradoPor),
+    retiradoPor: text(athlete.retiradoPor || athlete.entreguePara),
+    entregueEm: text(athlete.entregueEm),
+    entreguePor: text(athlete.entreguePor),
+    status: text(athlete.status),
     customFields: athlete.customFields && typeof athlete.customFields === 'object' ? athlete.customFields : {},
   }
 }
@@ -136,7 +144,7 @@ export async function publishEspelhoState(eventId, state) {
     // ignore
   }
 
-  // 2. Publicação remota para outros dispositivos/segundas telas via backend
+  // 2. Publicação remota para outros dispositivos/segundas telas via backend (transmitida via SSE)
   if (typeof fetch === 'function') {
     try {
       await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado`, {
@@ -159,4 +167,58 @@ export async function fetchEspelhoState(eventId) {
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const data = await response.json()
   return data?.state || null
+}
+
+export function subscribeEspelhoSSE(eventId, onStateChange, onStatusChange) {
+  if (!eventId || typeof window === 'undefined' || !('EventSource' in window)) {
+    return () => {}
+  }
+
+  let eventSource = null
+  let isAlive = true
+
+  function initSSE() {
+    if (!isAlive) return
+    try {
+      eventSource = new EventSource(`/api/espelho/${encodeURIComponent(eventId)}/stream`)
+
+      eventSource.onopen = () => {
+        if (typeof onStatusChange === 'function') {
+          onStatusChange(true)
+        }
+      }
+
+      eventSource.onmessage = (event) => {
+        try {
+          const parsed = JSON.parse(event.data)
+          if (parsed && 'state' in parsed) {
+            onStateChange(parsed.state)
+          }
+        } catch {
+          // ignore parsing error
+        }
+      }
+
+      eventSource.onerror = () => {
+        if (typeof onStatusChange === 'function') {
+          onStatusChange(false)
+        }
+        // EventSource nativo reconecta automaticamente
+      }
+    } catch {
+      if (typeof onStatusChange === 'function') {
+        onStatusChange(false)
+      }
+    }
+  }
+
+  initSSE()
+
+  return () => {
+    isAlive = false
+    if (eventSource) {
+      eventSource.close()
+      eventSource = null
+    }
+  }
 }

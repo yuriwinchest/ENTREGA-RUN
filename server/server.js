@@ -138,10 +138,11 @@ app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || true }))
 // carregar imagens (data URL) enviadas pelo painel.
 // ============================================================
 const espelhoStates = new Map()
+const espelhoClients = new Map() // key -> Set<Response>
 
 const espelhoLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 120,
+  limit: 600, // Permite digitação contínua e fluida do operador
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { ok: false, message: 'Muitas requisições. Aguarde um instante.' },
@@ -177,6 +178,48 @@ function sanitizeEspelhoConfig(raw) {
   }
 }
 
+// Endpoint de streaming SSE para segunda tela / espelho em tempo real
+app.get('/api/espelho/:eventId/stream', (req, res) => {
+  const key = espelhoKey(req.params.eventId)
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no', // Evita buffering de proxies como Nginx e Caddy
+  })
+  if (typeof res.flushHeaders === 'function') {
+    res.flushHeaders()
+  }
+
+  if (!espelhoClients.has(key)) {
+    espelhoClients.set(key, new Set())
+  }
+  const clients = espelhoClients.get(key)
+  clients.add(res)
+
+  // Envia estado atual imediatamente ao conectar
+  const currentState = espelhoStates.get(key) || null
+  res.write(`data: ${JSON.stringify({ ok: true, state: currentState })}\n\n`)
+
+  // Heartbeat a cada 15 segundos para manter a conexão aberta
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': heartbeat\n\n')
+    } catch {
+      clearInterval(heartbeat)
+    }
+  }, 15000)
+
+  req.on('close', () => {
+    clearInterval(heartbeat)
+    clients.delete(res)
+    if (clients.size === 0) {
+      espelhoClients.delete(key)
+    }
+  })
+})
+
 app.get('/api/espelho/:eventId/estado', espelhoLimiter, (req, res) => {
   const state = espelhoStates.get(espelhoKey(req.params.eventId))
   if (!state) return res.json({ ok: true, state: null })
@@ -187,6 +230,13 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req
   const body = req.body || {}
   const key = espelhoKey(req.params.eventId)
   const previous = espelhoStates.get(key)
+
+  // Proteção contra sobrescrita por requisições fora de ordem
+  const incomingTime = Number(body.updatedAt) || Date.now()
+  if (previous?.updatedAt && incomingTime < previous.updatedAt) {
+    return res.json({ ok: true, ignored: true })
+  }
+
   const hasAtletaField = Object.prototype.hasOwnProperty.call(body, 'atleta')
   const atleta = body.atleta
   const state = {
@@ -197,9 +247,7 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req
       typeof body.eventName === 'string'
         ? body.eventName.slice(0, 120)
         : (previous?.eventName ?? ''),
-    // Atleta: ausência do campo preserva a ficha atual (ex: post só de
-    // config); campo explícito (objeto ou null) substitui/limpa a ficha.
-    // Exceção: status LIVRE sempre limpa a ficha — guichê sem atleta.
+    // Atleta: status LIVRE sempre limpa a ficha — guichê sem atleta.
     atleta:
       body.status === 'LIVRE'
         ? null
@@ -210,7 +258,7 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req
                 numero: String(atleta.numero ?? '').slice(0, 30),
                 nome: String(atleta.nome ?? '').slice(0, 120),
                 nome_peito: String(atleta.nome_peito ?? '').slice(0, 80),
-                doc: String(atleta.doc ?? '').slice(0, 50),
+                doc: String(atleta.doc ?? atleta.cpf ?? '').slice(0, 50),
                 modalidade: String(atleta.modalidade ?? '').slice(0, 60),
                 categoria: String(atleta.categoria ?? '').slice(0, 60),
                 camiseta: String(atleta.camiseta ?? '').slice(0, 20),
@@ -224,13 +272,32 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req
                 contato: String(atleta.contato ?? '').slice(0, 60),
                 nacionalidade: String(atleta.nacionalidade ?? '').slice(0, 40),
                 pcd: String(atleta.pcd ?? '').slice(0, 60),
+                entreguePara: String(atleta.entreguePara ?? atleta.retiradoPor ?? '').slice(0, 120),
+                retiradoPor: String(atleta.retiradoPor ?? atleta.entreguePara ?? '').slice(0, 120),
+                entregueEm: String(atleta.entregueEm ?? '').slice(0, 60),
+                entreguePor: String(atleta.entreguePor ?? '').slice(0, 80),
+                status: String(atleta.status ?? '').slice(0, 20),
                 customFields: atleta.customFields && typeof atleta.customFields === 'object' ? atleta.customFields : {},
               }
             : null,
     config: sanitizeEspelhoConfig(body.config) ?? previous?.config ?? null,
-    updatedAt: Date.now(),
+    updatedAt: incomingTime,
   }
   espelhoStates.set(key, state)
+
+  // Broadcast imediato para todos os clientes SSE conectados para este evento
+  const clients = espelhoClients.get(key)
+  if (clients && clients.size > 0) {
+    const ssePayload = `data: ${JSON.stringify({ ok: true, state })}\n\n`
+    for (const client of clients) {
+      try {
+        client.write(ssePayload)
+      } catch {
+        // cliente desconectado
+      }
+    }
+  }
+
   res.json({ ok: true })
 })
 

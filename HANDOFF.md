@@ -1,5 +1,38 @@
 # Handoff
 
+## 2026-09-24 — Sincronização em Tempo Real via SSE e Fidelidade Rigorosa do Espelho (Fase B)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead, Frontend, Backend & SRE).
+- **Demanda do Yuri (PO via áudio 23:38 e 23:47):**
+  1. *Fidelidade Rigorosa da Tela de Operação:* O Espelho público (`/espelho/:id`) deve espelhar com exatidão rigorosa tudo o que é gerado a partir da tabela anexada no guichê de entrega de kits (como exibido na tela de operação: Card com Modalidade, Categoria, Número e Chip; Card da Camiseta com tamanho grande; indicação de retirada por terceiro; e grid completo de dados da tabela anexada).
+  2. *Sincronização Imediata e Automática:* Qualquer alteração de dado ou digitação no guichê deve refletir instantaneamente no espelho, sem exigir que o operador clique previamente em "Salvar".
+  3. *Arquitetura em Tempo Real:* Implementação aprovada via **SSE (Server-Sent Events)** para comunicação contínua e instantânea (< 15ms) entre o guichê e segundas telas / monitores remotos.
+- **Ações Realizadas:**
+  1. **Backend com SSE e Broadcast Instantâneo (`server/server.js`):**
+     - Criado o endpoint de streaming nativo `GET /api/espelho/:eventId/stream` com headers `text/event-stream`, `no-cache`, `no-transform` e `X-Accel-Buffering: no` (compatibilidade total com Caddy na VPS).
+     - Gerenciador de conexões ativas `espelhoClients = new Map<key, Set<res>>()` com heartbeat keep-alive a cada 15s e cleanup no encerramento de conexão (`req.on('close')`), prevenindo memory leaks.
+     - No endpoint `POST /api/espelho/:eventId/estado`:
+       - Ampliado rate limiter de 120 para 600 reqs/min para permitir digitação fluida e contínua do operador.
+       - Higienização e persistência de todos os campos: `numero`, `nome`, `doc`, `modalidade`, `categoria`, `camiseta`, `kit`, `chip`, `sexo`, `equipe`, `cidade`, `nascimento`, `morador`, `contato`, `nacionalidade`, `pcd`, `entreguePara`, `retiradoPor`, `entregueEm`, `entreguePor`, `status` e `customFields`.
+       - Broadcast SSE imediato disparado a cada atualização recebida, atingindo todas as telas abertas daquele evento em milissegundos.
+  2. **Guichê de Operação com Sincronização ao Digitar (`OperacaoPage.jsx` e `espelhoSync.js`):**
+     - Atualizada a função `buildEspelhoAthlete` em `espelhoSync.js` para propagar todos os campos da tabela importada (`contato`, `morador`, `nacionalidade`, `entreguePara`, `retiradoPor`, `entregueEm`, `entreguePor`, `status`, etc.).
+     - Adicionado hook `useEffect` com debounce suave de 150ms em `OperacaoPage.jsx`: qualquer alteração no formulário (`detailForm`) transmite o estado 'ATENDENDO' ou 'ENTREGUE' automaticamente para o Espelho, tornando a experiência de digitação do operador 100% visível em tempo real.
+     - Mantido o `publishEspelho('LIVRE')` ao fechar a ficha para restaurar a tela de guichê disponível.
+  3. **Espelho com SSE e Anatomia Visual Idêntica à Operação (`EspelhoPage.jsx` e `EspelhoPage.css`):**
+     - Implementado cliente SSE nativo via `subscribeEspelhoSSE(eventId, ...)` com reconexão automática e consulta inicial rápida de fallback.
+     - Preservado o `BroadcastChannel` local para sincronização em 0ms quando o Espelho e o Guichê estiverem na mesma máquina / navegador.
+     - Layout reconstruído com rigor visual:
+       - **Cards Superiores:** Card Esquerdo (Bib Card) com Modalidade, Categoria, Número Gigante e Chip; Card Direito (Shirt Card) com Tamanho Gigante da Camiseta e rótulo; Card de Kit (quando houver kit na planilha).
+       - **Retirada por Terceiro:** Se preenchido no guichê, o Espelho exibe badge âmbar `👤 RETIRADO POR: [NOME DO TERCEIRO] (TERCEIRO AUTORIZADO)`.
+       - **Grid Completo de Dados:** Exibe todas as colunas reais da planilha (Número, Nome, Documento, Sexo, Nascimento, Modalidade, Categoria, Equipe, Camiseta, Chip, Contato, Cidade, Nacionalidade, Morador, PCD e colunas dinâmicas).
+       - **Banner Comemorativo:** Quando entregue, exibe banner verde pulsante `✓ KIT ENTREGUE COM SUCESSO — BOA CORRIDA!`.
+       - **Rodapé:** Indicador verde de conexão ativa `● TEMPO REAL ATIVO (SSE)`.
+- **Validação Real:**
+  - `oxlint`: 0 warnings e 0 errors em 29 arquivos do frontend.
+  - `npm run build`: bundle de produção compilado com sucesso em 1.31s (`index-Qet27olB.css` e `index-Csv5LcGv.js`).
+- **Próximo Passo:** Executar `git add`, `git commit` e `git push origin main` para acionamento do deploy na VPS e homologação pelo Yuri.
+
 ## 2026-09-24 — Responsividade Mobile Completa do Dashboard do Evento para Android e iOS (Fase B)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead & Frontend).

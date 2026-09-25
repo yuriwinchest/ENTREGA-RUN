@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import Sidebar from './Sidebar.jsx'
 import EspelhoModal from './EspelhoModal.jsx'
 import ImportarAtletasModal from './ImportarAtletasModal.jsx'
@@ -1141,14 +1141,24 @@ export default function OperacaoPage({
   const paginatedAudits = filteredAudits.slice(startIndex, endIndex)
 
   // Espelho público: publica a ficha aberta/entregue no servidor para
-  // a segunda tela (/espelho/:id) exibir em qualquer aparelho.
-  function publishEspelho(status, atleta = null) {
+  // a segunda tela (/espelho/:id) exibir em qualquer aparelho via SSE.
+  const publishEspelho = useCallback((status, atleta = null) => {
+    if (!currentEvent?.id) return
     publishEspelhoState(currentEvent.id, {
       status,
       eventName: currentEvent.name,
       atleta,
     })
-  }
+  }, [currentEvent?.id, currentEvent?.name])
+
+  // Sincronização automática contínua em tempo real com o Espelho (SSE) durante digitação/alteração
+  useEffect(() => {
+    if (!detailForm || !currentEvent?.id) return
+    const timer = setTimeout(() => {
+      publishEspelho(detailForm.status === 'ENTREGUE' ? 'ENTREGUE' : 'ATENDENDO', detailForm)
+    }, 150) // 150ms debounce para digitação fluida sem sobrecarregar rede
+    return () => clearTimeout(timer)
+  }, [detailForm, currentEvent?.id, publishEspelho])
 
   // Open Athlete Detail View
   function handleOpenAthleteDetail(athleteId) {

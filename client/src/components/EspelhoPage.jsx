@@ -3,6 +3,7 @@ import {
   DEFAULT_ESPELHO_CONFIG,
   fetchEspelhoState,
   getEspelhoConfig,
+  subscribeEspelhoSSE,
   subscribeEspelhoSync,
 } from '../utils/espelhoSync.js'
 import './EspelhoPage.css'
@@ -39,9 +40,43 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     return remoteName || 'EVENTO'
   })()
 
-  // Sincronização em tempo real via BroadcastChannel e Storage Events (0ms de latência local)
+  // 1. Conexão SSE (Server-Sent Events) - Stream em tempo real contínuo (<15ms de latência)
   useEffect(() => {
-    const unsubscribe = subscribeEspelhoSync((msg) => {
+    if (!eventId) return undefined
+
+    // Consulta inicial imediata para exibir o estado mesmo antes do stream estabelecer
+    fetchEspelhoState(eventId)
+      .then((state) => {
+        if (state) {
+          setMirrorState(state)
+          setConnected(true)
+          if (state.eventName) setRemoteName(state.eventName)
+          if (state.config) setConfig((prev) => ({ ...prev, ...state.config }))
+        }
+      })
+      .catch(() => {})
+
+    const unsubscribeSSE = subscribeEspelhoSSE(
+      eventId,
+      (state) => {
+        setMirrorState(state)
+        setConnected(true)
+        if (state?.eventName) setRemoteName(state.eventName)
+        if (state?.config) setConfig((prev) => ({ ...prev, ...state.config }))
+      },
+      (isConnected) => {
+        setConnected(isConnected)
+      }
+    )
+
+    return () => {
+      unsubscribeSSE()
+    }
+  }, [eventId])
+
+  // 2. Sincronização local em 0ms no mesmo navegador (BroadcastChannel + storage events)
+  useEffect(() => {
+    const unsubscribeSync = subscribeEspelhoSync((msg) => {
       if (msg.type === 'STATE_CHANGE' && (!msg.eventId || msg.eventId === eventId)) {
         if (msg.state) {
           setMirrorState(msg.state)
@@ -57,33 +92,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     })
 
     return () => {
-      unsubscribe()
-    }
-  }, [eventId])
-
-  // Polling de alta frequência (1000ms) do estado público publicado pelo guichê (para monitores remotos/outros PCs)
-  useEffect(() => {
-    if (!eventId) return undefined
-    let cancelled = false
-
-    async function poll() {
-      try {
-        const state = await fetchEspelhoState(eventId)
-        if (cancelled) return
-        setMirrorState(state)
-        setConnected(true)
-        if (state?.eventName) setRemoteName(state.eventName)
-        if (state?.config) setConfig({ ...DEFAULT_ESPELHO_CONFIG, ...state.config })
-      } catch {
-        if (!cancelled) setConnected(false)
-      }
-    }
-
-    poll()
-    const interval = window.setInterval(poll, 1000)
-    return () => {
-      cancelled = true
-      window.clearInterval(interval)
+      unsubscribeSync()
     }
   }, [eventId])
 
@@ -108,15 +117,33 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
       ? 'status-atendendo'
       : 'status-livre'
 
+  const thirdPartyName = (() => {
+    if (!atleta) return ''
+    const recipient = String(atleta.entreguePara || atleta.retiradoPor || '').trim()
+    const athleteName = String(atleta.nome || '').trim()
+    if (recipient && athleteName && recipient.toUpperCase() !== athleteName.toUpperCase()) {
+      return recipient
+    }
+    return ''
+  })()
+
   function athleteInfoRows() {
     if (!atleta) return []
     const rows = [
+      { label: 'NÚMERO', value: atleta.numero },
+      { label: 'NOME DO ATLETA', value: atleta.nome },
       { label: 'DOCUMENTO / CPF', value: atleta.doc || atleta.cpf },
-      { label: 'CIDADE / UF', value: atleta.cidade },
-      { label: 'NASCIMENTO', value: atleta.nascimento || (atleta.idade ? `${atleta.idade} anos` : '') },
-      { label: 'CATEGORIA', value: atleta.categoria },
       { label: 'SEXO', value: atleta.sexo },
+      { label: 'NASCIMENTO', value: atleta.nascimento || (atleta.idade ? `${atleta.idade} anos` : '') },
+      { label: 'MODALIDADE', value: atleta.modalidade },
+      { label: 'CATEGORIA', value: atleta.categoria },
       { label: 'EQUIPE / ASSESSORIA', value: atleta.equipe },
+      { label: 'CAMISETA', value: atleta.camiseta },
+      { label: 'CHIP', value: atleta.chip },
+      { label: 'CONTATO', value: atleta.contato },
+      { label: 'CIDADE', value: atleta.cidade },
+      { label: 'NACIONALIDADE', value: atleta.nacionalidade },
+      { label: 'MORADOR / VISITANTE', value: atleta.morador },
       { label: 'NOME NO PEITO', value: atleta.nome_peito },
       { label: 'PCD / OBSERVAÇÃO', value: atleta.pcd },
     ]
@@ -170,76 +197,97 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
         </div>
       </header>
 
-      {/* Centro: Ficha do atleta espelhada ou mensagem de guichê livre */}
+      {/* Centro: Ficha do atleta rigorosamente espelhada da tela do operador */}
       <main className="espelho-screen-main">
         {atleta ? (
           <div className={`espelho-athlete-card ${statusClass}`}>
-            <div className="espelho-athlete-topline">
-              <span
-                className="espelho-athlete-modalidade"
-                style={{ color: config.destaque || '#ff6b00' }}
-              >
-                {[atleta.modalidade, atleta.categoria].filter(Boolean).join(' • ') || 'ATLETA'}
-              </span>
-            </div>
+            
+            {/* Bloco 1: Cards Superiores de Destaque (Idênticos ao topo da ficha de operação) */}
+            <div className="espelho-top-highlights-row">
+              {/* Card Esquerdo: Modalidade + Categoria no topo, Número gigante no centro, Chip abaixo */}
+              <div className="espelho-highlight-card espelho-bib-card">
+                <div className="espelho-bib-header">
+                  <span className="espelho-bib-modalidade" style={{ color: config.destaque || '#ff6b00' }}>
+                    {atleta.modalidade || '—'}
+                  </span>
+                  <span className="espelho-bib-categoria">
+                    {atleta.categoria || '—'}
+                  </span>
+                </div>
+                <div className="espelho-bib-center">
+                  <span
+                    className="espelho-bib-number"
+                    style={{
+                      color: config.texto || '#ffffff',
+                      fontSize: `clamp(64px, ${10 * fontScale}vw, ${140 * fontScale}px)`,
+                    }}
+                  >
+                    {atleta.numero || 'Não associado'}
+                  </span>
+                </div>
+                <div className="espelho-bib-footer">
+                  <span className="espelho-bib-chip">
+                    {atleta.chip ? `CHIP: ${atleta.chip}` : 'Chip não associado'}
+                  </span>
+                </div>
+              </div>
 
-            <div className="espelho-numero-box">
-              <span className="espelho-numero-label">NÚMERO DE PEITO</span>
-              <h2
-                className="espelho-athlete-numero"
-                style={{
-                  color: config.texto || '#ffffff',
-                  fontSize: `clamp(64px, ${11 * fontScale}vw, ${160 * fontScale}px)`,
-                }}
-              >
-                {atleta.numero || '—'}
-              </h2>
-            </div>
+              {/* Card Direito: Camiseta em destaque com letra grande */}
+              <div className="espelho-highlight-card espelho-shirt-card">
+                <span
+                  className="espelho-shirt-size"
+                  style={{
+                    color: config.texto || '#ffffff',
+                    fontSize: `clamp(56px, ${9 * fontScale}vw, ${120 * fontScale}px)`,
+                  }}
+                >
+                  {atleta.camiseta || '—'}
+                </span>
+                <span className="espelho-shirt-label">CAMISETA</span>
+              </div>
 
-            {atleta.nome && (
-              <h3
-                className="espelho-athlete-nome"
-                style={{ color: config.texto || '#ffffff' }}
-              >
-                {atleta.nome}
-              </h3>
-            )}
-
-            <div className="espelho-athlete-chips-row">
-              {atleta.kit && (
-                <div className="espelho-athlete-chip">
-                  <strong className="espelho-athlete-chip-value">{atleta.kit}</strong>
-                  <span className="espelho-athlete-chip-label">KIT</span>
+              {/* Card Kit (se existir na planilha/evento) */}
+              {Boolean(atleta.kit && atleta.kit !== '—' && atleta.kit.trim() !== '') && (
+                <div className="espelho-highlight-card espelho-kit-card">
+                  <span className="espelho-kit-name">{atleta.kit}</span>
+                  <span className="espelho-kit-label">KIT</span>
                 </div>
               )}
-              {atleta.camiseta && (
-                <div className="espelho-athlete-chip">
-                  <strong className="espelho-athlete-chip-value">{atleta.camiseta}</strong>
-                  <span className="espelho-athlete-chip-label">CAMISETA</span>
-                </div>
-              )}
-              {atleta.chip && (
-                <div className="espelho-athlete-chip">
-                  <strong className="espelho-athlete-chip-value">{atleta.chip}</strong>
-                  <span className="espelho-athlete-chip-label">CHIP</span>
-                </div>
-              )}
             </div>
 
-            {athleteInfoRows().length > 0 && (
-              <div className="espelho-athlete-info-grid">
-                {athleteInfoRows().map((row) => (
-                  <div key={row.label} className="espelho-athlete-info-item">
-                    <span className="espelho-athlete-info-label">{row.label}</span>
-                    <span className="espelho-athlete-info-value">{row.value}</span>
-                  </div>
-                ))}
+            {/* Bloco 2: Aviso de Retirada por Terceiro (se aplicável) */}
+            {thirdPartyName && (
+              <div className="espelho-third-party-card">
+                <span className="espelho-third-party-icon">👤</span>
+                <span className="espelho-third-party-label">RETIRADO POR:</span>
+                <strong className="espelho-third-party-name">{thirdPartyName}</strong>
+                <span className="espelho-third-party-badge">TERCEIRO AUTORIZADO</span>
               </div>
             )}
 
+            {/* Bloco 3: Grid Completo de Dados Rigorosamente Fiel à Planilha Anexada */}
+            <div className="espelho-athlete-details-card">
+              <div className="espelho-details-header">
+                <span className="espelho-details-header-label">DADOS DO ATLETA</span>
+                <h2 className="espelho-details-athlete-name">{atleta.nome || 'ATLETA'}</h2>
+              </div>
+
+              {athleteInfoRows().length > 0 && (
+                <div className="espelho-athlete-info-grid">
+                  {athleteInfoRows().map((row) => (
+                    <div key={row.label} className="espelho-athlete-info-item">
+                      <span className="espelho-athlete-info-label">{row.label}</span>
+                      <span className="espelho-athlete-info-value">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Bloco 4: Banner Comemorativo de Entrega */}
             {isDelivered && (
               <div className="espelho-athlete-entregue-banner">
-                ✓ KIT ENTREGUE — BOM PROVEITO E BOA CORRIDA!
+                ✓ KIT ENTREGUE COM SUCESSO — BOA CORRIDA!
               </div>
             )}
           </div>
@@ -263,12 +311,12 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
         )}
       </main>
 
-      {/* Rodapé: Indicador de Conexão com o Guichê */}
+      {/* Rodapé: Indicador de Conexão em Tempo Real */}
       <footer className="espelho-screen-footer">
         <div className={`espelho-connection-indicator ${connected ? '' : 'disconnected'}`}>
           <span className="connection-pulse-dot" />
           <span className="connection-text">
-            {connected ? 'CONECTADO AO GUICHÊ' : 'CONECTANDO AO GUICHÊ...'}
+            {connected ? 'TEMPO REAL ATIVO (SSE)' : 'CONECTANDO AO GUICHÊ...'}
           </span>
         </div>
       </footer>
