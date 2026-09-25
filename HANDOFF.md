@@ -1,5 +1,15 @@
 # Handoff
 
+## 2026-09-25 — Diagnóstico somente leitura da Corrida da Renascença (Fase B)
+
+- **Autor:** Codex/Tony (GPT-6).
+- **Pedido do Yuri:** Verificar se as entregas do evento em operação estão salvas no servidor/Appwrite e por que outro navegador, mesmo com o mesmo login, não as mostra.
+- **Arquivos alterados:** somente este `HANDOFF.md` para registrar o diagnóstico. Nenhum dado de produção foi modificado.
+- **Evidência no ambiente:** `https://entregasrunning.com.br/api/events` apresentou o evento `event-1790318665638` com total 353 e entregues 0; `GET /api/events/event-1790318665638/athletes` apresentou 353 atletas, 65 com status `ENTREGUE`, 353 com chip e schema de 14 colunas. Consulta somente leitura à API do Appwrite com credencial local apresentou 353 atletas e 65 entregues para esse mesmo `event_id`; o documento do evento no Appwrite também registrava entregues 0. Última atualização de atleta observada no Appwrite: 2026-09-25T18:05:29Z.
+- **Causas no código atual:** `OperacaoPage.jsx` inicializa atletas do `localStorage` e, quando há lista local não vazia, não aplica a lista atual do servidor; o autosave pode reenviar uma lista antiga. `server/server.js` atualiza o total no POST de atletas, mas não recalcula `entregues` a partir dos status. `fetchEventsFromAppwrite()` retorna o ID hash do documento como ID do evento, enquanto atletas são armazenados sob o ID original, comprometendo recuperação se o disco local de eventos faltar; a cópia Appwrite de atletas também não inclui schema/kits/QR completo.
+- **Risco/estado:** Há cópia atual dos status de entrega no volume do servidor e no Appwrite; isso não garante que futuras escritas de um navegador defasado preservem esses status. PR #3 foi colocada como draft e não foi mesclada/publicada durante a operação real. O script de deploy atual verifica snapshot de `users.json`, mas não faz snapshot dos arquivos de atletas desse evento.
+- **Próximo passo:** Antes de publicar mudança, obter snapshot verificado dos arquivos do evento/atletas, corrigir leitura do servidor como fonte oficial e impedir substituição integral por cache antigo, calcular métricas a partir dos atletas, testar com dois navegadores e preparar rollback. Yuri homologa no evento real.
+
 ## 2026-09-25 — Decisão obrigatória após associação e importação de planilha completa (Fase B)
 
 - **Autor:** Codex/Tony (GPT-6).
