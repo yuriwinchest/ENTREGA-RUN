@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import {
   DEFAULT_ESPELHO_CONFIG,
+  compressImageFile,
   getEspelhoConfig,
   publishEspelhoState,
   saveEspelhoConfig,
@@ -203,24 +204,50 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Crowley (Segurança): apenas imagens até 2.5MB
+    // Crowley (Segurança): apenas imagens até 5MB
     if (!file.type.startsWith('image/')) {
       alert('Por favor, selecione um arquivo de imagem válido (PNG, JPG, WEBP).')
       return
     }
-    if (file.size > 2.5 * 1024 * 1024) {
-      alert('A imagem deve ter no máximo 2.5 MB.')
+    if (file.size > 5 * 1024 * 1024) {
+      alert('A imagem deve ter no máximo 5 MB.')
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = (loadEvt) => {
-      const dataUrl = loadEvt.target?.result
-      if (typeof dataUrl === 'string') {
-        updateConfig({ [field]: dataUrl })
+    // Se for SVG e menor que 500KB, lê direto como dataUrl
+    if (file.type === 'image/svg+xml' && file.size < 500 * 1024) {
+      const reader = new FileReader()
+      reader.onload = (loadEvt) => {
+        const dataUrl = loadEvt.target?.result
+        if (typeof dataUrl === 'string') {
+          updateConfig({ [field]: dataUrl })
+        }
       }
+      reader.readAsDataURL(file)
+      return
     }
-    reader.readAsDataURL(file)
+
+    // Otimização automática: redimensionar client-side para carregar instantaneamente no espelho
+    const maxWidth = field === 'bgImage' ? 1920 : 600
+    const maxHeight = field === 'bgImage' ? 1080 : 300
+    const quality = field === 'bgImage' ? 0.82 : 0.88
+
+    compressImageFile(file, maxWidth, maxHeight, quality)
+      .then((dataUrl) => {
+        if (dataUrl) {
+          updateConfig({ [field]: dataUrl })
+        }
+      })
+      .catch(() => {
+        const reader = new FileReader()
+        reader.onload = (loadEvt) => {
+          const dataUrl = loadEvt.target?.result
+          if (typeof dataUrl === 'string') {
+            updateConfig({ [field]: dataUrl })
+          }
+        }
+        reader.readAsDataURL(file)
+      })
   }
 
   function toggleField(fieldKey) {

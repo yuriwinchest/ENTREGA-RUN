@@ -1,5 +1,39 @@
 # Handoff
 
+## 2026-09-25 — Correção da Imagem de Fundo/Banner do Telão (Espelho) e Persistência (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead & Fullstack).
+- **Demanda do Yuri (PO via áudio 02:33 com print):**
+  Ao configurar uma imagem de fundo (banner) no espelho e abrir a segunda tela, a imagem piscava por um instante e sumia, deixando a tela apenas com a cor azul de fundo.
+- **Causa Raiz Identificada:**
+  1. *Limite de cota em requisições keepalive:* A função `publishEspelhoState` utilizava `keepalive: true` no `fetch`. A especificação dos navegadores impõe uma cota restrita de 64 KB para requisições `keepalive`. Como imagens em base64 ultrapassam 64 KB, o navegador rejeitava a chamada com `TypeError` no envio, impedindo que o backend recebesse a imagem.
+  2. *Sobrescrita por estado SSE sem imagem:* Como o servidor não recebia a imagem ou recebia atualizações de estado parciais (ex: `OperacaoPage` enviando apenas status 'LIVRE' ou 'ATENDENDO' sem `bgImage`), o servidor respondia com `config.bgImage: null`, que sobrescrevia a imagem carregada inicialmente do `localStorage`, fazendo-a piscar e sumir.
+  3. *Ausência de persistência em disco da config do espelho no backend:* As configs eram salvas apenas em memória RAM e eram perdidas em reinicializações do servidor ou deploys de container.
+  4. *Sanitização destrutiva no backend:* Quando o backend recebia updates parciais de config (ex: ajuste de cor ou fonte), `raw.bgImage` indefinido era convertido para `null`, destruindo a imagem previamente salva.
+- **Solução Implementada:**
+  1. **Compressão e Redimensionamento Client-side (`compressImageFile` em `espelhoSync.js` e `EspelhoModal.jsx`):**
+     - Banners são redimensionados para no máximo 1920x1080 (Full HD) em JPEG/WebP (82% de qualidade), reduzindo o tamanho de ~3MB para ~100-200 KB.
+     - Logos são redimensionados para 600x300 mantendo PNG com transparência.
+     - Imagens cabem com folga no `localStorage` sem risco de `QuotaExceededError`.
+  2. **Remoção de `keepalive: true` (`espelhoSync.js`):**
+     - O envio de estado/config para `/api/espelho/:eventId/estado` agora roda sem restrição de 64 KB, transmitindo o payload instantaneamente.
+  3. **Persistência em Disco no Backend (`server/server.js`):**
+     - Criado arquivo `data/espelho_configs.json` com reidratação no startup e sincronização com `writeEspelhoConfigsToDisk()`.
+     - `sanitizeEspelhoConfig(raw, previousConfig)` agora preserva `previousConfig.bgImage` e `previousConfig.logo` se a requisição não trouxer esses campos.
+     - Endpoints `/api/espelho/:eventId/stream` e `/api/espelho/:eventId/estado` agora garantem que a configuração persistida acompanhe o estado inicial.
+  4. **Proteção contra Sobrescrita Acidental no Frontend (`EspelhoPage.jsx`):**
+     - Criada a função `mergeEspelhoConfig(prev, next)` que impede que uma atualização de estado parcial com `bgImage: undefined/null` destrua uma imagem de fundo válida já carregada na tela.
+     - Ajustado o container para `backgroundRepeat: 'no-repeat'` e quotes `url("${config.bgImage}")`.
+     - Ajustada a opacidade do `.espelho-screen-overlay` de 0.72 para 0.48 para maior vivacidade e nitidez do banner.
+  5. **Sincronização Inicial na Operação (`OperacaoPage.jsx`):**
+     - Ao carregar o evento, sincroniza a configuração salva do espelho com o servidor para que qualquer segunda tela receba o banner imediatamente.
+- **Validação Real:**
+  - `node --check server/server.js`: sintaxe perfeita sem erros.
+  - `node server/admin-users.test.mjs`: testes de autenticação e permissões passaram 100%.
+  - `npm run lint --prefix client`: 0 warnings, 0 errors em 29 arquivos.
+  - `npm run build --prefix client`: bundle gerado com sucesso em 752ms.
+- **Próximo Passo:** Homologação pelo Yuri (PO).
+
 ## 2026-09-25 — Publicação das correções administrativas (Fase B)
 
 - **Autor:** Codex/Tony (GPT-6).

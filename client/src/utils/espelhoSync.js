@@ -48,11 +48,52 @@ export function broadcastEspelhoChange(payload) {
   }
 }
 
+export function compressImageFile(file, maxWidth = 1920, maxHeight = 1080, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve(null)
+    const reader = new FileReader()
+    reader.onerror = reject
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onerror = reject
+      img.onload = () => {
+        let { width, height } = img
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height)
+          width = Math.round(width * ratio)
+          height = Math.round(height * ratio)
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+        const isPng = file.type === 'image/png'
+        // Preserva PNG para logos com transparência menores que 800KB; banners em JPEG para máxima performance
+        const mimeType = isPng && file.size < 800 * 1024 ? 'image/png' : 'image/jpeg'
+        const dataUrl = canvas.toDataURL(mimeType, quality)
+        resolve(dataUrl)
+      }
+      img.src = e.target?.result
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 export function saveEspelhoConfig(eventId, config) {
   try {
     localStorage.setItem(getEspelhoStorageKey(eventId), JSON.stringify(config))
-  } catch {
-    // ignore
+  } catch (err) {
+    console.warn('[espelho] Aviso ao salvar config no localStorage:', err?.message)
+    // Se a imagem for muito pesada para o storage local, salva os demais campos sem estourar
+    if (config?.bgImage || config?.logo) {
+      try {
+        const lightweight = { ...config, bgImage: null, logo: null }
+        localStorage.setItem(getEspelhoStorageKey(eventId), JSON.stringify(lightweight))
+      } catch {
+        // ignore
+      }
+    }
   }
   broadcastEspelhoChange({ type: 'CONFIG_CHANGE', eventId, config })
 }
@@ -156,7 +197,6 @@ export async function publishEspelhoState(eventId, state) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        keepalive: true,
       })
     } catch {
       // rede indisponível: o espelho remoto aguarda o próximo ciclo

@@ -26,7 +26,7 @@ import {
   getAthleteTableValue,
   mergeAthleteColumnSchemas,
 } from '../utils/athleteTable.js'
-import { publishEspelhoState } from '../utils/espelhoSync.js'
+import { getEspelhoConfig, publishEspelhoState } from '../utils/espelhoSync.js'
 import KitQrScannerModal from './KitQrScannerModal.jsx'
 import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
 import './OperacaoPage.css'
@@ -1151,6 +1151,20 @@ export default function OperacaoPage({
       eventName: currentEvent.name,
       atleta,
     })
+  }, [currentEvent?.id, currentEvent?.name])
+
+  // Sincroniza a configuração de aparência e campos do espelho com o servidor ao carregar o evento
+  useEffect(() => {
+    if (!currentEvent?.id) return
+    const cfg = getEspelhoConfig(currentEvent.id)
+    if (cfg && (cfg.bgImage || cfg.logo || cfg.visibleFields || cfg.fundo !== '#071526' || cfg.fontSize !== 100)) {
+      publishEspelhoState(currentEvent.id, {
+        config: cfg,
+        eventName: currentEvent.name,
+        status: 'LIVRE',
+        atleta: null,
+      })
+    }
   }, [currentEvent?.id, currentEvent?.name])
 
   // Sincronização automática contínua em tempo real com o Espelho (SSE) durante digitação/alteração

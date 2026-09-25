@@ -149,15 +149,35 @@ app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || true }))
 
 // ============================================================
 // ESPELHO PÚBLICO (segunda tela / QR Code)
-// Quadro de avisos em memória por evento: o guichê (OperacaoPage)
-// publica a ficha aberta e a config de aparência; a tela pública
-// (/espelho/:id) consome via polling. Não persiste em disco e não
-// exige autenticação por ser uma tela pública de exibição.
-// Montado ANTES do parser global de 16kb porque a aparência pode
-// carregar imagens (data URL) enviadas pelo painel.
+// Quadro de avisos em memória por evento com persistência de configuração:
+// O guichê (OperacaoPage) publica a ficha aberta e a config de aparência;
+// a tela pública (/espelho/:id) consome via SSE em tempo real.
 // ============================================================
 const espelhoStates = new Map()
 const espelhoClients = new Map() // key -> Set<Response>
+
+const ESPELHO_CONFIGS_FILE = path.join(DATA_DIR, 'espelho_configs.json')
+let inMemoryEspelhoConfigs = {}
+try {
+  if (fs.existsSync(ESPELHO_CONFIGS_FILE)) {
+    inMemoryEspelhoConfigs = JSON.parse(fs.readFileSync(ESPELHO_CONFIGS_FILE, 'utf-8')) || {}
+  }
+} catch {
+  inMemoryEspelhoConfigs = {}
+}
+
+function writeEspelhoConfigsToDisk() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true })
+    }
+    const tempFile = `${ESPELHO_CONFIGS_FILE}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`
+    fs.writeFileSync(tempFile, JSON.stringify(inMemoryEspelhoConfigs, null, 2), 'utf-8')
+    fs.renameSync(tempFile, ESPELHO_CONFIGS_FILE)
+  } catch (err) {
+    console.error('[server] Erro ao salvar espelho_configs.json em DATA_DIR:', err)
+  }
+}
 
 const espelhoLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -184,25 +204,43 @@ function sanitizeImageDataUrl(value) {
   return text.length <= 4 * 1024 * 1024 ? text : null
 }
 
-function sanitizeEspelhoConfig(raw) {
+function sanitizeEspelhoConfig(raw, previousConfig) {
   if (!raw || typeof raw !== 'object') return undefined
   return {
-    fundo: sanitizeHexColor(raw.fundo, '#071526'),
-    texto: sanitizeHexColor(raw.texto, '#ffffff'),
-    destaque: sanitizeHexColor(raw.destaque, '#ff6b00'),
-    fontSize: Math.min(150, Math.max(70, Number(raw.fontSize) || 100)),
-    mensagem: String(raw.mensagem ?? 'Guichê disponível').slice(0, 120),
-    bgImage: sanitizeImageDataUrl(raw.bgImage),
-    logo: sanitizeImageDataUrl(raw.logo),
-    showBibCard: raw.showBibCard !== false,
-    showShirtCard: raw.showShirtCard !== false,
-    showKitCard: raw.showKitCard !== false,
-    showThirdParty: raw.showThirdParty !== false,
-    visibleFields: Array.isArray(raw.visibleFields)
-      ? raw.visibleFields
-          .map((f) => String(f || '').trim().slice(0, 80))
-          .filter(Boolean)
-      : null,
+    fundo: sanitizeHexColor(raw.fundo, previousConfig?.fundo || '#071526'),
+    texto: sanitizeHexColor(raw.texto, previousConfig?.texto || '#ffffff'),
+    destaque: sanitizeHexColor(raw.destaque, previousConfig?.destaque || '#ff6b00'),
+    fontSize: raw.fontSize !== undefined
+      ? Math.min(150, Math.max(70, Number(raw.fontSize) || 100))
+      : (previousConfig?.fontSize ?? 100),
+    mensagem: raw.mensagem !== undefined
+      ? String(raw.mensagem ?? 'Guichê disponível').slice(0, 120)
+      : (previousConfig?.mensagem ?? 'Guichê disponível'),
+    bgImage: raw.bgImage !== undefined
+      ? (raw.bgImage ? sanitizeImageDataUrl(raw.bgImage) : null)
+      : (previousConfig?.bgImage ?? null),
+    logo: raw.logo !== undefined
+      ? (raw.logo ? sanitizeImageDataUrl(raw.logo) : null)
+      : (previousConfig?.logo ?? null),
+    showBibCard: raw.showBibCard !== undefined
+      ? raw.showBibCard !== false
+      : (previousConfig?.showBibCard ?? true),
+    showShirtCard: raw.showShirtCard !== undefined
+      ? raw.showShirtCard !== false
+      : (previousConfig?.showShirtCard ?? true),
+    showKitCard: raw.showKitCard !== undefined
+      ? raw.showKitCard !== false
+      : (previousConfig?.showKitCard ?? true),
+    showThirdParty: raw.showThirdParty !== undefined
+      ? raw.showThirdParty !== false
+      : (previousConfig?.showThirdParty ?? true),
+    visibleFields: raw.visibleFields !== undefined
+      ? (Array.isArray(raw.visibleFields)
+          ? raw.visibleFields
+              .map((f) => String(f || '').trim().slice(0, 80))
+              .filter(Boolean)
+          : null)
+      : (previousConfig?.visibleFields ?? null),
   }
 }
 
@@ -226,9 +264,19 @@ app.get('/api/espelho/:eventId/stream', (req, res) => {
   const clients = espelhoClients.get(key)
   clients.add(res)
 
-  // Envia estado atual imediatamente ao conectar
+  // Envia estado atual imediatamente ao conectar, garantindo que a config persistida acompanhe
   const currentState = espelhoStates.get(key) || null
-  res.write(`data: ${JSON.stringify({ ok: true, state: currentState })}\n\n`)
+  const persistedConfig = inMemoryEspelhoConfigs[key] || null
+  const initialPayload = currentState
+    ? { ...currentState, config: currentState.config || persistedConfig }
+    : {
+        status: 'LIVRE',
+        eventName: '',
+        atleta: null,
+        config: persistedConfig,
+        updatedAt: Date.now(),
+      }
+  res.write(`data: ${JSON.stringify({ ok: true, state: initialPayload })}\n\n`)
 
   // Heartbeat a cada 15 segundos para manter a conexão aberta
   const heartbeat = setInterval(() => {
@@ -249,9 +297,24 @@ app.get('/api/espelho/:eventId/stream', (req, res) => {
 })
 
 app.get('/api/espelho/:eventId/estado', espelhoLimiter, (req, res) => {
-  const state = espelhoStates.get(espelhoKey(req.params.eventId))
-  if (!state) return res.json({ ok: true, state: null })
-  res.json({ ok: true, state })
+  const key = espelhoKey(req.params.eventId)
+  const state = espelhoStates.get(key)
+  const persistedConfig = inMemoryEspelhoConfigs[key] || null
+  if (!state) {
+    return res.json({
+      ok: true,
+      state: persistedConfig
+        ? {
+            status: 'LIVRE',
+            eventName: '',
+            atleta: null,
+            config: persistedConfig,
+            updatedAt: Date.now(),
+          }
+        : null,
+    })
+  }
+  res.json({ ok: true, state: { ...state, config: state.config || persistedConfig } })
 })
 
 app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req, res) => {
@@ -308,7 +371,16 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req
                 customFields: atleta.customFields && typeof atleta.customFields === 'object' ? atleta.customFields : {},
               }
             : null,
-    config: sanitizeEspelhoConfig(body.config) ?? previous?.config ?? null,
+    config: (() => {
+      const persistedConfig = inMemoryEspelhoConfigs[key] || null
+      const sanitizedConfig = sanitizeEspelhoConfig(body.config, previous?.config || persistedConfig)
+      const effectiveConfig = sanitizedConfig ?? previous?.config ?? persistedConfig ?? null
+      if (sanitizedConfig) {
+        inMemoryEspelhoConfigs[key] = effectiveConfig
+        writeEspelhoConfigsToDisk()
+      }
+      return effectiveConfig
+    })(),
     updatedAt: incomingTime,
   }
   espelhoStates.set(key, state)

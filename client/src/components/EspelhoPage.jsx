@@ -8,6 +8,19 @@ import {
 } from '../utils/espelhoSync.js'
 import './EspelhoPage.css'
 
+function mergeEspelhoConfig(prevConfig, incomingConfig) {
+  if (!incomingConfig || typeof incomingConfig !== 'object') return prevConfig
+  const merged = { ...prevConfig, ...incomingConfig }
+  // Proteção: não anula imagem de fundo ou logo se a atualização remota vier parcial
+  if (!incomingConfig.bgImage && prevConfig?.bgImage && incomingConfig.bgImage === undefined) {
+    merged.bgImage = prevConfig.bgImage
+  }
+  if (!incomingConfig.logo && prevConfig?.logo && incomingConfig.logo === undefined) {
+    merged.logo = prevConfig.logo
+  }
+  return merged
+}
+
 export default function EspelhoPage({ eventId: propEventId, eventName: propEventName }) {
   // Obtém eventId da prop ou da URL (/espelho/:id)
   const eventId = (() => {
@@ -51,7 +64,9 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
           setMirrorState(state)
           setConnected(true)
           if (state.eventName) setRemoteName(state.eventName)
-          if (state.config) setConfig((prev) => ({ ...prev, ...state.config }))
+          if (state.config) {
+            setConfig((prev) => mergeEspelhoConfig(prev, state.config))
+          }
         }
       })
       .catch(() => {})
@@ -62,7 +77,9 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
         setMirrorState(state)
         setConnected(true)
         if (state?.eventName) setRemoteName(state.eventName)
-        if (state?.config) setConfig((prev) => ({ ...prev, ...state.config }))
+        if (state?.config) {
+          setConfig((prev) => mergeEspelhoConfig(prev, state.config))
+        }
       },
       (isConnected) => {
         setConnected(isConnected)
@@ -82,10 +99,12 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
           setMirrorState(msg.state)
           setConnected(true)
           if (msg.state.eventName) setRemoteName(msg.state.eventName)
-          if (msg.state.config) setConfig((prev) => ({ ...prev, ...msg.state.config }))
+          if (msg.state.config) {
+            setConfig((prev) => mergeEspelhoConfig(prev, msg.state.config))
+          }
         }
       } else if (msg.type === 'CONFIG_CHANGE' && (!msg.eventId || msg.eventId === eventId)) {
-        setConfig(msg.config || DEFAULT_ESPELHO_CONFIG)
+        setConfig((prev) => mergeEspelhoConfig(prev, msg.config || DEFAULT_ESPELHO_CONFIG))
       } else if (msg.type === 'STORAGE_UPDATE') {
         setConfig(getEspelhoConfig(eventId))
       }
@@ -182,9 +201,12 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
       onDoubleClick={handleToggleFullscreen}
       style={{
         backgroundColor: config.fundo || '#071526',
-        backgroundImage: config.bgImage ? `url(${config.bgImage})` : 'none',
+        backgroundImage: config.bgImage
+          ? (config.bgImage.startsWith('url(') ? config.bgImage : `url("${config.bgImage}")`)
+          : 'none',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
       }}
     >
       {/* Overlay escuro sutil para garantir legibilidade perfeita se houver foto de fundo */}
