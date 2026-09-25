@@ -6,6 +6,11 @@ export const DEFAULT_ESPELHO_CONFIG = {
   mensagem: 'Guichê disponível',
   bgImage: null,
   logo: null,
+  showBibCard: true,
+  showShirtCard: true,
+  showKitCard: true,
+  showThirdParty: true,
+  visibleFields: null, // null indica que todos os campos preenchidos são visíveis por padrão
 }
 
 export function getEspelhoStorageKey(eventId) {

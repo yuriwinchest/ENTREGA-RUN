@@ -20,6 +20,14 @@ function text(value) {
   return value == null ? '' : String(value)
 }
 
+export function normalizeSexo(val) {
+  if (!val) return ''
+  const s = String(val).trim().toUpperCase()
+  if (s.startsWith('F')) return 'F'
+  if (s.startsWith('M')) return 'M'
+  return s
+}
+
 export function canAssociateAthleteKit(athlete = {}) {
   const isFilled = (value) => {
     const normalized = text(value)
@@ -56,7 +64,7 @@ export function buildAthleteDetailDraft(athlete = {}) {
     nome: text(athlete.nome),
     doc: text(athlete.doc),
     nascimento: text(athlete.nascimento),
-    sexo: text(athlete.sexo),
+    sexo: normalizeSexo(athlete.sexo),
     modalidade: text(athlete.modalidade),
     categoria: text(athlete.categoria),
     equipe: text(athlete.equipe),
@@ -86,6 +94,7 @@ export function normalizeAthleteDetail(original = {}, draft = {}) {
     numero,
     nome,
     doc: text(draft.doc).trim(),
+    sexo: normalizeSexo(draft.sexo),
     chip: text(draft.chip).trim(),
     contato: text(draft.contato).trim(),
     entreguePara: text(draft.entreguePara ?? '').trim(),
@@ -98,7 +107,11 @@ export function normalizeAthleteDetail(original = {}, draft = {}) {
 
 function editableSnapshot(value = {}) {
   return {
-    fields: EDITABLE_DETAIL_FIELDS.map((field) => text(value[field])),
+    fields: EDITABLE_DETAIL_FIELDS.map((field) => {
+      const v = text(value[field])
+      if (field === 'sexo') return normalizeSexo(v)
+      return v
+    }),
     customFields: Object.entries(cloneCustomFields(value.customFields))
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, fieldValue]) => [key, text(fieldValue)]),

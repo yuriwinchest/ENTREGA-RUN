@@ -10,13 +10,6 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
   const [manualCode, setManualCode] = useState('')
   const [cameraMessage, setCameraMessage] = useState('Iniciando câmera…')
 
-  const [recipient, setRecipient] = useState(athlete?.entreguePara || '')
-  const [prevAthlete, setPrevAthlete] = useState(athlete)
-  if (athlete !== prevAthlete) {
-    setPrevAthlete(athlete)
-    setRecipient(athlete?.entreguePara || '')
-  }
-
   useEffect(() => { onReadRef.current = onRead }, [onRead])
   useEffect(() => { kitRef.current = kit }, [kit])
 
@@ -172,27 +165,10 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
                 <div><dt>Número de peito</dt><dd>{kit.numero}</dd></div>
                 <div><dt>Chip</dt><dd>{kit.chip}</dd></div>
               </dl>
-              <div className="kit-scanner-recipient-wrap" style={{ marginTop: '12px', marginBottom: '12px', textAlign: 'left' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#0c142c', marginBottom: '4px' }}>
-                  Retirado por / Entregue para (se terceiro, digite o nome):
-                </label>
-                <input
-                  type="text"
-                  value={recipient}
-                  placeholder="Deixe em branco para o próprio atleta ou digite o nome do terceiro"
-                  onChange={(e) => setRecipient(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '1.5px solid #cbd5e1',
-                    fontSize: '13px',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-              <p>Confirme para associar este kit a {athlete?.nome || 'esta pessoa'}.</p>
-              <button type="button" className="kit-scanner-confirm" onClick={() => onConfirm(recipient)}>Confirmar associação</button>
+              <p style={{ marginTop: '16px', marginBottom: '16px', fontSize: '13.5px', color: '#334155' }}>
+                Confirme para associar este kit a <strong>{athlete?.nome || 'este atleta'}</strong>.
+              </p>
+              <button type="button" className="kit-scanner-confirm" onClick={() => onConfirm()}>Confirmar associação</button>
             </div>
           ) : (
             <>

@@ -26,8 +26,8 @@
 .espelho-modal-card {
   background: #ffffff;
   border-radius: 20px;
-  width: 100%;
-  max-width: 440px;
+  width: 95%;
+  max-width: 480px;
   max-height: calc(100vh - 32px);
   max-height: calc(100dvh - 32px);
   box-shadow: 0 20px 48px rgba(12, 20, 44, 0.22);
@@ -39,7 +39,7 @@
 }
 
 .espelho-modal-card.wide-mode {
-  max-width: 820px;
+  max-width: 960px;
 }
 
 @keyframes espelhoCardScale {
@@ -666,4 +666,362 @@
   .acesso-body {
     gap: 10px;
   }
+}
+
+/* ============================================================
+   ABA CAMPOS DO TELÃO
+   ============================================================ */
+.campos-body {
+  padding: 12px 28px 24px;
+  gap: 16px;
+}
+
+.campos-top-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #edf2f7;
+  flex-wrap: wrap;
+}
+
+.campos-toolbar-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 480px;
+}
+
+.campos-title {
+  margin: 0;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 13.5px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  color: #0c142c;
+  text-transform: uppercase;
+}
+
+.campos-subtitle {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.campos-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.campos-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+
+.campos-count-badge strong {
+  color: #0c142c;
+  font-weight: 800;
+}
+
+.btn-campos-action {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  color: #1e293b;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-campos-action:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0c142c;
+}
+
+.btn-campos-restore {
+  color: #64748b;
+}
+
+.btn-campos-restore:hover {
+  color: #c2410c;
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+
+/* Seções */
+.campos-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.campos-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.campos-section-tag {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.campos-section-tag.custom {
+  background: #fdf4ff;
+  color: #a21caf;
+}
+
+.campos-section-title {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* Cards de Destaque */
+.campos-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.campo-toggle-card {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.campo-toggle-card:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.campo-toggle-card.checked {
+  border-color: #ff6b00;
+  background: rgba(255, 107, 0, 0.04);
+}
+
+.campo-toggle-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.campo-custom-checkbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 2px solid #cbd5e1;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.campo-toggle-card.checked .campo-custom-checkbox,
+.campo-item-pill.active .campo-custom-checkbox {
+  background: #ff6b00;
+  border-color: #ff6b00;
+}
+
+.campo-item-pill.custom-pill.active .campo-custom-checkbox {
+  background: #0284c7;
+  border-color: #0284c7;
+}
+
+.campo-toggle-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.campo-toggle-label {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0c142c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campo-toggle-desc {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campo-badge-tag {
+  background: #f1f5f9;
+  color: #475569;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 3px 6px;
+  border-radius: 5px;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+/* Grid de Pílulas / Itens */
+.campos-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+  gap: 8px;
+}
+
+.campo-item-pill {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.campo-item-pill:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.campo-item-pill.active {
+  border-color: #ff6b00;
+  background: rgba(255, 107, 0, 0.04);
+}
+
+.campo-item-pill.custom-pill.active {
+  border-color: #0284c7;
+  background: rgba(2, 132, 199, 0.05);
+}
+
+.campo-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.campo-item-label {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0c142c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campo-item-category {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 10.5px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Rodapé dos Campos */
+.campos-footer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #edf2f7;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.campos-footer-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.note-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  display: inline-block;
+}
+
+.btn-abrir-telao-campos {
+  background: #13274f;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 12px rgba(19, 39, 79, 0.15);
+}
+
+.btn-abrir-telao-campos:hover {
+  background: #0c142c;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(19, 39, 79, 0.22);
 }

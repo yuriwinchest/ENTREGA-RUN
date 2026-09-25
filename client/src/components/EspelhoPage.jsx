@@ -130,33 +130,50 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
   function athleteInfoRows() {
     if (!atleta) return []
     const rows = [
-      { label: 'NÚMERO', value: atleta.numero },
-      { label: 'NOME DO ATLETA', value: atleta.nome },
-      { label: 'DOCUMENTO / CPF', value: atleta.doc || atleta.cpf },
-      { label: 'SEXO', value: atleta.sexo },
-      { label: 'NASCIMENTO', value: atleta.nascimento || (atleta.idade ? `${atleta.idade} anos` : '') },
-      { label: 'MODALIDADE', value: atleta.modalidade },
-      { label: 'CATEGORIA', value: atleta.categoria },
-      { label: 'EQUIPE / ASSESSORIA', value: atleta.equipe },
-      { label: 'CAMISETA', value: atleta.camiseta },
-      { label: 'CHIP', value: atleta.chip },
-      { label: 'CONTATO', value: atleta.contato },
-      { label: 'CIDADE', value: atleta.cidade },
-      { label: 'NACIONALIDADE', value: atleta.nacionalidade },
-      { label: 'MORADOR / VISITANTE', value: atleta.morador },
-      { label: 'NOME NO PEITO', value: atleta.nome_peito },
-      { label: 'PCD / OBSERVAÇÃO', value: atleta.pcd },
+      { key: 'numero', label: 'NÚMERO', value: atleta.numero },
+      { key: 'nome', label: 'NOME DO ATLETA', value: atleta.nome },
+      { key: 'doc', label: 'DOCUMENTO / CPF', value: atleta.doc || atleta.cpf },
+      { key: 'sexo', label: 'SEXO', value: atleta.sexo },
+      { key: 'nascimento', label: 'NASCIMENTO', value: atleta.nascimento || (atleta.idade ? `${atleta.idade} anos` : '') },
+      { key: 'modalidade', label: 'MODALIDADE', value: atleta.modalidade },
+      { key: 'categoria', label: 'CATEGORIA', value: atleta.categoria },
+      { key: 'equipe', label: 'EQUIPE / ASSESSORIA', value: atleta.equipe },
+      { key: 'camiseta', label: 'CAMISETA', value: atleta.camiseta },
+      { key: 'kit', label: 'KIT', value: atleta.kit },
+      { key: 'chip', label: 'CHIP', value: atleta.chip },
+      { key: 'contato', label: 'CONTATO', value: atleta.contato },
+      { key: 'cidade', label: 'CIDADE', value: atleta.cidade },
+      { key: 'nacionalidade', label: 'NACIONALIDADE', value: atleta.nacionalidade },
+      { key: 'morador', label: 'MORADOR / VISITANTE', value: atleta.morador },
+      { key: 'nome_peito', label: 'NOME NO PEITO', value: atleta.nome_peito },
+      { key: 'pcd', label: 'PCD / OBSERVAÇÃO', value: atleta.pcd },
     ]
 
     if (atleta.customFields && typeof atleta.customFields === 'object') {
       Object.entries(atleta.customFields).forEach(([key, val]) => {
         if (val && String(val).trim() !== '') {
-          rows.push({ label: key.toUpperCase(), value: String(val) })
+          rows.push({
+            key: `custom:${key}`,
+            label: key.toUpperCase(),
+            value: String(val),
+          })
         }
       })
     }
 
-    return rows.filter((row) => row.value && String(row.value).trim() !== '' && String(row.value).trim() !== '—')
+    const filled = rows.filter((row) => row.value && String(row.value).trim() !== '' && String(row.value).trim() !== '—')
+
+    if (Array.isArray(config?.visibleFields)) {
+      const allowed = new Set(config.visibleFields)
+      return filled.filter(
+        (row) =>
+          allowed.has(row.key) ||
+          allowed.has(row.key.replace(/^custom:/, '')) ||
+          allowed.has(`custom:${row.key}`)
+      )
+    }
+
+    return filled
   }
 
   return (
@@ -203,60 +220,66 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
           <div className={`espelho-athlete-card ${statusClass}`}>
             
             {/* Bloco 1: Cards Superiores de Destaque (Idênticos ao topo da ficha de operação) */}
-            <div className="espelho-top-highlights-row">
-              {/* Card Esquerdo: Modalidade + Categoria no topo, Número gigante no centro, Chip abaixo */}
-              <div className="espelho-highlight-card espelho-bib-card">
-                <div className="espelho-bib-header">
-                  <span className="espelho-bib-modalidade" style={{ color: config.destaque || '#ff6b00' }}>
-                    {atleta.modalidade || '—'}
-                  </span>
-                  <span className="espelho-bib-categoria">
-                    {atleta.categoria || '—'}
-                  </span>
-                </div>
-                <div className="espelho-bib-center">
-                  <span
-                    className="espelho-bib-number"
-                    style={{
-                      color: config.texto || '#ffffff',
-                      fontSize: `clamp(64px, ${10 * fontScale}vw, ${140 * fontScale}px)`,
-                    }}
-                  >
-                    {atleta.numero || 'Não associado'}
-                  </span>
-                </div>
-                <div className="espelho-bib-footer">
-                  <span className="espelho-bib-chip">
-                    {atleta.chip ? `CHIP: ${atleta.chip}` : 'Chip não associado'}
-                  </span>
-                </div>
+            {(config.showBibCard !== false || config.showShirtCard !== false || (config.showKitCard !== false && atleta.kit && atleta.kit !== '—')) && (
+              <div className="espelho-top-highlights-row">
+                {/* Card Esquerdo: Modalidade + Categoria no topo, Número gigante no centro, Chip abaixo */}
+                {config.showBibCard !== false && (
+                  <div className="espelho-highlight-card espelho-bib-card">
+                    <div className="espelho-bib-header">
+                      <span className="espelho-bib-modalidade" style={{ color: config.destaque || '#ff6b00' }}>
+                        {atleta.modalidade || '—'}
+                      </span>
+                      <span className="espelho-bib-categoria">
+                        {atleta.categoria || '—'}
+                      </span>
+                    </div>
+                    <div className="espelho-bib-center">
+                      <span
+                        className="espelho-bib-number"
+                        style={{
+                          color: config.texto || '#ffffff',
+                          fontSize: `clamp(64px, ${10 * fontScale}vw, ${140 * fontScale}px)`,
+                        }}
+                      >
+                        {atleta.numero || 'Não associado'}
+                      </span>
+                    </div>
+                    <div className="espelho-bib-footer">
+                      <span className="espelho-bib-chip">
+                        {atleta.chip ? `CHIP: ${atleta.chip}` : 'Chip não associado'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Card Direito: Camiseta em destaque com letra grande */}
+                {config.showShirtCard !== false && (
+                  <div className="espelho-highlight-card espelho-shirt-card">
+                    <span
+                      className="espelho-shirt-size"
+                      style={{
+                        color: config.texto || '#ffffff',
+                        fontSize: `clamp(56px, ${9 * fontScale}vw, ${120 * fontScale}px)`,
+                      }}
+                    >
+                      {atleta.camiseta || '—'}
+                    </span>
+                    <span className="espelho-shirt-label">CAMISETA</span>
+                  </div>
+                )}
+
+                {/* Card Kit (se existir na planilha/evento e habilitado) */}
+                {config.showKitCard !== false && Boolean(atleta.kit && atleta.kit !== '—' && atleta.kit.trim() !== '') && (
+                  <div className="espelho-highlight-card espelho-kit-card">
+                    <span className="espelho-kit-name">{atleta.kit}</span>
+                    <span className="espelho-kit-label">KIT</span>
+                  </div>
+                )}
               </div>
+            )}
 
-              {/* Card Direito: Camiseta em destaque com letra grande */}
-              <div className="espelho-highlight-card espelho-shirt-card">
-                <span
-                  className="espelho-shirt-size"
-                  style={{
-                    color: config.texto || '#ffffff',
-                    fontSize: `clamp(56px, ${9 * fontScale}vw, ${120 * fontScale}px)`,
-                  }}
-                >
-                  {atleta.camiseta || '—'}
-                </span>
-                <span className="espelho-shirt-label">CAMISETA</span>
-              </div>
-
-              {/* Card Kit (se existir na planilha/evento) */}
-              {Boolean(atleta.kit && atleta.kit !== '—' && atleta.kit.trim() !== '') && (
-                <div className="espelho-highlight-card espelho-kit-card">
-                  <span className="espelho-kit-name">{atleta.kit}</span>
-                  <span className="espelho-kit-label">KIT</span>
-                </div>
-              )}
-            </div>
-
-            {/* Bloco 2: Aviso de Retirada por Terceiro (se aplicável) */}
-            {thirdPartyName && (
+            {/* Bloco 2: Aviso de Retirada por Terceiro (se aplicável e habilitado) */}
+            {config.showThirdParty !== false && thirdPartyName && (
               <div className="espelho-third-party-card">
                 <span className="espelho-third-party-icon">👤</span>
                 <span className="espelho-third-party-label">RETIRADO POR:</span>
@@ -275,7 +298,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
               {athleteInfoRows().length > 0 && (
                 <div className="espelho-athlete-info-grid">
                   {athleteInfoRows().map((row) => (
-                    <div key={row.label} className="espelho-athlete-info-item">
+                    <div key={row.key || row.label} className="espelho-athlete-info-item">
                       <span className="espelho-athlete-info-label">{row.label}</span>
                       <span className="espelho-athlete-info-value">{row.value}</span>
                     </div>

@@ -17,6 +17,7 @@ import {
   hasAthleteDetailChanges,
   matchesAthleteReference,
   normalizeAthleteDetail,
+  normalizeSexo,
 } from '../utils/athleteDetail.js'
 import {
   compareAthleteNumbers,
@@ -321,7 +322,7 @@ const INITIAL_ATHLETE_FORM = {
   nome: '',
   cpf: '',
   nascimento: '',
-  sexo: 'Masculino',
+  sexo: 'M',
   modalidade: '5 KM',
   categoria: 'GERAL',
   equipe: '',
@@ -683,7 +684,7 @@ export default function OperacaoPage({
       doc: '',
       chip: '', // Vem sempre limpo para preenchimento manual
       nascimento: '',
-      sexo: 'Masculino',
+      sexo: 'M',
       modalidade: athletes[0]?.modalidade || '5 KM',
       categoria: athletes[0]?.categoria || 'GERAL',
       camiseta: shirtOptions[0] || 'M',
@@ -869,8 +870,6 @@ export default function OperacaoPage({
 
   // Modal Associar Planilhas (Atletas + Chips)
   const [showAssociarModal, setShowAssociarModal] = useState(false)
-  // Card interno: aviso de kit pendente ao fechar a ficha (substitui window.confirm nativo)
-  const [showPendingKitNotice, setShowPendingKitNotice] = useState(false)
 
   // Auditoria state
   const [audits, setAudits] = useState(() => {
@@ -1159,7 +1158,7 @@ export default function OperacaoPage({
     if (!detailForm || !currentEvent?.id) return
     const timer = setTimeout(() => {
       publishEspelho(detailForm.status === 'ENTREGUE' ? 'ENTREGUE' : 'ATENDENDO', detailForm)
-    }, 150) // 150ms debounce para digitação fluida sem sobrecarregar rede
+    }, 50) // 50ms debounce para sincronização instantânea na digitação sem sobrecarregar rede
     return () => clearTimeout(timer)
   }, [detailForm, currentEvent?.id, publishEspelho])
 
@@ -1252,7 +1251,7 @@ export default function OperacaoPage({
     setScannedKit(unassignedKit)
   }
 
-  function confirmKitAssociation(recipient) {
+  function confirmKitAssociation() {
     if (!scannerAthlete || !scannedKit) return
     const source = athletes.find((a) => matchesAthleteReference(a, scannerAthlete))
     if (!source || !canAssociateAthleteKit(source)) {
@@ -1268,13 +1267,11 @@ export default function OperacaoPage({
       setScanFeedback('Este kit exato (mesmo número e chip) já foi associado a outro atleta. Atualize a tela e tente novamente.')
       return
     }
-    const cleanRecipient = typeof recipient === 'string' && recipient.trim() ? recipient.trim() : (source.entreguePara || '')
     const updated = {
       ...source,
       numero: String(scannedKit.numero),
       chip: String(scannedKit.chip),
       qrCode: String(scannedKit.qrCode),
-      entreguePara: cleanRecipient,
     }
     const nextAthletes = athletes.map((a) => matchesAthleteReference(a, source) ? updated : a)
     setAthletes(nextAthletes)
@@ -1283,12 +1280,17 @@ export default function OperacaoPage({
         .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
         .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
     }
-    if (selectedAthlete && matchesAthleteReference(selectedAthlete, source)) {
-      setSelectedAthlete(updated)
-      setDetailForm(buildAthleteDetailDraft(updated))
-      setDetailInitialForm(buildAthleteDetailDraft(updated))
-      setDetailFeedback('Número e chip associados. O kit continua pendente de entrega.')
-    }
+
+    // Abre a tela/ficha do atleta na aba de entrega com os botões ENTREGAR KIT e DESFAZER
+    setSelectedAthlete(updated)
+    const draft = buildAthleteDetailDraft(updated)
+    setDetailForm(draft)
+    setDetailInitialForm(draft)
+    setDetailFeedback('Kit associado com sucesso! Confirme a entrega do kit abaixo ou desfaça a associação se necessário.')
+    setDetailSourceTab('atletas')
+    setActiveTab('entrega')
+    publishEspelho('ATENDENDO', updated)
+
     setScannerAthlete(null)
     setScannedKit(null)
   }
@@ -1300,7 +1302,6 @@ export default function OperacaoPage({
     setDetailInitialForm(null)
     setDetailFeedback('')
     setDetailSourceTab(null)
-    setShowPendingKitNotice(false)
     if (returnTab && returnTab !== 'entrega') {
       setActiveTab(returnTab)
     }
@@ -1318,33 +1319,9 @@ export default function OperacaoPage({
       if (!shouldDiscard) return false
     }
 
-    // Se o atleta tem número ou chip associado mas o kit ainda está pendente de entrega,
-    // abre o card informativo in-app (que fecha ao tocar em qualquer lugar, mantendo como pendente).
-    if (!force && detailForm && detailForm.status !== 'ENTREGUE') {
-      const hasAssociatedKit =
-        Boolean(detailForm.chip) ||
-        (Boolean(detailForm.numero) && detailForm.numero !== '—' && detailForm.numero !== '')
-      if (hasAssociatedKit) {
-        setShowPendingKitNotice(true)
-        return false
-      }
-    }
-
     executeCloseAthleteDetail()
     return true
   }
-
-  useEffect(() => {
-    if (!showPendingKitNotice) return
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault()
-        executeCloseRef.current?.()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showPendingKitNotice])
 
   function handleGuardedNavigate(page, id) {
     if (!closeAthleteDetail()) return
@@ -1472,13 +1449,22 @@ export default function OperacaoPage({
 
   // Desfazer Associação / Entrega: limpa completamente chip, qrCode, entrega e status
   function handleUndoAssociation() {
-    if (!canUndo || !selectedAthlete) return
+    if (!selectedAthlete) return
 
     const athleteRef = selectedAthlete
-
     const wasEntregue =
       String(athleteRef.status || '').toUpperCase() === 'ENTREGUE' ||
       Boolean(athleteRef.entregueEm)
+
+    if (wasEntregue && !canUndo) {
+      alert('Apenas Supervisores ou Administradores podem desfazer entregas já concluídas.')
+      return
+    }
+
+    if (!wasEntregue && userRole === 'SUB_ADMIN') {
+      alert('Perfil Sub-Admin não possui permissão para desfazer associações.')
+      return
+    }
 
     const updatedAthlete = {
       ...athleteRef,
@@ -1541,6 +1527,14 @@ export default function OperacaoPage({
         .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
     }
 
+    // Se NÃO estava entregue (era apenas associação de kit pendente):
+    // Volta direto para a lista de atletas na aba 'atletas' para escolher um novo atleta!
+    if (!wasEntregue) {
+      executeCloseAthleteDetail()
+      setActiveTab('atletas')
+      return
+    }
+
     const nextDraft = buildAthleteDetailDraft(updatedAthlete)
     setSelectedAthlete(updatedAthlete)
     setDetailForm(nextDraft)
@@ -1574,7 +1568,7 @@ export default function OperacaoPage({
       nome,
       doc: (athleteForm.doc || athleteForm.cpf || '—').trim(),
       nascimento: (athleteForm.nascimento || '').trim(),
-      sexo: athleteForm.sexo || 'Masculino',
+      sexo: normalizeSexo(athleteForm.sexo) || 'M',
       modalidade: (athleteForm.modalidade || '5 KM').trim(),
       categoria: (athleteForm.categoria || 'GERAL').trim(),
       equipe: athleteForm.equipe?.trim() ? athleteForm.equipe.trim().toUpperCase() : 'SEM EQUIPE',
@@ -1774,7 +1768,19 @@ export default function OperacaoPage({
       const auditRecord = handleDeliverKit(athleteToDeliver, sourceAthlete)
       if (!auditRecord) return
 
-      closeAthleteDetail({ force: true })
+      const deliveredAthlete = {
+        ...athleteToDeliver,
+        status: 'ENTREGUE',
+        entregueEm: auditRecord.dataHora,
+        entreguePor: auditRecord.operadorNome,
+        entreguePara: auditRecord.retiradoPor,
+      }
+      setSelectedAthlete(deliveredAthlete)
+      const deliveredDraft = buildAthleteDetailDraft(deliveredAthlete)
+      setDetailForm(deliveredDraft)
+      setDetailInitialForm(deliveredDraft)
+      setDetailFeedback('✓ Kit entregue com sucesso!')
+      publishEspelho('ENTREGUE', deliveredAthlete)
       setKitSearch('')
     } finally {
       window.setTimeout(() => {
@@ -2130,12 +2136,12 @@ export default function OperacaoPage({
                         <CheckCircleIcon />
                         <span>ENTREGAR KIT</span>
                       </button>
-                      {canUndo && (Boolean(detailForm.chip) || Boolean(detailForm.qrCode) || (Boolean(detailForm.numero) && detailForm.numero !== '—')) && (
+                      {(canUndo || userRole !== 'SUB_ADMIN') && (Boolean(detailForm.chip) || Boolean(detailForm.qrCode) || (Boolean(detailForm.numero) && detailForm.numero !== '—')) && (
                         <button
                           type="button"
                           className="btn-detail-undo"
                           onClick={handleUndoAssociation}
-                          title="Desfazer associação do kit (limpa chip, QR Code e número)"
+                          title="Desfazer associação do kit (limpa chip, QR Code e número e volta para a lista)"
                         >
                           <UndoIcon />
                           <span>DESFAZER</span>
@@ -2327,13 +2333,13 @@ export default function OperacaoPage({
                         <label className="athlete-form-label">SEXO</label>
                         <select
                           className="athlete-form-select"
-                          value={detailForm.sexo}
+                          value={normalizeSexo(detailForm.sexo) || 'M'}
                           onChange={(e) =>
                             setDetailForm({ ...detailForm, sexo: e.target.value })
                           }
                         >
-                          <option value="Masculino">Masculino</option>
-                          <option value="Feminino">Feminino</option>
+                          <option value="M">M</option>
+                          <option value="F">F</option>
                         </select>
                       </div>
                     )}
@@ -3507,13 +3513,13 @@ export default function OperacaoPage({
                             <label className="athlete-form-label">{col.label}</label>
                             <select
                               className="athlete-form-select"
-                              value={athleteForm.sexo || 'Masculino'}
+                              value={normalizeSexo(athleteForm.sexo) || 'M'}
                               onChange={(e) =>
                                 setAthleteForm((prev) => ({ ...prev, sexo: e.target.value }))
                               }
                             >
-                              <option value="Masculino">Masculino</option>
-                              <option value="Feminino">Feminino</option>
+                              <option value="M">M</option>
+                              <option value="F">F</option>
                             </select>
                           </div>
                         )
@@ -3764,13 +3770,14 @@ export default function OperacaoPage({
           />
         )}
 
-        {/* MODAL: ESPELHO (ACESSO E APARÊNCIA) */}
+        {/* MODAL: ESPELHO (ACESSO, APARÊNCIA E CAMPOS DO TELÃO) */}
         {showEspelhoModal && (
           <EspelhoModal
             key={currentEvent?.id}
             isOpen={showEspelhoModal}
             onClose={() => setShowEspelhoModal(false)}
             event={currentEvent}
+            columns={athleteTableColumns}
           />
         )}
 
@@ -3794,42 +3801,7 @@ export default function OperacaoPage({
           />
         )}
 
-        {/* CARD IN-APP: AVISO DE KIT PENDENTE AO VOLTAR À LISTA */}
-        {showPendingKitNotice && (
-          <div
-            className="pending-kit-notice-overlay"
-            onClick={executeCloseAthleteDetail}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Aviso de kit pendente de entrega"
-          >
-            <div
-              className="pending-kit-notice-card"
-              onClick={executeCloseAthleteDetail}
-            >
-              <div className="pending-kit-notice-icon-wrap">
-                <PackageIcon />
-              </div>
-              <h3 className="pending-kit-notice-title">Kit permanece PENDENTE</h3>
-              <p className="pending-kit-notice-text">
-                Este atleta já possui número/chip associado, mas o kit <strong>ainda não foi entregue</strong>.
-              </p>
-              <p className="pending-kit-notice-subtext">
-                O registro continua como <strong>PENDENTE</strong>. Para confirmar a entrega a qualquer momento, abra a ficha do atleta e clique no botão verde <strong>ENTREGAR KIT</strong>.
-              </p>
-              <div className="pending-kit-notice-dismiss">
-                <span>Toque em qualquer área para voltar à lista</span>
-              </div>
-              <button
-                type="button"
-                className="pending-kit-notice-btn"
-                onClick={executeCloseAthleteDetail}
-              >
-                ENTENDIDO, VOLTAR À LISTA
-              </button>
-            </div>
-          </div>
-        )}
+
 
         {/* MODAL: COMPROVANTE DE RETIRADA (2 VIAS) */}
         {selectedComprovante && (

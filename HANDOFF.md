@@ -1,5 +1,75 @@
 # Handoff
 
+## 2026-09-25 — Ajustes do Fluxo de Associação de Kits e Retorno à Lista sem Mensagens Indevidas (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead & Frontend).
+- **Demanda do Yuri (PO via áudio 02:18):**
+  1. *Eliminar mensagem indevida ao voltar:* Ao entrar no perfil de um atleta (com kit associado mas não entregue) e clicar em "Voltar", mesmo sem ter feito nenhuma alteração nos campos (nome, número, telefone, etc.), o sistema disparava uma mensagem/card na tela. O PO determinou que essa mensagem só deve aparecer se alguém tiver alterado algo nos campos. Se nada foi alterado, o retorno à lista deve ser imediato e silencioso.
+  2. *Remoção do campo de terceiro do leitor de kit:* No modal de leitura do QR Code / código do kit (`KitQrScannerModal`), havia um campo e um texto para colocar o nome de quem vai pegar o kit ("Retirado por / Entregue para"). O PO solicitou remover esse campo e esse texto da leitura, pois o leitor serve unicamente para identificar e associar o kit ao atleta.
+  3. *Fluxo de Associação Obrigatório (Entregar Kit x Desfazer):* Ao confirmar a associação do kit:
+     - A tela deve abrir a ficha do atleta associado com os botões de ação: **ENTREGAR KIT** e **DESFAZER**.
+     - Se o operador clicar em **DESFAZER**: a associação pendente é desfeita, os dados do kit são limpos e o sistema volta diretamente para a aba **Atletas** para escolher um novo corredor na lista.
+     - Se o operador clicar em **ENTREGAR KIT**: o kit é registrado como entregue e o sistema mantém a ficha do atleta aberta exibindo todas as informações da entrega concluída (data/hora, operador, comprovante).
+  4. *Padronização do Campo Sexo para Letras M ou F (áudio 02:12):* Na aba de atletas ao abrir a ficha para entrega de kits, o campo de sexo estava exibindo o nome completo ("Masculino" ou "Feminino") em vez da letra ("M" ou "F") como vem na planilha. O PO solicitou ajustar para exibir e salvar as letras canônicas M ou F.
+- **Ações Realizadas:**
+  1. **Modal de Leitura do Kit (`KitQrScannerModal.jsx`):**
+     - Removidos os estados `recipient` e `prevAthlete`.
+     - Removidos o bloco `kit-scanner-recipient-wrap`, o label descritivo e o input de texto de terceiro.
+     - A confirmação agora exibe apenas os dados do kit encontrado (código, número, chip) e o botão direto "Confirmar associação".
+  2. **Retorno à Lista sem Mensagens (`OperacaoPage.jsx`):**
+     - Removida a interceptação que disparava o modal de aviso `showPendingKitNotice` ao clicar em voltar.
+     - Se `detailHasChanges` for falso, `closeAthleteDetail()` fecha a ficha e retorna à lista em 0ms sem nenhum popup ou aviso.
+     - Apenas se houver alterações não salvas nos campos (`detailHasChanges`), o sistema solicita confirmação antes de descartar.
+     - Removidos o estado e o markup órfão de `showPendingKitNotice`.
+  3. **Fluxo de Associação e Ações (`OperacaoPage.jsx`):**
+     - Atualizada a função `confirmKitAssociation()` para abrir imediatamente a ficha do atleta recém-associado na aba de entrega com os botões de ação liberados.
+     - Atualizada a função `handleUndoAssociation()`: se a entrega ainda não ocorreu (`!wasEntregue`), desfaz a associação no estado e no servidor via `apiSaveAthletes`, fecha a ficha e direciona o operador de volta para a aba `'atletas'`.
+     - Permitido que operadores também desfaçam associações pendentes não entregues (`canUndo || userRole !== 'SUB_ADMIN'`).
+     - Atualizada a função `handleSaveAndDeliver()`: ao concluir a entrega, a ficha do atleta permanece aberta em estado `ENTREGUE` com feedback verde e histórico completo.
+  4. **Padronização do Campo Sexo para Letras M ou F (`athleteDetail.js` e `OperacaoPage.jsx`):**
+     - Criada a função `normalizeSexo(val)` em `athleteDetail.js` convertendo variações longas ("Masculino", "Feminino") para as letras canônicas da tabela ("M" ou "F").
+     - Aplicada a normalização no rascunho da ficha (`buildAthleteDetailDraft`), no salvamento (`normalizeAthleteDetail`) e no snapshot de alterações (`editableSnapshot`), prevenindo falsos alertas de alteração cadastral.
+     - Substituídas as opções do `<select>` na ficha do atleta e no modal de novo atleta de `<option value="Masculino">` e `<option value="Feminino">` para `<option value="M">M</option>` e `<option value="F">F</option>`.
+     - Definido o valor padrão como `'M'` em `INITIAL_ATHLETE_FORM` e `setAthleteForm`.
+- **Validação Real:**
+  - `npm run lint --prefix client` (`oxlint`): 0 warnings e 0 errors em 29 arquivos.
+  - `npm run build --prefix client` (`vite build`): bundle de produção gerado com sucesso em 642ms (`index-DBZkk_VZ.js`).
+  - `node --check server/server.js`: sintaxe validada sem erros.
+- **Próximo Passo:** Homologação pelo Yuri (PO).
+
+## 2026-09-25 — Personalização Granular dos Campos e Cards da Segunda Tela (Espelho/Telão) em Tempo Real (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead, Frontend & Backend).
+- **Contexto / Continuação:**
+  Retomada de onde o trabalho havia pausado: a implementação do controle de visibilidade dos campos e cards na Segunda Tela pública (`/espelho/:id`) estava em andamento e com violação de Regras de Hooks no React (`useMemo` chamado condicionalmente após `if (!isOpen) return null`), o que impedia a compilação limpa.
+- **Ações Realizadas:**
+  1. **Backend (`server/server.js`):**
+     - Em `sanitizeEspelhoConfig`, implementada sanitização segura para `showBibCard`, `showShirtCard`, `showKitCard`, `showThirdParty` e `visibleFields` (higienização de chaves de campos limitadas a 80 chars).
+     - Aumento do `espelhoLimiter` de 600 para 1200 reqs/min para permitir digitação ultra-fluida em tempo real sem rate-limiting acidental.
+  2. **Configuração e Sincronização (`client/src/utils/espelhoSync.js`):**
+     - `DEFAULT_ESPELHO_CONFIG` atualizado com as flags `showBibCard: true`, `showShirtCard: true`, `showKitCard: true`, `showThirdParty: true` e `visibleFields: null` (modo padrão: todos os dados preenchidos visíveis).
+  3. **Guichê de Operação (`client/src/components/OperacaoPage.jsx`):**
+     - Repasse das colunas oficiais e customizadas da planilha (`columns={athleteTableColumns}`) para o `<EspelhoModal>`.
+     - Ajuste de debounce de 150ms para 50ms para transmissão em tempo real durante a digitação de dados pelo operador.
+  4. **Modal do Espelho (`client/src/components/EspelhoModal.jsx` e `EspelhoModal.css`):**
+     - Reorganização dos Hooks do React (`useMemo` de `customColumns`, `allSelectableKeys` e `visibleFieldsCount` movidos para execução incondicional no topo do componente), resolvendo 100% dos erros do linter (`oxlint`).
+     - Aba default inicial definida para `'acesso'` (acesso rápido ao QR Code e link para o operador).
+     - Aba "CAMPOS DO TELÃO" completa:
+       - Contadores de visibilidade ("X de Y visíveis").
+       - Ações em lote: "SELECIONAR TODOS", "DESMARCAR TODOS" e "PADRÃO".
+       - Cards de Destaque no topo (Número de Peito, Tamanho da Camiseta, Tipo de Kit e Retirada por Terceiro).
+       - Grade dos 17 campos cadastrais padrão agrupados por categoria.
+       - Grade dinâmica com as colunas personalizadas da planilha anexada.
+       - Transmissão instantânea das configurações para as segundas telas conectadas via SSE e BroadcastChannel.
+  5. **Segunda Tela / Telão Público (`client/src/components/EspelhoPage.jsx`):**
+     - Renderização condicional dos cards de destaque baseada nas flags de configuração.
+     - Filtragem em tempo real das linhas da grade de dados do atleta conforme `config.visibleFields` (com suporte a campos padrão e prefixo `custom:`).
+- **Validação Real:**
+  - `npm run lint --prefix client` (`oxlint`): 0 warnings e 0 errors em 29 arquivos.
+  - `npm run build --prefix client` (`vite build`): bundle de produção compilado com sucesso em 1.02s (`index-TIZICEnq.js`, `index-BzGyfjUJ.css`).
+  - `node --check server/server.js`: sintaxe validada com sucesso sem erros.
+- **Próximo Passo:** Homologação pelo Yuri (PO) e envio para o repositório remoto para acionamento do deploy na VPS.
+
 ## 2026-09-25 — Criação do Perfil Sub-Admin com Gestão de Eventos e Kits sem Permissão de Exclusão (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead, Frontend, Backend & SRE).

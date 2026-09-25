@@ -154,7 +154,7 @@ const espelhoClients = new Map() // key -> Set<Response>
 
 const espelhoLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 600, // Permite digitação contínua e fluida do operador
+  limit: 1200, // Permite digitação contínua e fluida do operador em tempo real
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { ok: false, message: 'Muitas requisições. Aguarde um instante.' },
@@ -187,6 +187,15 @@ function sanitizeEspelhoConfig(raw) {
     mensagem: String(raw.mensagem ?? 'Guichê disponível').slice(0, 120),
     bgImage: sanitizeImageDataUrl(raw.bgImage),
     logo: sanitizeImageDataUrl(raw.logo),
+    showBibCard: raw.showBibCard !== false,
+    showShirtCard: raw.showShirtCard !== false,
+    showKitCard: raw.showKitCard !== false,
+    showThirdParty: raw.showThirdParty !== false,
+    visibleFields: Array.isArray(raw.visibleFields)
+      ? raw.visibleFields
+          .map((f) => String(f || '').trim().slice(0, 80))
+          .filter(Boolean)
+      : null,
   }
 }
 
