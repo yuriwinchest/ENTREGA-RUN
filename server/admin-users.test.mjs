@@ -114,6 +114,12 @@ test('senha manual persiste e exclusão respeita autoria do sub-admin', async ()
     const ownAthletes = await request(port, '/api/events/event-alpha/athletes', 'GET', undefined, opToken)
     assert.equal(ownAthletes.status, 200)
 
+    const operatorsRes = await request(port, '/api/events/event-alpha/operators', 'GET', undefined, subToken)
+    assert.equal(operatorsRes.status, 200)
+    assert.ok(Array.isArray(operatorsRes.data.operators))
+    assert.ok(operatorsRes.data.operators.some((u) => u.name === 'Admin Teste'))
+    assert.ok(operatorsRes.data.operators.every((u) => !u.password && !u.passwordHash))
+
     assert.equal((await request(port, '/api/users', 'POST', {
       name: 'Escalada', email: 'admin2@example.com', password: '123456', role: 'ADMIN', eventId: 'all',
     }, subToken)).status, 403)

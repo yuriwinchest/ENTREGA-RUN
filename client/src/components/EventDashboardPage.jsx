@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetchAthletes } from '../utils/eventsApi.js'
+import { getAgeHighlights, parseAthleteBirth } from '../utils/ageHighlights.js'
 import Sidebar from './Sidebar.jsx'
 import './EventDashboardPage.css'
 
@@ -76,17 +77,6 @@ function groupDeliveries(athletes, fields, customSort) {
     return [...groups.values()].sort(customSort)
   }
   return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true }))
-}
-
-function athleteAge(athlete, reference) {
-  const raw = String(athlete.nascimento || '').trim()
-  const match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/) || raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
-  if (!match) return null
-  const [year, month, day] = raw.includes('/') ? [Number(match[3]), Number(match[2]), Number(match[1])] : match.slice(1).map(Number)
-  const birth = new Date(year, month - 1, day)
-  if (birth.getFullYear() !== year || birth.getMonth() !== month - 1 || birth.getDate() !== day) return null
-  const age = reference.getFullYear() - year - (reference.getMonth() < month - 1 || (reference.getMonth() === month - 1 && reference.getDate() < day) ? 1 : 0)
-  return age >= 0 && age <= 120 ? age : null
 }
 
 function DeliveryChart({ title, data, showPendentes = true }) {
@@ -188,11 +178,16 @@ export default function EventDashboardPage({
     .slice(0, 10)
     .map((item, index) => ({ ...item, rank: index + 1 }))
   const ageReference = new Date()
-  const ages = athletes.map((athlete) => ({ ...athlete, age: athleteAge(athlete, ageReference) })).filter((athlete) => athlete.age !== null)
+  const ages = athletes.map((athlete) => ({ ...athlete, age: parseAthleteBirth(athlete, ageReference).age })).filter((athlete) => athlete.age !== null)
   const ageGroups = ['≤18', '19–29', '30–39', '40–49', '50–59', '60–69', '70+'].map((label, index) => ({
     label,
     count: ages.filter(({ age }) => (index === 0 ? age <= 18 : index === 6 ? age >= 70 : age >= (index === 1 ? 19 : (index + 1) * 10) && age < (index + 2) * 10)).length,
   }))
+  const ageHighlights = getAgeHighlights(athletes, 4, ageReference)
+  const hasHighlights = ageHighlights.novosMasc.length > 0 ||
+    ageHighlights.novosFem.length > 0 ||
+    ageHighlights.velhosMasc.length > 0 ||
+    ageHighlights.velhosFem.length > 0
   const maxTeamCount = teamsData[0]?.count || 1
 
   return (
@@ -433,6 +428,141 @@ export default function EventDashboardPage({
                 <div className="age-badges-row"><span className="age-badge neutral">Idade média: {Math.round(ages.reduce((sum, athlete) => sum + athlete.age, 0) / ages.length)} anos</span></div>
                 <div className="delivery-chart-rows">{ageGroups.map((group) => <div className="delivery-chart-row" key={group.label}><div className="delivery-chart-label"><span>{group.label}</span><strong>{group.count} atletas</strong></div><div className="delivery-chart-track"><span style={{ width: `${group.count / ages.length * 100}%`, background: '#2196f3' }} /></div></div>)}</div>
                 <p className="dash-stat-sub">Idades calculadas hoje; {totalCount - ages.length} atletas sem data válida.</p>
+
+                {hasHighlights && (
+                  <div className="age-highlights-section">
+                    <div className="age-highlights-header">
+                      <h4 className="age-highlights-title">
+                        <span>Destaques por Idade</span>
+                        <span className="age-highlights-subtitle">4 mais novos e 4 mais velhos por gênero</span>
+                      </h4>
+                    </div>
+
+                    <div className="age-highlights-grid">
+                      {/* MAIS NOVOS */}
+                      <div className="age-highlight-card young">
+                        <div className="age-highlight-card-header">
+                          <span className="age-highlight-badge young">⚡ MAIS NOVOS</span>
+                        </div>
+
+                        <div className="age-highlight-columns">
+                          {/* Masculino */}
+                          <div className="age-highlight-col">
+                            <span className="age-gender-tag male">♂ Masculino</span>
+                            {ageHighlights.novosMasc.length === 0 ? (
+                              <span className="age-highlight-empty">Nenhum atleta</span>
+                            ) : (
+                              <ol className="age-highlight-list">
+                                {ageHighlights.novosMasc.map((a, idx) => (
+                                  <li key={a.id || a.numero || idx} className="age-highlight-item">
+                                    <span className="age-rank-badge">{idx + 1}º</span>
+                                    <div className="age-athlete-info">
+                                      <span className="age-athlete-name" title={a.nome || a.name}>
+                                        {a.nome || a.name || 'Sem nome'}
+                                      </span>
+                                      <span className="age-athlete-meta">
+                                        <strong>{a.age} anos</strong>
+                                        {a.birthDateFormatted ? ` · ${a.birthDateFormatted}` : ''}
+                                        {a.numero ? ` · Nº ${a.numero}` : ''}
+                                      </span>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ol>
+                            )}
+                          </div>
+
+                          {/* Feminino */}
+                          <div className="age-highlight-col">
+                            <span className="age-gender-tag female">♀ Feminino</span>
+                            {ageHighlights.novosFem.length === 0 ? (
+                              <span className="age-highlight-empty">Nenhuma atleta</span>
+                            ) : (
+                              <ol className="age-highlight-list">
+                                {ageHighlights.novosFem.map((a, idx) => (
+                                  <li key={a.id || a.numero || idx} className="age-highlight-item">
+                                    <span className="age-rank-badge">{idx + 1}ª</span>
+                                    <div className="age-athlete-info">
+                                      <span className="age-athlete-name" title={a.nome || a.name}>
+                                        {a.nome || a.name || 'Sem nome'}
+                                      </span>
+                                      <span className="age-athlete-meta">
+                                        <strong>{a.age} anos</strong>
+                                        {a.birthDateFormatted ? ` · ${a.birthDateFormatted}` : ''}
+                                        {a.numero ? ` · Nº ${a.numero}` : ''}
+                                      </span>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ol>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* MAIS VELHOS */}
+                      <div className="age-highlight-card senior">
+                        <div className="age-highlight-card-header">
+                          <span className="age-highlight-badge senior">🏅 MAIS VELHOS</span>
+                        </div>
+
+                        <div className="age-highlight-columns">
+                          {/* Masculino */}
+                          <div className="age-highlight-col">
+                            <span className="age-gender-tag male">♂ Masculino</span>
+                            {ageHighlights.velhosMasc.length === 0 ? (
+                              <span className="age-highlight-empty">Nenhum atleta</span>
+                            ) : (
+                              <ol className="age-highlight-list">
+                                {ageHighlights.velhosMasc.map((a, idx) => (
+                                  <li key={a.id || a.numero || idx} className="age-highlight-item">
+                                    <span className="age-rank-badge senior">{idx + 1}º</span>
+                                    <div className="age-athlete-info">
+                                      <span className="age-athlete-name" title={a.nome || a.name}>
+                                        {a.nome || a.name || 'Sem nome'}
+                                      </span>
+                                      <span className="age-athlete-meta">
+                                        <strong>{a.age} anos</strong>
+                                        {a.birthDateFormatted ? ` · ${a.birthDateFormatted}` : ''}
+                                        {a.numero ? ` · Nº ${a.numero}` : ''}
+                                      </span>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ol>
+                            )}
+                          </div>
+
+                          {/* Feminino */}
+                          <div className="age-highlight-col">
+                            <span className="age-gender-tag female">♀ Feminino</span>
+                            {ageHighlights.velhosFem.length === 0 ? (
+                              <span className="age-highlight-empty">Nenhuma atleta</span>
+                            ) : (
+                              <ol className="age-highlight-list">
+                                {ageHighlights.velhosFem.map((a, idx) => (
+                                  <li key={a.id || a.numero || idx} className="age-highlight-item">
+                                    <span className="age-rank-badge senior">{idx + 1}ª</span>
+                                    <div className="age-athlete-info">
+                                      <span className="age-athlete-name" title={a.nome || a.name}>
+                                        {a.nome || a.name || 'Sem nome'}
+                                      </span>
+                                      <span className="age-athlete-meta">
+                                        <strong>{a.age} anos</strong>
+                                        {a.birthDateFormatted ? ` · ${a.birthDateFormatted}` : ''}
+                                        {a.numero ? ` · Nº ${a.numero}` : ''}
+                                      </span>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ol>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>}
             </div>
             {/* Equipes por Atletas Cadastrados */}

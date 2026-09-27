@@ -1171,6 +1171,18 @@ app.put('/api/events/:eventId/athletes/:numero/status', express.json(), (req, re
   res.json({ ok: true, athlete: data.athletes[idx] })
 })
 
+// GET /api/events/:eventId/operators — Lista operadores vinculados ao evento (requer autenticação)
+app.get('/api/events/:eventId/operators', requireAuth, (req, res) => {
+  const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const visibleUsers = inMemoryUsers.filter((user) =>
+    user.eventId === 'all' ||
+    user.eventId === safeEventId ||
+    user.role === 'ADMIN' ||
+    (user.role === 'SUB_ADMIN' && (user.eventId === 'all' || user.eventId === safeEventId))
+  )
+  res.json({ ok: true, operators: visibleUsers.map(sanitizeUser) })
+})
+
 // ============================================================
 // CONSULTA PÚBLICA DE VALIDAÇÃO DE QR CODE
 // Qualquer smartphone/leitor externo pode consultar os dados

@@ -33,6 +33,26 @@ export async function apiFetchUsers() {
   }
 }
 
+export async function apiFetchEventOperators(eventId) {
+  if (!eventId) return []
+  try {
+    const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/operators`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) {
+      const all = await apiFetchUsers()
+      return Array.isArray(all)
+        ? all.filter((u) => u.eventId === 'all' || u.eventId === eventId || u.role === 'ADMIN')
+        : []
+    }
+    const data = await res.json()
+    return data.ok && Array.isArray(data.operators) ? data.operators : []
+  } catch (err) {
+    console.warn('[usersApi] Falha ao carregar operadores do evento:', err)
+    return []
+  }
+}
+
 export async function apiCreateUser(userData) {
   try {
     const res = await fetch('/api/users', {

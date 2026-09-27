@@ -1,5 +1,94 @@
 # Handoff
 
+## 2026-09-27 — Leitura de Kit (QR Code), Remoção do Popup de Decisão com Destaque para Entregar/Desfazer na Ficha, e Produtividade Dinâmica de Operadores (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead, Ana UI/UX, Kastiel Dev, Crowley Segurança, Teclide QA & Vitor Infra).
+- **Pedido do Yuri (PO via áudios e imagens):**
+  1. No modal de associação de kit (leitura), alterar o label do primeiro campo `Código do kit` para `QR Code`.
+  2. Eliminar o popup `Conclua o atendimento` (`PendingKitDecisionModal`). Ao confirmar associação no leitor, navegar diretamente para a ficha do atleta, onde os botões `ENTREGAR KIT` e `DESFAZER` assumem o protagonismo visual da tela ("tomam conta da tela, bem bonitinho, arrumadinho, só eles"), sem o botão redundante `ASSOCIAR KIT` e sem o botão estático `SALVO`.
+  3. Na aba Estatísticas da Operação, sob `PRODUTIVIDADE DOS OPERADORES`, exibir dinamicamente todas as pessoas conectadas/atribuídas ao evento e calcular em tempo real os kits entregues por cada operador, sem nomes ou números estáticos.
+  4. Autorização expressa de deploy ao final: "ao final você pode subir direto no GitHub pra já enviar para o GitHub e o GitHub subir na VPS, já pode fazer isso."
+- **Implementação:**
+  1. `client/src/components/KitQrScannerModal.jsx`:
+     - Rótulo alterado de `Código do kit` para `QR Code` no sumário do kit lido.
+  2. `client/src/components/OperacaoPage.jsx`:
+     - Em `confirmKitAssociation`, removida a definição de `pendingKitDecision` e limpada chave `entregas_run_kit_decision_*` do storage local.
+     - Removido o `<PendingKitDecisionModal ... />` e removidas as travas bloqueantes de navegação (`hasPendingKitDecision`).
+     - Reestruturada a barra de ações do atleta (`athlete-detail-actions-bar`): quando o atleta possui kit associado pendente de entrega, os botões `ENTREGAR KIT` (verde vibrante) e `DESFAZER` (vermelho de alerta) assumem destaque principal e exclusivo ao lado de `VOLTAR À LISTA`; os botões desnecessários `ASSOCIAR KIT` e `SALVO` inativo são ocultados, mantendo apenas `SALVAR ALTERAÇÕES` se o usuário fizer edições cadastrais.
+     - Na seção `PRODUTIVIDADE DOS OPERADORES`: carregamento automático dos operadores via `apiFetchEventOperators` e cálculo reativo com `useMemo` cruzando os operadores atribuídos ao evento com as entregas confirmadas em `athletes` (`athlete.entreguePor`) e `audits` (`audit.operadorNome`). Atualização instantânea a cada entrega ou cancelamento e ordenação decrescente por produtividade.
+  3. `client/src/components/OperacaoPage.css`:
+     - Ajuste refinado dos botões `.btn-detail-undo` e `.btn-detail-entregar` (altura 42px, padding balanceado, sombras elegantes, fontes nítidas e efeitos de hover suaves).
+  4. `server/server.js`:
+     - Nova rota segura `GET /api/events/:eventId/operators` com `requireAuth`, filtrando operadores específicos do evento ou globais (`all` / `ADMIN`), higienizando senhas com `sanitizeUser`.
+  5. `client/src/utils/usersApi.js`:
+     - Adicionada função `apiFetchEventOperators(eventId)` com cabeçalho de autenticação e fallback gracioso.
+  6. `server/admin-users.test.mjs`:
+     - Teste unitário/integrado verificando acesso à rota de operadores por token de sub-admin, integridade do array e proteção estrita contra vazamento de senhas/hashes.
+  7. `.gitignore`: inclusão de `.codex-remote-attachments/` para isolar anexos de áudio e imagem locais.
+- **Validação real:**
+  - `node --test client/src/utils/*.test.mjs server/*.test.mjs`: 19/19 testes aprovados (1708ms).
+  - `npm run lint --prefix client` (`oxlint`): 0 erros em 36 arquivos.
+  - `npm run build --prefix client` (`vite build`): bundle gerado em 747ms (`dist/assets/index-DW1uaVRN.js`).
+  - `git diff --check`: 0 erros de espaçamento/formatação.
+- **Risco/pendência:** Nenhum risco de regressão. Todo o fluxo de entrega, auditoria e rollback segue com isolamento estrito e persistência intacta.
+- **Próximo passo:** Subir as alterações no repositório GitHub para disparo automático do deploy na VPS homologado pelo Yuri.
+
+## 2026-09-27 — Destaques de Idade no Dashboard de Evento: 4 Mais Novos e 4 Mais Velhos por Gênero (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead, Ana UI/UX, Kastiel Dev, Crowley Segurança, Teclide QA & Vitor Infra).
+- **Pedido do Yuri (PO via áudio e imagem):**
+  "Eu preciso fazer dois ajustes aqui importante. Primeiro ajuste: eu preciso colocar aqui nessa barrinha aqui, ó, os quatro primeiros por idade, tanto masculino quanto feminino... os quatro mais novos e os quatro mais velhos, tá? Os primeiros quatro na ordem certinha pra gente ter esse parâmetro também."
+- **Implementação:**
+  1. `client/src/utils/ageHighlights.js`:
+     - `parseAthleteBirth(athlete, reference)`: extrai e calcula a idade precisa em anos a partir de `nascimento` (formatos `dd/mm/aaaa` ou `aaaa-mm-dd`), `dataNascimento` ou fallback numérico `idade`, calculando timestamp para desempate cronológico exato.
+     - `getAthleteGender(athlete)`: normaliza o gênero do atleta em 'M' ou 'F'.
+     - `getAgeHighlights(athletes, limit = 4, reference)`: ordena e extrai os 4 atletas mais novos e os 4 mais velhos por gênero com critérios de desempate refinados (menor/maior idade, seguido de timestamp de nascimento e ordenação alfabética).
+  2. `client/src/utils/ageHighlights.test.mjs`:
+     - Testes unitários cobrindo cálculo exato de idade, detecção de aniversários futuros, identificação de gênero e isolamento/ordenação do ranking top 4.
+  3. `client/src/components/EventDashboardPage.jsx`:
+     - Renderização da seção `Destaques por Idade` logo abaixo do gráfico de faixas etárias dentro do card `Distribuição por Faixa Etária`.
+     - Cartões estilizados para `⚡ MAIS NOVOS` e `🏅 MAIS VELHOS`, cada um subdividido em colunas `♂ Masculino` e `♀ Feminino`.
+     - Exibição de posição ordinal (1º a 4º), nome do atleta, idade destacada, data de nascimento e número de peito.
+  4. `client/src/components/EventDashboardPage.css`:
+     - Estilos dedicados `.age-highlights-section`, `.age-highlights-grid`, `.age-highlight-card`, `.age-rank-badge`, `.age-athlete-info`.
+     - Cores semânticas para mais novos (azul ciano `#0369a1` / `#e0f2fe`) e mais velhos (âmbar dourado `#c2410c` / `#ffedd5`).
+     - Adaptação responsiva para tablets e smartphones (`@media (max-width: 900px)` e `@media (max-width: 480px)`).
+- **Validação real:**
+  - `node --test client/src/utils/ageHighlights.test.mjs`: 3/3 testes aprovados (104ms).
+  - `node --test client/src/utils/*.test.mjs server/*.test.mjs`: 19/19 testes aprovados (1790ms).
+  - `npm run lint --prefix client` (`oxlint`): 0 erros em 36 arquivos.
+  - `npm run build --prefix client` (`vite build`): bundle gerado em 366ms (`dist/assets/index-BNklUeiK.js`).
+  - `git diff --check`: 0 erros de formatação.
+- **Risco/pendência:** Nenhum risco estrutural ou de banco; cálculo e renderização são 100% reativos no frontend. Caso o Yuri deseje especificar um 2º ajuste adicional que tenha sido cortado no áudio, a equipe está a postos.
+- **Próximo passo:** Yuri homologar a visualização dos atletas mais novos e mais velhos na aba Geral do Dashboard do Evento.
+
+## 2026-09-27 — Abas de Filtro de Eventos por Status (Ativos, Planejados, Finalizados e Todos) (Fase A)
+
+- **Autor:** Antigravity / Equipe TONE (Tech Lead, Ana UI/UX, Kastiel Dev, Crowley Segurança, Teclide QA & Vitor Infra).
+- **Pedido do Yuri (PO via áudio e imagem):**
+  "Olá, preciso melhorar esse filtro aqui da seguinte forma: eu preciso colocar aqui todos que foram finalizados, um filtro só pra eles; todos que foram planejados; e todos que tão ativos. Nessa aba aqui principal, eu preciso deixar só os que tão ativos. E aí deixar bem claro o filtro dos que foram planejados e o dos que foram finalizados, tá? Vamos melhorar essa parte desse filtro aí."
+- **Implementação:**
+  1. `client/src/utils/eventFilter.js`: módulo utilitário com `isEventActive`, `isEventPlanejado`, `isEventFinalizado`, `getEventStatusCounts` e `filterEvents` para categorização pura, combinando status com busca textual.
+  2. `client/src/components/EventosPage.jsx`:
+     - Substituição do antigo checkbox genérico `SOMENTE ATIVOS` por uma barra de navegação de abas por status com padrão inicial `ATIVOS` (carregando a tela principal mostrando exclusivamente eventos em operação).
+     - Abas dedicadas e proeminentes com ícones temáticos e contadores dinâmicos em tempo real: `ATIVOS` (PlayIcon), `PLANEJADOS` (ClockIcon), `FINALIZADOS` (CheckCircleIcon) e `TODOS`.
+     - Campo de busca textual com botão de limpeza rápida `✕`.
+     - Indicador contextual de contagem de eventos filtrados no toolbar.
+     - Empty state aprimorado e contextual por aba com atalhos de navegação para alternar de aba e botão de criação de evento.
+  3. `client/src/components/EventosPage.css`:
+     - Estilização das abas `.eventos-tabs-row`, `.eventos-tab-btn`, `.tab-counter-badge` com acentos visuais dedicados por status.
+     - Estilização do empty state e botão de limpar busca.
+     - Regras de responsividade mobile e tablet (`@media (max-width: 768px)`).
+  4. `client/src/utils/eventFilter.test.mjs`: suite de 7 testes unitários cobrindo categorização, contagens, isolamento de status e busca combinada.
+- **Validação real:**
+  - `node --test client/src/utils/eventFilter.test.mjs`: 7/7 testes aprovados (108ms).
+  - `node --test client/src/utils/*.test.mjs server/*.test.mjs`: 16/16 testes aprovados (1721ms).
+  - `npm run lint --prefix client` (`oxlint`): 0 erros em 34 arquivos.
+  - `npm run build --prefix client` (`vite build`): bundle gerado em 358ms (`dist/assets/index-Kkt1lrxA.js`).
+  - `git diff --check`: 0 erros de formatação.
+- **Risco/pendência:** Nenhum risco de banco de dados ou infraestrutura; alteração puramente de interface no cliente.
+- **Próximo passo:** Yuri homologar o comportamento e visual do novo filtro de abas na tela de Eventos.
+
 ## 2026-09-25 — Corrigir últimas entregas do superadmin (Fase B)
 
 - **Autor:** Codex/Tony (GPT-6); investigação independente somente leitura feita por agente Codex de UI.

@@ -476,76 +476,213 @@
   gap: 12px;
 }
 
-/* age highlights (idoso / idosa) */
-.highlights-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 28px;
-}
-
-.highlight-col {
+/* age highlights section */
+.age-highlights-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1.5px dashed #e2e8f0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.highlight-col-title {
-  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.6px;
+.age-highlights-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+}
+
+.age-highlights-title {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0c142c;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
 }
 
-.highlight-col-title.male {
+.age-highlights-subtitle {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.age-highlights-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.age-highlight-card {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 2px 8px rgba(12, 20, 44, 0.02);
+}
+
+.age-highlight-card.young {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+}
+
+.age-highlight-card.senior {
+  border-color: #fed7aa;
+  background: #fffaf0;
+}
+
+.age-highlight-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.age-highlight-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.age-highlight-badge.young {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.age-highlight-badge.senior {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.age-highlight-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.age-highlight-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.age-gender-tag {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.age-gender-tag.male {
   color: #2563eb;
 }
 
-.highlight-col-title.female {
+.age-gender-tag.female {
   color: #e11d48;
 }
 
-.highlight-list {
+.age-highlight-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
-.highlight-item {
+.age-highlight-item {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  font-size: 12px;
-  line-height: 1.4;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: border-color 0.15s ease, transform 0.1s ease;
 }
 
-.highlight-rank {
+.age-highlight-item:hover {
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.age-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: #e0f2fe;
+  color: #0284c7;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 10px;
   font-weight: 800;
-  color: #94a3b8;
-  min-width: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
-.highlight-info {
+.age-rank-badge.senior {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.age-athlete-info {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  gap: 2px;
 }
 
-.highlight-name {
+.age-athlete-name {
   font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
   font-weight: 800;
   color: #0c142c;
-  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.highlight-sub {
-  font-size: 11px;
+.age-athlete-meta {
+  font-size: 10.5px;
   color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.age-athlete-meta strong {
+  color: #0c142c;
+}
+
+.age-highlight-empty {
+  font-size: 11px;
+  color: #94a3b8;
+  font-style: italic;
+  padding: 6px 0;
 }
 
 /* sub-modalidade tab specific */
@@ -1109,6 +1246,16 @@
     width: 100%;
     padding: 12px 16px;
     font-size: 12.5px;
+  }
+@media (max-width: 900px) {
+  .age-highlights-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .age-highlight-columns {
+    grid-template-columns: 1fr;
   }
 }
 

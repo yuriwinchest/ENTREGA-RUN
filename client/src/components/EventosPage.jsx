@@ -3,6 +3,7 @@ import Sidebar from './Sidebar.jsx'
 import CidadeAutocomplete from './CidadeAutocomplete.jsx'
 import DataPickerInput from './DataPickerInput.jsx'
 import { apiCreateEvent, apiUpdateEvent, apiDeleteEvent } from '../utils/eventsApi.js'
+import { filterEvents, getEventStatusCounts } from '../utils/eventFilter.js'
 import './EventosPage.css'
 
 function SearchIcon() {
@@ -160,7 +161,7 @@ export default function EventosPage({
   const setEvents = setPropEvents || setInternalEvents
 
   const [search, setSearch] = useState('')
-  const [onlyActive, setOnlyActive] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('ATIVOS')
   const [openDropdownId, setOpenDropdownId] = useState(null)
   const [editingEvent, setEditingEvent] = useState(null)
   const [deletingEvent, setDeletingEvent] = useState(null)
@@ -183,16 +184,14 @@ export default function EventosPage({
     ? events.filter((e) => e.id === user.eventId)
     : events
 
-  const filteredEvents = visibleEvents.filter((event) => {
-    const matchesSearch =
-      event.name.toLowerCase().includes(search.toLowerCase()) ||
-      event.location.toLowerCase().includes(search.toLowerCase()) ||
-      event.date.toLowerCase().includes(search.toLowerCase())
+  const {
+    ativos: countAtivos,
+    planejados: countPlanejados,
+    finalizados: countFinalizados,
+    todos: countTodos,
+  } = getEventStatusCounts(visibleEvents)
 
-    const matchesActive = onlyActive ? event.status === 'EM OPERAÇÃO' : true
-
-    return matchesSearch && matchesActive
-  })
+  const filteredEvents = filterEvents(visibleEvents, { statusFilter, search })
 
   function handleStatusChange(eventId, newStatus) {
     setEvents((prev) =>
@@ -316,6 +315,56 @@ export default function EventosPage({
           </div>
         </header>
 
+        {/* Navegação de Abas por Status */}
+        <nav className="eventos-tabs-row" role="tablist" aria-label="Filtrar eventos por status">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === 'ATIVOS'}
+            className={`eventos-tab-btn tab-active ${statusFilter === 'ATIVOS' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('ATIVOS')}
+          >
+            <PlayIcon />
+            <span>ATIVOS</span>
+            <span className="tab-counter-badge">{countAtivos}</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === 'PLANEJADO'}
+            className={`eventos-tab-btn tab-planned ${statusFilter === 'PLANEJADO' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('PLANEJADO')}
+          >
+            <ClockIcon />
+            <span>PLANEJADOS</span>
+            <span className="tab-counter-badge">{countPlanejados}</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === 'FINALIZADO'}
+            className={`eventos-tab-btn tab-finished ${statusFilter === 'FINALIZADO' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('FINALIZADO')}
+          >
+            <CheckCircleIcon />
+            <span>FINALIZADOS</span>
+            <span className="tab-counter-badge">{countFinalizados}</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === 'TODOS'}
+            className={`eventos-tab-btn tab-all ${statusFilter === 'TODOS' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('TODOS')}
+          >
+            <span>TODOS</span>
+            <span className="tab-counter-badge">{countTodos}</span>
+          </button>
+        </nav>
+
         <section className="eventos-filter-bar">
           <div className="search-input-wrap">
             <SearchIcon />
@@ -325,61 +374,109 @@ export default function EventosPage({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            {search && (
+              <button
+                type="button"
+                className="search-clear-btn"
+                onClick={() => setSearch('')}
+                title="Limpar busca"
+              >
+                <CloseIcon />
+              </button>
+            )}
           </div>
 
           <div className="filter-options-wrap">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={onlyActive}
-                onChange={(e) => setOnlyActive(e.target.checked)}
-              />
-              <span>SOMENTE ATIVOS</span>
-            </label>
-
             <span className="event-count-badge">
               {filteredEvents.length} EVENTO{filteredEvents.length === 1 ? '' : 'S'}
+              {statusFilter !== 'TODOS' && (
+                <span className="event-count-filter-name">
+                  {statusFilter === 'ATIVOS' && (filteredEvents.length === 1 ? ' ATIVO' : ' ATIVOS')}
+                  {statusFilter === 'PLANEJADO' && (filteredEvents.length === 1 ? ' PLANEJADO' : ' PLANEJADOS')}
+                  {statusFilter === 'FINALIZADO' && (filteredEvents.length === 1 ? ' FINALIZADO' : ' FINALIZADOS')}
+                </span>
+              )}
             </span>
           </div>
         </section>
 
         <section className="events-grid">
           {filteredEvents.length === 0 ? (
-            <div style={{
-              gridColumn: '1 / -1',
-              background: '#fff',
-              border: '1.5px dashed #e2e8f0',
-              borderRadius: '16px',
-              padding: '48px 24px',
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '12px'
-            }}>
-              <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 600 }}>
-                {search ? 'Nenhum evento encontrado para os termos da busca.' : 'Nenhum evento cadastrado no sistema ainda.'}
+            <div className="eventos-empty-card">
+              <div className="eventos-empty-icon-wrap">
+                {statusFilter === 'ATIVOS' && <PlayIcon />}
+                {statusFilter === 'PLANEJADO' && <ClockIcon />}
+                {statusFilter === 'FINALIZADO' && <CheckCircleIcon />}
+                {statusFilter === 'TODOS' && <SearchIcon />}
+              </div>
+              <p className="eventos-empty-title">
+                {search
+                  ? `Nenhum evento encontrado para "${search}"`
+                  : statusFilter === 'ATIVOS'
+                  ? 'Nenhum evento ativo no momento'
+                  : statusFilter === 'PLANEJADO'
+                  ? 'Nenhum evento planejado'
+                  : statusFilter === 'FINALIZADO'
+                  ? 'Nenhum evento finalizado'
+                  : 'Nenhum evento cadastrado no sistema ainda'}
               </p>
-              <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px' }}>
-                Clique no botão abaixo para cadastrar o seu primeiro evento esportivo.
+              <p className="eventos-empty-subtitle">
+                {search
+                  ? 'Tente buscar por outro termo ou limpe o campo de busca.'
+                  : statusFilter === 'ATIVOS'
+                  ? (countPlanejados > 0 || countFinalizados > 0)
+                    ? `Você possui ${countPlanejados} evento(s) planejado(s) e ${countFinalizados} finalizado(s). Altere o status de um evento planejado para "EM OPERAÇÃO" para ativá-lo, ou navegue pelas abas acima.`
+                    : 'Cadastre um novo evento e inicie a operação para vê-lo aqui.'
+                  : statusFilter === 'PLANEJADO'
+                  ? 'Todos os eventos cadastrados já foram iniciados ou finalizados.'
+                  : statusFilter === 'FINALIZADO'
+                  ? 'Nenhum evento foi marcado como finalizado até o momento.'
+                  : 'Cadastre o seu primeiro evento esportivo para começar a operação.'}
               </p>
-              <button
-                type="button"
-                style={{
-                  marginTop: '8px',
-                  background: '#ff5200',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '10px',
-                  fontWeight: 700,
-                  fontSize: '13px',
-                  cursor: 'pointer'
-                }}
-                onClick={() => setShowCreateModal(true)}
-              >
-                + NOVO EVENTO
-              </button>
+
+              <div className="eventos-empty-actions">
+                {search && (
+                  <button
+                    type="button"
+                    className="btn-empty-action secondary"
+                    onClick={() => setSearch('')}
+                  >
+                    Limpar busca
+                  </button>
+                )}
+
+                {!search && statusFilter === 'ATIVOS' && countPlanejados > 0 && (
+                  <button
+                    type="button"
+                    className="btn-empty-action secondary"
+                    onClick={() => setStatusFilter('PLANEJADO')}
+                  >
+                    <ClockIcon />
+                    <span>Ver Planejados ({countPlanejados})</span>
+                  </button>
+                )}
+
+                {!search && statusFilter !== 'TODOS' && countTodos > 0 && (
+                  <button
+                    type="button"
+                    className="btn-empty-action secondary"
+                    onClick={() => setStatusFilter('TODOS')}
+                  >
+                    <span>Ver Todos ({countTodos})</span>
+                  </button>
+                )}
+
+                {canCreate && (!search || filteredEvents.length === 0) && (
+                  <button
+                    type="button"
+                    className="btn-empty-action primary"
+                    onClick={() => setShowCreateModal(true)}
+                  >
+                    <PlusIcon />
+                    <span>NOVO EVENTO</span>
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             filteredEvents.map((event) => {

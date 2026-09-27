@@ -161,7 +161,7 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
             <div className="kit-scanner-result">
               <h3>Kit encontrado</h3>
               <dl>
-                <div><dt>Código do kit</dt><dd>{kit.qrCode}</dd></div>
+                <div><dt>QR Code</dt><dd>{kit.qrCode}</dd></div>
                 <div><dt>Número de peito</dt><dd>{kit.numero}</dd></div>
                 <div><dt>Chip</dt><dd>{kit.chip}</dd></div>
               </dl>

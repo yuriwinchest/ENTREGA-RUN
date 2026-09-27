@@ -30,3 +30,4 @@ data/*.json
 *.sln
 *.sw?
 ENTREGADEKIS/
+.codex-remote-attachments/

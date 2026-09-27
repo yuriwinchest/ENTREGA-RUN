@@ -88,6 +88,132 @@
   transform: translateY(-1px);
 }
 
+/* status tabs row */
+.eventos-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  border-bottom: 2px solid #e2e8f0;
+  padding: 0 4px;
+  margin-top: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.eventos-tabs-row::-webkit-scrollbar {
+  display: none;
+}
+
+.eventos-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 6px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #64748b;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.eventos-tab-btn:hover {
+  color: #0c142c;
+}
+
+.eventos-tab-btn.active {
+  color: #ff5200;
+  border-bottom-color: #ff5200;
+}
+
+.eventos-tab-btn svg {
+  color: #94a3b8;
+  transition: color 0.15s ease;
+}
+
+.eventos-tab-btn:hover svg {
+  color: #475569;
+}
+
+.eventos-tab-btn.active svg {
+  color: #ff5200;
+}
+
+.eventos-tab-btn.tab-planned.active svg {
+  color: #2563eb;
+}
+
+.eventos-tab-btn.tab-planned.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+.eventos-tab-btn.tab-finished.active svg {
+  color: #059669;
+}
+
+.eventos-tab-btn.tab-finished.active {
+  color: #059669;
+  border-bottom-color: #059669;
+}
+
+.eventos-tab-btn.tab-all.active svg {
+  color: #0c142c;
+}
+
+.eventos-tab-btn.tab-all.active {
+  color: #0c142c;
+  border-bottom-color: #0c142c;
+}
+
+.tab-counter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #64748b;
+  transition: all 0.15s ease;
+}
+
+.eventos-tab-btn:hover .tab-counter-badge {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.eventos-tab-btn.active .tab-counter-badge {
+  background: #ff5200;
+  color: #ffffff;
+}
+
+.eventos-tab-btn.tab-planned.active .tab-counter-badge {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.eventos-tab-btn.tab-finished.active .tab-counter-badge {
+  background: #059669;
+  color: #ffffff;
+}
+
+.eventos-tab-btn.tab-all.active .tab-counter-badge {
+  background: #0c142c;
+  color: #ffffff;
+}
+
 /* filter bar */
 .eventos-filter-bar {
   display: flex;
@@ -115,7 +241,7 @@
 .search-input-wrap input {
   width: 100%;
   height: 44px;
-  padding: 0 16px 0 42px;
+  padding: 0 40px 0 42px;
   background: #ffffff;
   border: 1.5px solid #e2e8f0;
   border-radius: 10px;
@@ -134,31 +260,34 @@
   color: #94a3b8;
 }
 
+.search-clear-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #f1f5f9;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.12s ease;
+}
+
+.search-clear-btn:hover {
+  background: #e2e8f0;
+  color: #0c142c;
+}
+
 .filter-options-wrap {
   display: flex;
   align-items: center;
   gap: 20px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  color: #64748b;
-  cursor: pointer;
-  user-select: none;
-  text-transform: uppercase;
-}
-
-.checkbox-label input {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  accent-color: #ff5200;
-  cursor: pointer;
 }
 
 .event-count-badge {
@@ -167,6 +296,108 @@
   letter-spacing: 0.6px;
   color: #94a3b8;
   text-transform: uppercase;
+}
+
+.event-count-filter-name {
+  color: #ff5200;
+  font-weight: 800;
+}
+
+/* empty card */
+.eventos-empty-card {
+  grid-column: 1 / -1;
+  background: #ffffff;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 16px;
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.eventos-empty-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.eventos-empty-icon-wrap svg {
+  width: 24px;
+  height: 24px;
+}
+
+.eventos-empty-title {
+  margin: 0;
+  color: #1e293b;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.eventos-empty-subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 13.5px;
+  max-width: 520px;
+  line-height: 1.5;
+}
+
+.eventos-empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-empty-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.btn-empty-action.primary {
+  background: #ff5200;
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(255, 82, 0, 0.25);
+}
+
+.btn-empty-action.primary:hover {
+  background: #ff6014;
+  transform: translateY(-1px);
+}
+
+.btn-empty-action.secondary {
+  background: #ffffff;
+  color: #1e293b;
+  border: 1.5px solid #cbd5e1;
+}
+
+.btn-empty-action.secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
 }
 
 /* event cards grid */
@@ -704,4 +935,46 @@
 .modal-btn-create:hover {
   background: #ff8554;
   transform: translateY(-1px);
+}
+
+/* Responsive adjustments for mobile and tablets */
+@media (max-width: 768px) {
+  .eventos-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .eventos-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .eventos-tabs-row {
+    gap: 14px;
+    padding-bottom: 2px;
+  }
+
+  .eventos-tab-btn {
+    font-size: 12px;
+    padding: 10px 4px 12px;
+  }
+
+  .eventos-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .search-input-wrap {
+    max-width: 100%;
+  }
+
+  .filter-options-wrap {
+    justify-content: space-between;
+  }
+
+  .events-grid {
+    grid-template-columns: 1fr;
+  }
 }

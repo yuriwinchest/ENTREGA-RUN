@@ -28,9 +28,8 @@ import {
 import { getEspelhoConfig, publishEspelhoState } from '../utils/espelhoSync.js'
 import { getRecentDeliveries } from '../utils/deliveryFeed.js'
 import KitQrScannerModal from './KitQrScannerModal.jsx'
-import PendingKitDecisionModal from './PendingKitDecisionModal.jsx'
 import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
-import './PendingKitDecisionModal.css'
+import { apiFetchEventOperators } from '../utils/usersApi.js'
 import './OperacaoPage.css'
 
 function QrCodeIcon({ size = 16 }) {
@@ -518,16 +517,6 @@ export default function OperacaoPage({
 
   const associationLockRef = useRef(false)
   const [associationSaving, setAssociationSaving] = useState(false)
-  const [pendingKitDecision, setPendingKitDecision] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(`entregas_run_kit_decision_${event?.id}`) || 'null')
-    } catch {
-      return null
-    }
-  })
-  const [decisionSaving, setDecisionSaving] = useState(false)
-  const [decisionError, setDecisionError] = useState('')
-  const decisionLockRef = useRef(false)
   const skipNextAthletesAutosaveRef = useRef(false)
   const didMountAthletesAutosaveRef = useRef(false)
   const athletesAutosaveTimerRef = useRef(null)
@@ -535,10 +524,8 @@ export default function OperacaoPage({
   const serverHydratedRef = useRef(false)
   const savingAthletesRef = useRef(0)
   const selectedAthleteRef = useRef(selectedAthlete)
-  const pendingKitDecisionRef = useRef(pendingKitDecision)
   const refreshAthletesRef = useRef(null)
   useEffect(() => { selectedAthleteRef.current = selectedAthlete }, [selectedAthlete])
-  useEffect(() => { pendingKitDecisionRef.current = pendingKitDecision }, [pendingKitDecision])
   const saveAthletesInOrder = useCallback((...args) => {
     savingAthletesRef.current += 1
     const save = athleteSaveQueueRef.current.then(() => apiSaveAthletes(...args))
@@ -552,32 +539,6 @@ export default function OperacaoPage({
       athletesAutosaveTimerRef.current = null
     }
   }
-
-  const hasPendingKitDecision = Boolean(pendingKitDecision && pendingKitDecision.eventId === currentEvent.id)
-
-  useEffect(() => {
-    if (!pendingKitDecision || pendingKitDecision.eventId !== currentEvent.id || selectedAthlete) return
-    if (!Array.isArray(athletes) || athletes.length === 0) return
-    const athlete = athletes.find(
-      (item) => String(item.id) === String(pendingKitDecision.athleteId) ||
-                (pendingKitDecision.numero && String(item.numero) === String(pendingKitDecision.numero))
-    )
-    if (athlete) {
-      setSelectedAthlete(athlete)
-      const draft = buildAthleteDetailDraft(athlete)
-      setDetailForm(draft)
-      setDetailInitialForm(draft)
-      setActiveTab('entrega')
-    } else {
-      // Atleta órfão ou inexistente: descarta a decisão pendente inválida para não travar a aplicação
-      try {
-        localStorage.removeItem(`entregas_run_kit_decision_${currentEvent.id}`)
-      } catch {
-        // ignore
-      }
-      setPendingKitDecision(null)
-    }
-  }, [athletes, currentEvent.id, pendingKitDecision, selectedAthlete])
 
   // Save athletes to localStorage e sincroniza com o servidor central
   // Upload fatiado automático p/ listas grandes; falha vira estado visível
@@ -648,8 +609,8 @@ export default function OperacaoPage({
     if (!currentEvent.id) return () => { isMounted = false }
     let busy = false
     const refresh = async () => {
-      if (busy || savingAthletesRef.current > 0 || associationLockRef.current || decisionLockRef.current ||
-        (serverHydratedRef.current && (selectedAthleteRef.current || pendingKitDecisionRef.current))) return
+      if (busy || savingAthletesRef.current > 0 || associationLockRef.current ||
+        (serverHydratedRef.current && selectedAthleteRef.current)) return
       busy = true
       const result = await apiFetchAthletes(currentEvent.id)
       busy = false
@@ -658,21 +619,7 @@ export default function OperacaoPage({
         setAthletesSync({ state: 'error', at: Date.now() })
         return
       }
-      let serverAthletes = result.athletes
-      const decision = pendingKitDecisionRef.current
-      if (decision?.eventId === currentEvent.id && decision.resolution) {
-        try {
-          const cached = JSON.parse(localStorage.getItem(`entregas_run_athletes_${currentEvent.id}`) || '[]')
-          const pendingAthlete = Array.isArray(cached) && cached.find((item) => String(item.id) === String(decision.athleteId))
-          if (pendingAthlete) {
-            serverAthletes = serverAthletes.map((item) =>
-              String(item.id) === String(decision.athleteId) ? pendingAthlete : item
-            )
-          }
-        } catch {
-          // A decisão continua aberta para nova tentativa manual.
-        }
-      }
+      const serverAthletes = result.athletes
       serverHydratedRef.current = true
       skipNextAthletesAutosaveRef.current = true
       setAthletes(serverAthletes)
@@ -991,17 +938,6 @@ export default function OperacaoPage({
       .sort((a, b) => b.total - a.total)
   }, [athletes])
 
-  // Operators state
-  const [operators, setOperators] = useState(() => [
-    {
-      id: user?.id || 'admin_pacetime',
-      name: user?.name || 'FELIPE',
-      role: user?.role || 'ADMIN',
-      avatar: (user?.name || 'F')[0].toUpperCase(),
-      count: 0,
-    },
-  ])
-
   // Modal Importar Planilha
   const [showImportModal, setShowImportModal] = useState(false)
 
@@ -1117,6 +1053,133 @@ export default function OperacaoPage({
       return prev
     })
   }, [athletes, currentEvent.id, user])
+
+  // Operadores vinculados ao evento (busca no servidor + cálculo dinâmico e reativo)
+  const [eventUsers, setEventUsers] = useState([])
+
+  useEffect(() => {
+    let active = true
+    if (!currentEvent?.id) return
+    apiFetchEventOperators(currentEvent.id)
+      .then((list) => {
+        if (active && Array.isArray(list)) setEventUsers(list)
+      })
+      .catch((err) => console.warn('[OperacaoPage] Erro ao carregar operadores do evento:', err))
+    return () => { active = false }
+  }, [currentEvent?.id])
+
+  const operators = useMemo(() => {
+    const map = new Map()
+
+    const getAvatar = (name) => {
+      if (!name) return 'O'
+      const parts = String(name).trim().split(/\s+/).filter(Boolean)
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase()
+      }
+      return parts[0][0].toUpperCase()
+    }
+
+    // 1. Usuário logado no momento
+    if (user?.name || user?.email) {
+      const key = String(user.name || user.email).trim().toLowerCase()
+      map.set(key, {
+        id: user.id || 'current_user',
+        name: user.name || 'Operador',
+        role: user.role || 'OPERADOR',
+        avatar: getAvatar(user.name || user.email),
+        count: 0,
+      })
+    }
+
+    // 2. Usuários cadastrados no servidor com acesso a este evento
+    if (Array.isArray(eventUsers)) {
+      for (const u of eventUsers) {
+        if (!u || (!u.name && !u.email)) continue
+        const isAssigned =
+          u.eventId === 'all' ||
+          u.eventId === currentEvent.id ||
+          u.role === 'ADMIN' ||
+          u.role === 'SUB_ADMIN'
+
+        if (isAssigned) {
+          const key = String(u.name || u.email).trim().toLowerCase()
+          if (!map.has(key)) {
+            map.set(key, {
+              id: u.id || key,
+              name: u.name || u.email,
+              role: u.role || 'OPERADOR',
+              avatar: getAvatar(u.name || u.email),
+              count: 0,
+            })
+          } else {
+            const existing = map.get(key)
+            if (u.role) existing.role = u.role
+            if (u.id) existing.id = u.id
+          }
+        }
+      }
+    }
+
+    // 3. Qualquer operador que já tenha registrado entregas na lista de atletas
+    const deliveredAthletes = (Array.isArray(athletes) ? athletes : []).filter(
+      (a) => String(a.status || '').toUpperCase() === 'ENTREGUE' || Boolean(a.entregueEm)
+    )
+
+    for (const athlete of deliveredAthletes) {
+      const deliverer = String(athlete.entreguePor || '').trim()
+      if (deliverer && deliverer !== 'Não informado') {
+        const key = deliverer.toLowerCase()
+        if (!map.has(key)) {
+          map.set(key, {
+            id: `op-${key}`,
+            name: deliverer,
+            role: 'OPERADOR',
+            avatar: getAvatar(deliverer),
+            count: 0,
+          })
+        }
+      }
+    }
+
+    // 4. Também verifica os registros de auditoria
+    if (Array.isArray(audits)) {
+      for (const audit of audits) {
+        const deliverer = String(audit.operadorNome || '').trim()
+        if (deliverer && deliverer !== 'Não informado') {
+          const key = deliverer.toLowerCase()
+          if (!map.has(key)) {
+            map.set(key, {
+              id: `op-${key}`,
+              name: deliverer,
+              role: 'OPERADOR',
+              avatar: getAvatar(deliverer),
+              count: 0,
+            })
+          }
+        }
+      }
+    }
+
+    // 5. Conta real e precisa de entregas feitas neste evento por cada operador
+    const list = Array.from(map.values())
+    for (const op of list) {
+      const opNameLower = op.name.trim().toLowerCase()
+      const athleteMatches = deliveredAthletes.filter((a) => {
+        const entPor = String(a.entreguePor || '').trim().toLowerCase()
+        return entPor === opNameLower || (op.id && entPor === String(op.id).toLowerCase())
+      }).length
+
+      const auditMatches = Array.isArray(audits)
+        ? audits.filter((aud) => String(aud.operadorNome || '').trim().toLowerCase() === opNameLower).length
+        : 0
+
+      op.count = Math.max(athleteMatches, auditMatches)
+    }
+
+    return list.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+  }, [user, eventUsers, currentEvent.id, athletes, audits])
+
 
   // Controles de auditoria / histórico de entregas
   const [auditSearch, setAuditSearch] = useState('')
@@ -1442,7 +1505,7 @@ export default function OperacaoPage({
   }
 
   async function confirmKitAssociation() {
-    if (!scannerAthlete || !scannedKit || associationLockRef.current || hasPendingKitDecision) return
+    if (!scannerAthlete || !scannedKit || associationLockRef.current) return
     const source = athletes.find((a) => matchesAthleteReference(a, scannerAthlete))
     if (!source || !canAssociateAthleteKit(source)) {
       setScanFeedback('Este atleta já está associado ou teve o kit entregue. Atualize a ficha para continuar.')
@@ -1480,16 +1543,9 @@ export default function OperacaoPage({
     }
     skipNextAthletesAutosaveRef.current = true
     setAthletes(nextAthletes)
-    const decision = {
-      eventId: currentEvent.id,
-      athleteId: String(updated.id),
-      athleteName: updated.nome,
-      numero: updated.numero,
-      chip: updated.chip,
-      resolution: null,
-    }
-    localStorage.setItem(`entregas_run_kit_decision_${currentEvent.id}`, JSON.stringify(decision))
-    setPendingKitDecision(decision)
+    try {
+      localStorage.removeItem(`entregas_run_kit_decision_${currentEvent.id}`)
+    } catch {}
 
     // Abre a tela/ficha do atleta na aba de entrega com os botões ENTREGAR KIT e DESFAZER
     setSelectedAthlete(updated)
@@ -1520,7 +1576,6 @@ export default function OperacaoPage({
   executeCloseRef.current = executeCloseAthleteDetail
 
   function closeAthleteDetail({ force = false } = {}) {
-    if (hasPendingKitDecision) return false
     if (!force && detailHasChanges) {
       const shouldDiscard = window.confirm(
         'Existem alterações não salvas. Deseja descartar e voltar para a lista?'
@@ -1533,19 +1588,16 @@ export default function OperacaoPage({
   }
 
   function handleGuardedNavigate(page, id) {
-    if (hasPendingKitDecision) return
     if (!closeAthleteDetail()) return
     onNavigate(page, id)
   }
 
   function handleGuardedLogout() {
-    if (hasPendingKitDecision) return
     if (!closeAthleteDetail()) return
     onLogout()
   }
 
   function handleOperationTabChange(tab) {
-    if (hasPendingKitDecision) return
     if (tab !== 'entrega' && !closeAthleteDetail()) return
     setActiveTab(tab)
   }
@@ -1925,11 +1977,6 @@ export default function OperacaoPage({
       ? ((newEntregues / newTotal) * 100).toFixed(1) + '%'
       : '0.0%'
 
-    // Increment logged-in operator delivery count
-    setOperators((prev) =>
-      prev.map((op) => (op.name === 'FELIPE' || op.name.toLowerCase() === opName.toLowerCase() ? { ...op, count: op.count + 1 } : op))
-    )
-
     if (onUpdateEvent) {
       onUpdateEvent({
         ...currentEvent,
@@ -2000,52 +2047,6 @@ export default function OperacaoPage({
         detailActionLockRef.current = false
         setDetailActionInProgress(false)
       }, 0)
-    }
-  }
-
-  async function resolvePendingKitDecision(action, recipient = '') {
-    if (!pendingKitDecision || !selectedAthlete || decisionLockRef.current) return
-    decisionLockRef.current = true
-    setDecisionSaving(true)
-    setDecisionError('')
-    try {
-      cancelAthletesAutosave()
-      let nextDecision = pendingKitDecision
-      let nextAthletes = athletes
-      if (!pendingKitDecision.resolution) {
-        skipNextAthletesAutosaveRef.current = true
-        const updated = action === 'deliver'
-          ? handleSaveAndDeliver({ recipientOverride: recipient })
-          : handleUndoAssociation({ skipServerSave: true })
-        if (!updated) {
-          skipNextAthletesAutosaveRef.current = false
-          setDecisionError('Não foi possível concluir a ação. Confira os dados e tente novamente.')
-          return
-        }
-        nextAthletes = athletes.map((athlete) =>
-          matchesAthleteReference(athlete, selectedAthlete) ? updated : athlete
-        )
-        localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(nextAthletes))
-        nextDecision = { ...pendingKitDecision, resolution: action }
-        localStorage.setItem(`entregas_run_kit_decision_${currentEvent.id}`, JSON.stringify(nextDecision))
-        setPendingKitDecision(nextDecision)
-      }
-      const saved = await saveAthletesInOrder(
-        currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet,
-        nextDecision.resolution === 'undo' ? { undoAthleteId: String(pendingKitDecision.athleteId || '') } : {}
-      )
-      setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
-      if (!saved) {
-        setDecisionError('A ação foi registrada neste navegador, mas não foi salva no servidor. Tente salvar novamente.')
-        return
-      }
-      localStorage.removeItem(`entregas_run_kit_decision_${currentEvent.id}`)
-      setPendingKitDecision(null)
-    } catch {
-      setDecisionError('Não foi possível salvar a decisão. Confira a conexão e tente novamente.')
-    } finally {
-      setDecisionSaving(false)
-      decisionLockRef.current = false
     }
   }
 
@@ -2429,56 +2430,77 @@ export default function OperacaoPage({
                     </>
                   ) : (
                     <>
-                      {canEditAthlete && (
+                      {canEditAthlete && detailHasChanges && (
                         <button
                           type="button"
-                          className={`btn-detail-save ${detailHasChanges ? 'btn-detail-save-active' : ''}`}
+                          className="btn-detail-save btn-detail-save-active"
                           onClick={handleSaveDetail}
-                          disabled={!detailHasChanges || detailActionInProgress}
-                          title={detailHasChanges
-                            ? 'Salvar o cadastro sem entregar o kit'
-                            : 'Nenhuma alteração para salvar'}
+                          disabled={detailActionInProgress}
+                          title="Salvar alterações cadastrais sem entregar"
                         >
                           <SaveIcon />
-                          <span>{detailHasChanges ? 'SALVAR ALTERAÇÕES' : 'SALVO'}</span>
+                          <span>SALVAR ALTERAÇÕES</span>
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className={`btn-detail-entregar ${deliverBlockedByEdits ? 'btn-detail-blocked' : ''}`}
-                        onClick={() => handleSaveAndDeliver()}
-                        disabled={detailActionInProgress || deliverBlockedByEdits}
-                        title={deliverBlockedByEdits
-                          ? 'Existem alterações não salvas — clique em SALVAR ALTERAÇÕES para liberar a entrega'
-                          : (!canEditAthlete ? 'Confirmar entrega do kit' : 'Entregar o kit com os dados salvos')}
-                      >
-                        <CheckCircleIcon />
-                        <span>ENTREGAR KIT</span>
-                      </button>
-                      {(canUndo || userRole !== 'SUB_ADMIN') && (Boolean(detailForm.chip) || Boolean(detailForm.qrCode) || (Boolean(detailForm.numero) && detailForm.numero !== '—')) && (
-                        <button
-                          type="button"
-                          className="btn-detail-undo"
-                          onClick={handleUndoAssociation}
-                          title="Desfazer associação do kit (limpa chip, QR Code e número e volta para a lista)"
-                        >
-                          <UndoIcon />
-                          <span>DESFAZER</span>
-                        </button>
-                      )}
+
+                      {(() => {
+                        const isFilledVal = (val) => {
+                          const s = String(val || '').trim().toLowerCase()
+                          return s !== '' && s !== '—' && s !== '-' && s !== 'n/a' && s !== 'não associado' && s !== 'nao associado' && s !== 'sem chip' && s !== 'sem numero'
+                        }
+                        const isKitAssociated = Boolean(
+                          isFilledVal(detailForm.chip) ||
+                          (detailForm.qrCode && String(detailForm.qrCode).trim() !== '') ||
+                          isFilledVal(detailForm.numero)
+                        )
+
+                        return (
+                          <>
+                            <button
+                              type="button"
+                              className={`btn-detail-entregar ${deliverBlockedByEdits || !isKitAssociated ? 'btn-detail-blocked' : ''}`}
+                              onClick={() => handleSaveAndDeliver()}
+                              disabled={detailActionInProgress || deliverBlockedByEdits || !isKitAssociated}
+                              title={
+                                !isKitAssociated
+                                  ? 'Kit ainda não associado — use ASSOCIAR KIT primeiro'
+                                  : deliverBlockedByEdits
+                                  ? 'Existem alterações não salvas — clique em SALVAR ALTERAÇÕES para liberar a entrega'
+                                  : (!canEditAthlete ? 'Confirmar entrega do kit' : 'Entregar o kit com os dados salvos')
+                              }
+                            >
+                              <CheckCircleIcon />
+                              <span>ENTREGAR KIT</span>
+                            </button>
+
+                            {(canUndo || userRole !== 'SUB_ADMIN') && isKitAssociated && (
+                              <button
+                                type="button"
+                                className="btn-detail-undo"
+                                onClick={handleUndoAssociation}
+                                title="Desfazer associação do kit (limpa chip, QR Code e número e volta para a lista)"
+                              >
+                                <UndoIcon />
+                                <span>DESFAZER</span>
+                              </button>
+                            )}
+
+                            {!isKitAssociated && canAssociateAthleteKit(detailForm || selectedAthlete) && (
+                              <button
+                                type="button"
+                                className="btn-detail-qr-action"
+                                onClick={() => startKitReading(detailForm || selectedAthlete)}
+                                title="Associar kit por leitura de QR Code ou código manual"
+                              >
+                                <QrCodeIcon size={16} />
+                                <span>ASSOCIAR KIT</span>
+                              </button>
+                            )}
+                          </>
+                        )
+                      })()}
                     </>
                   )}
-
-                  {canAssociateAthleteKit(detailForm || selectedAthlete) && <button
-                    type="button"
-                    className="btn-detail-qr-action"
-                    onClick={() => startKitReading(detailForm || selectedAthlete)}
-                    disabled={detailForm.status === 'ENTREGUE'}
-                    title="Associar kit por leitura de QR Code ou código manual"
-                  >
-                    <QrCodeIcon size={16} />
-                    <span>ASSOCIAR KIT</span>
-                  </button>}
 
                   <button
                     type="button"
@@ -4287,17 +4309,6 @@ export default function OperacaoPage({
             feedback={scanFeedback}
             onConfirm={confirmKitAssociation}
             confirming={associationSaving}
-          />
-        )}
-
-        {hasPendingKitDecision && (
-          <PendingKitDecisionModal
-            decision={pendingKitDecision}
-            busy={decisionSaving || !selectedAthlete}
-            error={decisionError}
-            onDeliver={(recipient) => resolvePendingKitDecision('deliver', recipient)}
-            onUndo={() => resolvePendingKitDecision('undo')}
-            onRetry={() => resolvePendingKitDecision(pendingKitDecision.resolution)}
           />
         )}
 
