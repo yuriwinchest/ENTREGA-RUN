@@ -512,4 +512,9 @@
   .mobile-nav-btn.active svg {
     color: #ff5200;
   }
+
+  /* Teclado aberto: a barra sairia do rodapé e cobriria a lista; some até o teclado fechar. */
+  html[data-keyboard='open'] .mobile-bottom-nav {
+    display: none;
+  }
 }

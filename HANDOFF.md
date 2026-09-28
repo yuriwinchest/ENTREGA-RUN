@@ -1,5 +1,17 @@
 # Handoff
 
+## 2026-09-28 — Barra inferior do celular subindo com o teclado (Fase A)
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
+- **Pedido do Yuri (print do iPhone):** com o teclado aberto na busca, a barra Dashboard/Eventos/Usuários/Menu sai do rodapé, fica em cima do teclado e cobre a lista. Precisa ficar fixa no rodapé.
+- **Implementação:**
+  1. `client/src/utils/mobileKeyboard.js` (novo) + `mobileKeyboard.test.mjs`: em aparelho de toque, marca `<html data-keyboard="open">` enquanto um campo de texto está em foco. Instalado em `client/src/main.jsx`.
+  2. `client/src/components/Sidebar.css` (≤ 768px): com teclado aberto a `.mobile-bottom-nav` fica oculta, como a tab bar de app nativo; ao fechar o teclado volta ao rodapé.
+  3. `.github/workflows/deploy.yml`: CI roda `mobileKeyboard.test.mjs`.
+- **Validação real (local, 375×812 com toque emulado):** barra `flex` antes; foco na busca → `data-keyboard=open` e barra `none`; ao sair do campo → barra `flex` com base em 812px (rodapé). `node --test` 18/18, `oxlint` 0 erros, `vite build` ok.
+- **Limite:** o teclado virtual do iOS não existe no emulador; confirmar no iPhone real.
+- **Próximo passo:** homologação do Yuri no iPhone e Android.
+
 ## 2026-09-28 — Volta à busca após entregar (associação), zoom no celular e login em Eventos (Fase A)
 
 - **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
