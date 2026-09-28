@@ -1,5 +1,19 @@
 # Handoff
 
+## 2026-09-28 — Exportar planilha escolhendo colunas e ordem (Fase A)
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
+- **Pedido do Yuri (áudio):** ao exportar/salvar a planilha (qualquer modelo), escolher quais colunas saem (ex.: QR Code, Chip, Número) e em que ordem (QR Code 1ª, Chip 2ª...); a planilha baixada vem só com essas colunas. Subir no GitHub ao final.
+- **Implementação:**
+  1. `client/src/components/ExportColumnsModal.jsx/.css` (novo): marcar/desmarcar colunas, ordenar com ↑ ↓, posição 1º/2º..., exemplo de valor de cada coluna, filtro por nome (> 10 colunas), "Marcar todas", "Desmarcar todas", "Ordem original"; no celular abre como folha inferior. Baixar fica bloqueado sem coluna marcada.
+  2. `client/src/utils/exportColumns.js` (novo) + testes: resolução da escolha salva (por evento e tipo, pelo nome da coluna; coluna nova entra desmarcada), mover, projetar a tabela final.
+  3. `client/src/utils/auditData.js`: `buildAthleteCsvData` exportado, com coluna própria `QR_CODE` e sem vazar campos internos (`_kitPreviousNumero`, `qrCode`, `updatedAt`); `buildAuditCsvData` novo — cabeçalho e linhas da mesma lista, corrigindo o deslocamento de colunas quando o comprovante não é incluído.
+  4. `client/src/components/OperacaoPage.jsx`: os 3 botões ("Baixar planilha atualizada", "Exportar CSV" da Auditoria e da Planilha original) abrem o seletor. A planilha original passa a usar o mesmo gerador CSV (neutraliza fórmulas `= + - @`); cabeçalhos repetidos viram "NOME (2)".
+  5. `.github/workflows/deploy.yml`: CI roda `exportColumns.test.mjs`.
+- **Validação real (local):** Auditoria → Baixar planilha atualizada → desmarcar todas (baixar bloqueado) → marcar QR Code, Chip, Número e ordenar → CSV baixado `QR_CODE;CHIP;NUMERO` com `QR101;CH101;101`; ao reabrir, escolha lembrada; exportação da Auditoria com 13 colunas alinhadas. Visual conferido no desktop e no celular (375×812). `node --test` 29/29, `oxlint` 0 erros, `vite build` ok.
+- **Limite:** a exportação da planilha original não foi exercitada no navegador (evento de teste sem planilha original anexada); coberta pelo mesmo modal e gerador.
+- **Próximo passo:** homologação do Yuri com uma planilha real do evento.
+
 ## 2026-09-28 — Leitor de QR lento ao digitar e botões de decisão no fim da ficha (Fase A)
 
 - **Autor:** Claude Code (Opus 5.5) / Equipe TONE.

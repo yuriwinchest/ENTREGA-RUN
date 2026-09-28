@@ -181,10 +181,11 @@ function sanitizeFilename(filename, fallback) {
   return safe || fallback
 }
 
-function buildAthleteCsvData(athletes) {
+export function buildAthleteCsvData(athletes) {
   const standardHeaders = [
     'NUMERO',
     'CHIP',
+    'QR_CODE',
     'NOME',
     'NOME_DE_PEITO',
     'CPF',
@@ -218,8 +219,10 @@ function buildAthleteCsvData(athletes) {
         'equipe', 'cidade', 'nascimento', 'modalidade', 'categoria', 'morador',
         'contato', 'nacionalidade', 'kit', 'status', 'createdAt', 'entregueEm',
         'entreguePor', 'entreguePara', 'customFields', 'pcd', '_hasCollision',
+        'qrCode', 'updatedAt',
       ]
-      if (!standardKeys.includes(key)) customHeadersSet.add(key)
+      // Campos com "_" são controle interno do sistema, não dado do atleta.
+      if (!standardKeys.includes(key) && !key.startsWith('_')) customHeadersSet.add(key)
     })
   }
 
@@ -230,6 +233,7 @@ function buildAthleteCsvData(athletes) {
     const standardRow = [
       athlete?.numero ?? '',
       athlete?.chip ?? '',
+      athlete?.qrCode ?? '',
       athlete?.nome ?? '',
       athlete?.nome_peito ?? '',
       athlete?.doc ?? '',
@@ -275,6 +279,32 @@ function triggerCsvDownload(filename, csvContent) {
   link.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 1500)
   return { filename, content: csvContent }
+}
+
+const AUDIT_EXPORT_COLUMNS = [
+  ['DATA_HORA', (item) => item.dataHora],
+  ['NUMERO', (item) => item.atletaNumero],
+  ['CHIP', (item) => item.atletaChip],
+  ['ATLETA', (item) => item.atletaNome],
+  ['CPF', (item) => item.atletaCpf],
+  ['TIPO', (item) => item.tipo],
+  ['RETIRADO_POR', (item) => item.retiradoPor],
+  ['OPERADOR', (item) => item.operadorNome],
+  ['PONTO_ENTREGA', (item) => item.pontoEntrega],
+  ['KIT', (item) => item.kit],
+  ['CAMISETA', (item) => item.camiseta],
+  ['MODALIDADE', (item) => item.modalidade],
+]
+
+// Cabeçalho e linhas saem da mesma lista: o comprovante nunca desalinha as colunas.
+export function buildAuditCsvData(records, { includeComprovantes = true } = {}) {
+  const columns = includeComprovantes
+    ? [['COMPROVANTE', (item) => item.comprovanteId], ...AUDIT_EXPORT_COLUMNS]
+    : AUDIT_EXPORT_COLUMNS
+  return {
+    headers: columns.map(([header]) => header),
+    rows: (records || []).map((item) => columns.map(([, read]) => read(item ?? {}) ?? '')),
+  }
 }
 
 export function exportCsvFile(arg1, arg2, arg3) {

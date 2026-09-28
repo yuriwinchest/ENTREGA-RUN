@@ -5,6 +5,8 @@ import ImportarAtletasModal from './ImportarAtletasModal.jsx'
 import AssociarPlanilhasModal from './AssociarPlanilhasModal.jsx'
 import CustomSelect from './CustomSelect.jsx'
 import {
+  buildAthleteCsvData,
+  buildAuditCsvData,
   enrichAuditRecords,
   exportCsvFile,
   filterAuditRecords,
@@ -34,6 +36,8 @@ import {
   writeKitDecision,
 } from '../utils/kitDecisionLock.js'
 import KitQrScannerModal from './KitQrScannerModal.jsx'
+import ExportColumnsModal from './ExportColumnsModal.jsx'
+import { projectTable } from '../utils/exportColumns.js'
 import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
 import { apiFetchEventOperators } from '../utils/usersApi.js'
 import './OperacaoPage.css'
@@ -1205,6 +1209,7 @@ export default function OperacaoPage({
   const [auditPerPage, setAuditPerPage] = useState(50)
   const [auditPage, setAuditPage] = useState(1)
   const [auditIncludeComprovantes, _setAuditIncludeComprovantes] = useState(true)
+  const [exportRequest, setExportRequest] = useState(null)
 
   // Selected comprovante modal / preview
   const [selectedComprovante, setSelectedComprovante] = useState(null)
@@ -1310,56 +1315,37 @@ export default function OperacaoPage({
     return saveResult
   }
 
+  function eventFileSlug() {
+    return (currentEvent?.name || 'evento').toLowerCase().replace(/\s+/g, '_')
+  }
+
   function handleExportPlanilha() {
-    const filename = `planilha_geral_${(currentEvent?.name || 'evento').toLowerCase().replace(/\s+/g, '_')}.csv`
-    try {
-      exportCsvFile(athletes, filename)
-    } catch {
-      window.alert('Não foi possível baixar a planilha geral. Tente novamente e verifique se o navegador bloqueou o download.')
-    }
+    setExportRequest({
+      kind: 'atletas',
+      title: 'Planilha geral de atletas',
+      filename: `planilha_geral_${eventFileSlug()}.csv`,
+      table: buildAthleteCsvData(athletes),
+    })
   }
 
   function handleExportAuditsCsv() {
-    const filename = `auditoria_entregas_${(currentEvent?.name || 'evento').toLowerCase().replace(/\s+/g, '_')}.csv`
-    const headers = [
-      'DATA_HORA',
-      'NUMERO',
-      'CHIP',
-      'ATLETA',
-      'CPF',
-      'TIPO',
-      'RETIRADO_POR',
-      'OPERADOR',
-      'PONTO_ENTREGA',
-      'KIT',
-      'CAMISETA',
-      'MODALIDADE',
-    ]
-    if (auditIncludeComprovantes) headers.unshift('COMPROVANTE')
-
-    const rows = filteredAudits.map((a) => {
-      const row = [
-      a.dataHora || '',
-      a.atletaNumero || '',
-      a.atletaChip || '',
-      a.atletaNome || '',
-      a.atletaCpf || '',
-      a.tipo || '',
-      a.retiradoPor || '',
-      a.operadorNome || '',
-      a.pontoEntrega || '',
-      a.kit || '',
-      a.camiseta || '',
-      a.modalidade || '',
-      ]
-      row.unshift(a.comprovanteId || '')
-      return row
+    setExportRequest({
+      kind: 'auditoria',
+      title: 'Entregas (auditoria)',
+      filename: `auditoria_entregas_${eventFileSlug()}.csv`,
+      table: buildAuditCsvData(filteredAudits, { includeComprovantes: auditIncludeComprovantes }),
     })
+  }
 
+  function handleConfirmExport(columns) {
+    const request = exportRequest
+    if (!request) return
+    const { headers, rows } = projectTable(request.table, columns)
     try {
-      exportCsvFile(filename, headers, rows)
+      exportCsvFile(request.filename, headers, rows)
+      setExportRequest(null)
     } catch {
-      window.alert('Não foi possível exportar as entregas. Tente novamente.')
+      window.alert('Não foi possível baixar a planilha. Tente novamente e verifique se o navegador bloqueou o download.')
     }
   }
 
@@ -2327,18 +2313,23 @@ export default function OperacaoPage({
 
   function handleDownloadOriginalCsv() {
     if (!effectiveOriginalSheet || !effectiveOriginalSheet.headers?.length) return
-    const headersLine = effectiveOriginalSheet.headers.map((h) => `"${String(h || '').replace(/"/g, '""')}"`).join(';')
-    const rowsLines = (effectiveOriginalSheet.rows || []).map((row) =>
-      row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(';')
-    )
-    const csvContent = '\uFEFF' + [headersLine, ...rowsLines].join('\r\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${effectiveOriginalSheet.fileName ? effectiveOriginalSheet.fileName.replace(/\.[^.]+$/, '') : 'planilha_original'}_completa.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    // Cabeçalhos repetidos na planilha original viram "NOME (2)" para a escolha por nome não colidir.
+    const seen = new Map()
+    const headers = effectiveOriginalSheet.headers.map((header, i) => {
+      const base = String(header ?? '').trim() || `COLUNA ${i + 1}`
+      const count = (seen.get(base) || 0) + 1
+      seen.set(base, count)
+      return count > 1 ? `${base} (${count})` : base
+    })
+    const baseName = effectiveOriginalSheet.fileName
+      ? effectiveOriginalSheet.fileName.replace(/\.[^.]+$/, '')
+      : 'planilha_original'
+    setExportRequest({
+      kind: 'original',
+      title: 'Planilha original',
+      filename: `${baseName}_completa.csv`,
+      table: { headers, rows: effectiveOriginalSheet.rows || [] },
+    })
   }
 
   // Filtered Athletes for Tab 1 (Kit Search - traz tanto quem já recebeu kit quanto pendente)
@@ -4481,6 +4472,17 @@ export default function OperacaoPage({
         )}
 
         {/* MODAL: ASSOCIAR PLANILHAS (ATLETAS + CHIPS) */}
+        {exportRequest && (
+          <ExportColumnsModal
+            eventId={currentEvent.id}
+            kind={exportRequest.kind}
+            title={exportRequest.title}
+            table={exportRequest.table}
+            onExport={handleConfirmExport}
+            onClose={() => setExportRequest(null)}
+          />
+        )}
+
         {showAssociarModal && (
           <AssociarPlanilhasModal
             isOpen={showAssociarModal}
