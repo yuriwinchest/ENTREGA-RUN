@@ -1,5 +1,19 @@
 # Handoff
 
+## 2026-09-28 — iPhone: zoom e "site para computador" quebrando a tela / fundo preto (Fase A)
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
+- **Pedido do Yuri (áudio):** no iPhone, ao tirar o zoom ou usar "Solicitar site para computador", a aplicação quebra e aparece fundo preto; ao dar zoom de novo, volta.
+- **Diagnóstico [verificado]:**
+  1. `body` tinha fundo `#070b22` (quase preto) e `html` transparente. Toda área fora do layout (zoom afastado, puxar além da borda, "site para computador") mostrava essa cor.
+  2. Varredura automática de conteúdo cortado em 800/980/1180 px em todas as telas: só o cabeçalho do "Histórico de entregas" (Auditoria) quebrava — o título tinha `flex-shrink: 0` e empurrava EXPORTAR CSV / GERAR PDF / ATUALIZAR para fora do cartão (`overflow: hidden`); em 800 px o próprio título era cortado.
+- **Implementação:**
+  1. `client/src/index.css`: `html`/`body` com o fundo claro das telas (`#f8fafc`); login, validação pública e espelho continuam escuros via `html:has(...)`.
+  2. `client/src/components/OperacaoPage.css`: `.audit-card-head` com `flex-wrap`, título `flex: 1 1 320px` — os botões descem de linha quando falta largura; no computador largo ficam na mesma linha.
+- **Validação real (local):** 0 conteúdo cortado e 0 estouro horizontal em 800, 980 e 1180 px (Entrega, Atletas, Estatística, Auditoria, Eventos, Dashboard, Dashboard do evento, Usuários); botões da Auditoria dentro do cartão em 980 px e na mesma linha em 1440 px; fundo `rgb(248,250,252)` nas telas internas e `rgb(7,11,34)` no login. `node --test` 29/29, `oxlint` 0 erros, `vite build` ok.
+- **Limite:** pinça de zoom e modo "site para computador" do Safari não existem no emulador; confirmar no iPhone real. Se ainda houver "crash" (aba recarregando sozinha), pedir print/vídeo e o modelo do iPhone.
+- **Pendência:** segundo pedido do Yuri na mesma mensagem ficou incompleto ("na tela de entrega de kit, eu queria poder colocar ali…").
+
 ## 2026-09-28 — Exportar planilha escolhendo colunas e ordem (Fase A)
 
 - **Autor:** Claude Code (Opus 5.5) / Equipe TONE.

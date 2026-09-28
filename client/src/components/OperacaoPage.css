@@ -2866,18 +2866,21 @@
 .audit-card-head {
   padding: 18px 24px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 14px 20px;
   background: #ffffff;
 }
 
+/* Título encolhe e os botões descem de linha quando falta largura (tablet e
+   "site para computador" no celular); antes os botões eram cortados pelo cartão. */
 .audit-card-title-group {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  flex-shrink: 0;
+  flex: 1 1 320px;
 }
 
 .table-title-row {
