@@ -187,7 +187,7 @@ export default function App() {
     if (path.startsWith('/usuarios')) return 'usuarios'
     if (path.startsWith('/dashboard/')) return 'event-dashboard'
     if (path.startsWith('/dashboard')) return 'dashboard'
-    return 'dashboard'
+    return 'eventos'
   })
 
   const [tutorialStep, setTutorialStep] = useState(1)
@@ -252,7 +252,7 @@ export default function App() {
       } else if (path.startsWith('/dashboard')) {
         setCurrentPage('dashboard')
       } else {
-        setCurrentPage(user ? 'dashboard' : 'login')
+        setCurrentPage(user ? 'eventos' : 'login')
       }
     }
     window.addEventListener('popstate', handlePopState)
@@ -309,7 +309,7 @@ export default function App() {
       setSelectedEventId(loggedUser.eventId)
       navigateTo('operacao', loggedUser.eventId)
     } else {
-      navigateTo('dashboard')
+      navigateTo('eventos')
     }
   }
 

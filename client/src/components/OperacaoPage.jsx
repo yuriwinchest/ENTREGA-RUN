@@ -393,6 +393,7 @@ export default function OperacaoPage({
   // Após associar o kit, o operador só sai da ficha entregando ou desfazendo.
   const [pendingKitDecision, setPendingKitDecision] = useState(() => readKitDecision(event?.id))
   const [kitDecisionNotice, setKitDecisionNotice] = useState('')
+  const [entregaNotice, setEntregaNotice] = useState('')
   const detailActionLockRef = useRef(false)
   const deliveryLocksRef = useRef(new Set())
   const tableResponsiveRef = useRef(null)
@@ -481,6 +482,13 @@ export default function OperacaoPage({
       return null
     }
   })
+  const isAssociationEvent = Array.isArray(kits) && kits.length > 0
+
+  useEffect(() => {
+    if (!entregaNotice) return undefined
+    const timer = window.setTimeout(() => setEntregaNotice(''), 6000)
+    return () => window.clearTimeout(timer)
+  }, [entregaNotice])
 
   useEffect(() => {
     if (currentEvent.id && Array.isArray(kits)) localStorage.setItem(`entregas_run_kits_${currentEvent.id}`, JSON.stringify(kits))
@@ -1432,6 +1440,7 @@ export default function OperacaoPage({
       return
     }
     setKitSearch('')
+    setEntregaNotice('')
     const athlete = athletes.find(
       (a) => String(a.numero) === String(athleteId) || String(a.id) === String(athleteId)
     )
@@ -1573,14 +1582,14 @@ export default function OperacaoPage({
     setScanFeedback('')
   }
 
-  function executeCloseAthleteDetail() {
+  function executeCloseAthleteDetail({ keepEspelho = false } = {}) {
     setSelectedAthlete(null)
     setDetailForm(null)
     setDetailInitialForm(null)
     setDetailFeedback('')
     setDetailSourceTab(null)
     setActiveTab('entrega')
-    publishEspelho('LIVRE')
+    if (!keepEspelho) publishEspelho('LIVRE')
   }
 
   const executeCloseRef = useRef(executeCloseAthleteDetail)
@@ -2119,9 +2128,16 @@ export default function OperacaoPage({
       setDetailForm(deliveredDraft)
       setDetailInitialForm(deliveredDraft)
       releaseKitDecision()
-      setDetailFeedback('✓ Kit entregue com sucesso!')
       publishEspelho('ENTREGUE', deliveredAthlete)
       setKitSearch('')
+      // Evento com planilha de kits (associação): o operador volta direto para a
+      // busca e já atende o próximo; o espelho segue mostrando "entregue".
+      if (isAssociationEvent) {
+        executeCloseAthleteDetail({ keepEspelho: true })
+        setEntregaNotice(`✓ Kit entregue para ${deliveredAthlete.nome || 'o atleta'} (Nº ${deliveredAthlete.numero}). Busque o próximo atleta.`)
+        return deliveredAthlete
+      }
+      setDetailFeedback('✓ Kit entregue com sucesso!')
       return deliveredAthlete
     } finally {
       window.setTimeout(() => {
@@ -3058,6 +3074,12 @@ export default function OperacaoPage({
             ) : (
               /* VIEW B: LISTA NORMAL DE ENTREGA (BUSCA + ÚLTIMAS ENTREGAS) */
               <>
+                {entregaNotice && (
+                  <div className="athlete-detail-feedback entrega-notice" role="status">
+                    {entregaNotice}
+                  </div>
+                )}
+
                 <div className="kit-actions-row">
                   <button
                     type="button"

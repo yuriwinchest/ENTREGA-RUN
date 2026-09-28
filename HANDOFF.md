@@ -1,5 +1,26 @@
 # Handoff
 
+## 2026-09-28 — Volta à busca após entregar (associação), zoom no celular e login em Eventos (Fase A)
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
+- **Pedido do Yuri (PO, áudio + print do iPhone):** (1) em evento com associação, depois de ENTREGAR KIT voltar para a busca da aba Entrega; (2) busca "quebra" no celular, informações saem da tela; (3) após login ir para Eventos e não para Dashboard; (4) abas dando "zoom sozinho" no celular; desktop não pode ser afetado.
+- **Causa do zoom/quebra [verificado]:** campos de busca com fonte < 16px no celular (Entrega 13,5px, Atletas 13,5px, Auditoria 13px). iOS aplica zoom automático ao focar campo < 16px e não desfaz. Estatística (sem campo) não tinha o problema.
+- **Implementação:**
+  1. `client/src/components/OperacaoPage.jsx`: `isAssociationEvent` (evento com planilha de kits). Após entrega nesse tipo de evento, fecha a ficha, limpa a busca e mostra aviso verde "Kit entregue para … Busque o próximo atleta" (some em 6s ou ao abrir outro atleta). `executeCloseAthleteDetail({ keepEspelho })`: o Espelho continua mostrando "entregue" até o próximo atendimento. Eventos sem associação mantêm a ficha aberta como antes.
+  2. `client/src/index.css`: em dispositivos de toque (`hover: none` + `pointer: coarse`) todo input/select/textarea usa 16px (inclusive modais); `text-size-adjust: 100%`. Computador sem toque não é afetado.
+  3. `client/src/components/OperacaoPage.css` (≤ 768px): resultado da busca empilha nome e CPF; CPF não quebra linha.
+  4. `client/src/App.jsx`: login e raiz `/` com usuário logado vão para Eventos. Operador com evento atribuído continua indo direto para a Operação.
+- **Validação real (servidor local isolado, viewport 375×812 com toque emulado):**
+  - Busca: campo 16px, largura da página = 375px, CPF numa linha.
+  - Associar → ENTREGAR KIT → volta para a busca vazia com aviso; entrega listada em Últimas Entregas; espelho no servidor = `ENTREGUE`; trava liberada.
+  - Atletas, Auditoria, Eventos, Usuários, Dashboard e Login: 0 campos < 16px e sem estouro horizontal.
+  - Login pela tela → `/eventos`.
+  - Sem toque (`coarse: false`), a regra de 16px não se aplica.
+  - `node --test` 16/16, `oxlint` 0 erros, `vite build` ok.
+- **Limite:** o zoom automático do iOS não é reproduzível no emulador do Chrome; a correção segue a regra documentada do Safari (fonte ≥ 16px). Confirmar no iPhone real.
+- **Observação:** não existe no repositório uma versão "app nativo" separada (sem manifest PWA nem detecção de modo standalone) [verificado]; o layout de celular é feito por media queries. As correções valem para o navegador do celular e para qualquer app que carregue o site.
+- **Próximo passo:** homologação do Yuri no iPhone e no Android.
+
 ## 2026-09-28 — Trava de decisão na ficha após associar kit (Entregar ou Desfazer) (Fase A)
 
 - **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
