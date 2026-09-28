@@ -2207,10 +2207,19 @@
 /* Decisão repetida no fim da ficha: o operador confirma logo após o "Retirado por". */
 .athlete-detail-bottom-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 12px;
   margin: 4px 0 24px;
   scroll-margin-bottom: 96px;
+}
+
+/* SALVAR ocupa a linha inteira acima de ENTREGAR / DESFAZER: aparece assim que
+   o "Retirado por" (ou outro campo) é editado, sem precisar rolar até o topo. */
+.athlete-detail-bottom-actions > .btn-detail-save {
+  flex: 1 1 100%;
+  justify-content: center;
+  min-height: 48px;
 }
 
 @media (max-width: 768px) {

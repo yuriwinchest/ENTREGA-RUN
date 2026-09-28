@@ -1589,6 +1589,18 @@ export default function OperacaoPage({
   const executeCloseRef = useRef(executeCloseAthleteDetail)
   executeCloseRef.current = executeCloseAthleteDetail
 
+  // Ficha nova abre no topo: sem isto herda a rolagem da lista de busca e aparece
+  // no meio. Exceção: logo após associar, o efeito seguinte leva ao fim da ficha.
+  const openedDetailIdRef = useRef(null)
+  useEffect(() => {
+    const id = selectedAthlete ? String(selectedAthlete.id ?? selectedAthlete.numero ?? '') : null
+    if (id === openedDetailIdRef.current) return
+    openedDetailIdRef.current = id
+    if (!id || scrollToBottomActionsRef.current) return
+    window.scrollTo({ top: 0 })
+    document.querySelector('.operacao-main')?.scrollTo({ top: 0 })
+  }, [selectedAthlete])
+
   // Após associar, leva o operador ao fim da ficha: "Retirado por" + ENTREGAR KIT / DESFAZER.
   useEffect(() => {
     if (!scrollToBottomActionsRef.current || !detailBottomActionsRef.current) return
@@ -3094,6 +3106,18 @@ export default function OperacaoPage({
 
                 {detailForm.status !== 'ENTREGUE' && !canAssociateAthleteKit(detailForm) && (
                   <div ref={detailBottomActionsRef} className="athlete-detail-bottom-actions">
+                    {canEditAthlete && detailHasChanges && (
+                      <button
+                        type="button"
+                        className="btn-detail-save btn-detail-save-active"
+                        onClick={handleSaveDetail}
+                        disabled={detailActionInProgress}
+                        title="Salvar as alterações para liberar a entrega do kit"
+                      >
+                        <SaveIcon />
+                        <span>SALVAR ALTERAÇÕES</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={`btn-detail-entregar ${deliverBlockedByEdits ? 'btn-detail-blocked' : ''}`}

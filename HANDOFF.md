@@ -1,5 +1,15 @@
 # Handoff
 
+## 2026-09-28 — Ficha abre no topo e SALVAR ALTERAÇÕES também embaixo (Fase A) — primeiro pedido com Jev ativo no Claude Code
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
+- **Pedido do Yuri (prints do iPhone):** (1) ao abrir um atleta pela busca, a ficha abre no meio da página — deve abrir no topo; (2) ao digitar quem retira em "Entregue para / Retirado por", ENTREGAR KIT desabilita e SALVAR habilita só no topo — colocar o SALVAR embaixo.
+- **Jev [verificado]:** primeiro pedido real roteado no Claude Code — evento `client: claude-code, reason: injected`, sessão `b38b24ac`, 585 ms, Kastiel 70 % (alternativa Ana UI/UX 23 %), `bugfix_urgente` 99 %, risco de produção 13 %, 1.469 + 191 tokens do Jev; a diretiva apareceu no contexto do agente. A classificação foi coerente com a demanda (ajuste de fluxo de tela) e foi seguida.
+- **Causas:** (1) a ficha substitui a lista de busca mantendo a rolagem da lista; (2) o bloco inferior só tinha ENTREGAR KIT / DESFAZER.
+- **Implementação (`client/src/components/OperacaoPage.jsx/.css`):** efeito que rola para o topo (janela e `.operacao-main`) quando uma ficha nova abre, exceto logo após associar (que continua levando ao fim); SALVAR ALTERAÇÕES no bloco inferior quando há alteração e o perfil pode editar, em linha própria acima de ENTREGAR / DESFAZER.
+- **Validação real (build de produção local, 375×812):** lista rolada (200 px) → ficha abriu em 0 px com a barra de ações visível; digitar "AGNER" → embaixo aparece SALVAR e ENTREGAR fica desabilitado; SALVAR → ENTREGAR liberado, valor gravado, bloco visível. `oxlint` 0 erros, `vite build` ok, `node --test` 34/34.
+- **Sugestão não implementada (decisão do PO):** alterar só o "Retirado por" poderia não exigir salvar antes de entregar, pois o próprio ENTREGAR já grava esse campo.
+
 ## 2026-09-28 — Jev integrado de verdade ao Claude Code (correção de registro) (Fase A)
 
 - **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
