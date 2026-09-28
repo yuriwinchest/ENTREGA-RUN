@@ -1,5 +1,21 @@
 # Handoff
 
+## 2026-09-28 — Jev integrado de verdade ao Claude Code (correção de registro) (Fase A)
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
+- **Correção de registro [verificado]:** até hoje o Jev **nunca** esteve ligado ao Claude Code. O gancho só existia em `.agents/hooks.json` (Antigravity/Codex); o script lia transcript no formato Antigravity e respondia `injectSteps`, que o Claude Code ignora; não havia `.claude/settings.json`. Telemetria: uso só em 20, 23 e 25/09 (verificações manuais), nenhum evento do Claude Code. Uma conversa anterior afirmou ao Yuri que a adaptação existia — não existia; o instalador também imprimia "ATIVADO" sem testar o gancho. O Yuri trabalhou horas acreditando no contrário.
+- **Defeito adicional encontrado:** os ganchos terminavam com `process.exit(0)`; no Windows isso aborta o Node com a conexão HTTPS fechando (`Assertion failed ... UV_HANDLE_CLOSING`), código de saída ≠ 0 em 3/3 rodadas — o cliente descarta a diretiva. Afeta também o gancho do Antigravity.
+- **Implementação:**
+  1. `scripts/jev-claude-hook.cjs` (novo): contrato oficial do UserPromptSubmit (entrada `user_input`/`prompt`, saída `hookSpecificOutput.additionalContext`); `prompt_id` como passo (mesmo texto repetido volta a ser roteado); `JEV_CLAUDE_DISABLE=1` para linha de base; nunca bloqueia; não grava o texto do pedido.
+  2. `scripts/jev-claude-usage.cjs` (novo, gancho Stop): soma tokens do agente por resposta (sem repetir `message.id`) e cruza com o resultado do Jev → `.metrics/jev-claude-usage.jsonl`.
+  3. `scripts/jev-core.cjs`: em git worktree usa `.env`, `.metrics` e `scratch` do checkout principal (`MAIN_ROOT`).
+  4. `scripts/jev-pre-invocation-hook.cjs`: exporta `routeWithFallback`; encerramento sem `process.exit` (mesma correção do Windows).
+  5. `.claude/settings.json` (novo): UserPromptSubmit → Jev; Stop → medição.
+  6. `TONE-INVARIANTS.md` item 10: inclui o Claude Code e exige evidência (`injected` do cliente) antes de declarar o Jev ativo.
+  7. `D:\Projetos\Clientes\INSTALAR-JEV-AQUI.ps1` (fora do repositório, v3; backup da v2 no scratchpad da sessão): copia os arquivos novos, mescla `.claude/settings.json` sem apagar ganchos existentes e só declara ATIVO após rodar o gancho do Claude Code de verdade.
+- **Validação real:** sessão `claude.exe -p` nesta worktree disparou o gancho → evento `claude-code injected rest teclide_qa 463 ms, 830 tokens Jev` (a sessão avulsa não tinha login no app, então não respondeu); chamada do adaptador com o Jev real devolveu a diretiva completa (Kastiel, bugfix_urgente, 399 ms); após a correção do encerramento: código 0 em 3/3 rodadas, ~1 s, JSON válido, sem erro. `node --test scripts/jev-claude-hook.test.cjs` 2/2; `jev-selftest` 14/14 (Antigravity intacto); sintaxe do instalador validada.
+- **Pendente (não provado ainda):** o agente de uma sessão nova do app **ler** a diretiva. Prova: abrir sessão nova no projeto e perguntar; conferir evento `client: claude-code, reason: injected` e linha em `jev-claude-usage.jsonl`. Economia de tokens: sem número até haver sessões com e sem `JEV_CLAUDE_DISABLE`.
+
 ## 2026-09-28 — CSS quebrado acima de 768px, foto quebrada em produção e câmera ao lado do "Retirado por" (Fase A)
 
 - **Autor:** Claude Code (Opus 5.5) / Equipe TONE.

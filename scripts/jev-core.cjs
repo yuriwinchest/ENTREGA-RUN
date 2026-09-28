@@ -22,6 +22,24 @@ const crypto = require('crypto');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
+// Numa git worktree (ex.: sessoes do Claude Code em .claude/worktrees/*) nao ha
+// .env nem .metrics: a chave e os registros ficam no checkout principal.
+function resolveMainRoot(root) {
+  try {
+    const gitPath = path.join(root, '.git');
+    if (!fs.statSync(gitPath).isFile()) return root;
+    const match = /^gitdir:\s*(.+)$/m.exec(fs.readFileSync(gitPath, 'utf8'));
+    if (!match) return root;
+    const gitDir = path.resolve(root, match[1].trim()).split(path.sep).join('/');
+    const marker = gitDir.lastIndexOf('/.git/worktrees/');
+    return marker >= 0 ? path.resolve(gitDir.slice(0, marker)) : root;
+  } catch {
+    return root;
+  }
+}
+
+const MAIN_ROOT = resolveMainRoot(PROJECT_ROOT);
+
 const SPECIALISTS = {
   ana_ui_ux: 'Ana (Especialista em UI/UX)',
   kastiel_dev: 'Kastiel (Desenvolvedor Senior Fullstack)',
@@ -38,8 +56,8 @@ const DEFAULT_CONFIG = {
   grpcTimeoutMs: 3000,
   grpcProbeMs: 400,
   transport: 'auto',
-  stateDir: path.join(PROJECT_ROOT, 'scratch'),
-  metricsDir: path.join(PROJECT_ROOT, '.metrics'),
+  stateDir: path.join(MAIN_ROOT, 'scratch'),
+  metricsDir: path.join(MAIN_ROOT, '.metrics'),
   cacheTtlMs: 30 * 60 * 1000,
   cacheMaxEntries: 24,
   maxStateChars: 20000,
@@ -76,7 +94,7 @@ function loadEnvFile(explicitPath) {
   // reproduzir o estado "sem configuracao"). Variaveis ja presentes no
   // ambiente sempre prevalecem sobre o arquivo.
   if (/^(1|true|yes|on)$/i.test(String(process.env.JEV_SKIP_DOTENV || ''))) return;
-  const candidates = [explicitPath, path.join(PROJECT_ROOT, '.env')].filter(Boolean);
+  const candidates = [explicitPath, path.join(PROJECT_ROOT, '.env'), path.join(MAIN_ROOT, '.env')].filter(Boolean);
   for (const file of candidates) {
     try {
       process.loadEnvFile(file);
@@ -589,6 +607,8 @@ function buildDirective(decision, meta = {}) {
 
 module.exports = {
   PROJECT_ROOT,
+  MAIN_ROOT,
+  resolveMainRoot,
   SPECIALISTS,
   DEFAULT_CONFIG,
   CACHE_FILE,

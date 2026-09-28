@@ -257,7 +257,11 @@ async function main() {
   await emit({ injectSteps: [{ ephemeralMessage: directive }] });
 }
 
-main()
+// Reaproveitado pelo adaptador do Claude Code (scripts/jev-claude-hook.cjs);
+// executado direto, segue o contrato PreInvocation do Antigravity/Codex.
+module.exports = { routeWithFallback };
+
+if (require.main === module) main()
   .catch(async (err) => {
     try {
       const config = core.getConfig();
@@ -273,6 +277,8 @@ main()
     }
     await emitEmpty();
   })
+  // Sem process.exit(): no Windows, sair a força com o socket HTTPS ainda fechando
+  // aborta o Node (libuv UV_HANDLE_CLOSING) e o cliente descarta a diretiva.
   .finally(() => {
-    if (!core.toBool(process.env.JEV_HOOK_NO_EXIT, false)) process.exit(0);
+    process.exitCode = 0;
   });
