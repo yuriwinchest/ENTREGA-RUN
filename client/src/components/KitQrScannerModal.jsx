@@ -1,12 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
-import jsQR from 'jsqr'
+import { decodeQrFrame, scaledFrameSize } from '../utils/qrFrame.js'
 import './KitQrScannerModal.css'
+
+// ~5 leituras/s bastam para QR parado na mão e deixam o celular livre para a digitação.
+const SCAN_INTERVAL_MS = 200
+
+function createQrWorker() {
+  try {
+    return new Worker(new URL('../utils/qrDecodeWorker.js', import.meta.url), { type: 'module' })
+  } catch {
+    return null
+  }
+}
 
 export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, kit, feedback, onConfirm, confirming = false }) {
   const videoRef = useRef(null)
   const deliveredRef = useRef(false)
   const onReadRef = useRef(onRead)
   const kitRef = useRef(kit)
+  // Enquanto o operador digita o código, a câmera não disputa o processador.
+  const typingRef = useRef(false)
   const [manualCode, setManualCode] = useState('')
   const [cameraMessage, setCameraMessage] = useState('Iniciando câmera…')
 
@@ -19,6 +32,7 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
     let active = true
     let stream
     let frameId
+    let worker = null
     const videoElement = videoRef.current
     deliveredRef.current = false
 
@@ -56,54 +70,83 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
 
         const canvas = document.createElement('canvas')
         const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        worker = nativeDetector ? null : createQrWorker()
+        let requestSeq = 0
+
+        const decodeInWorker = (imageData) => new Promise((resolve) => {
+          const id = ++requestSeq
+          const cleanup = () => {
+            worker?.removeEventListener('message', handle)
+            worker?.removeEventListener('error', fail)
+          }
+          const handle = ({ data }) => {
+            if (data.id !== id) return
+            cleanup()
+            resolve(data.value)
+          }
+          // Aparelho sem suporte a worker de módulo: segue lendo na thread principal (já reduzida e espaçada).
+          const fail = () => {
+            cleanup()
+            worker?.terminate()
+            worker = null
+            resolve(null)
+          }
+          worker.addEventListener('message', handle)
+          worker.addEventListener('error', fail)
+          worker.postMessage(
+            { id, buffer: imageData.data.buffer, width: imageData.width, height: imageData.height },
+            [imageData.data.buffer]
+          )
+        })
+
+        async function readFrame() {
+          if (nativeDetector) {
+            try {
+              const results = await nativeDetector.detect(video)
+              const found = results.find((result) => result.rawValue?.trim())?.rawValue.trim()
+              if (found) return found
+            } catch {
+              // Detector nativo falhou neste quadro; o jsQR cobre abaixo.
+            }
+          }
+          if (!ctx) return null
+          const size = scaledFrameSize(video.videoWidth, video.videoHeight)
+          if (canvas.width !== size.width) canvas.width = size.width
+          if (canvas.height !== size.height) canvas.height = size.height
+          ctx.drawImage(video, 0, 0, size.width, size.height)
+          const imageData = ctx.getImageData(0, 0, size.width, size.height)
+          return worker
+            ? decodeInWorker(imageData)
+            : decodeQrFrame(imageData.data, size.width, size.height)
+        }
+
+        const scheduleScan = (delay = SCAN_INTERVAL_MS) => {
+          if (active) frameId = window.setTimeout(scan, delay)
+        }
 
         async function scan() {
           if (!active || deliveredRef.current) return
-          if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
-            let value = null
-
-            // 1. Tenta detector nativo do navegador se disponível
-            if (nativeDetector) {
-              try {
-                const results = await nativeDetector.detect(video)
-                value = results.find((result) => result.rawValue?.trim())?.rawValue.trim()
-              } catch {
-                // Se falhar o detector nativo, o jsQR continuará abaixo
-              }
-            }
-
-            // 2. Se não detectou com nativo, usa jsQR (funciona 100% no Chrome Windows, Edge, Safari, Firefox)
-            if (!value && ctx) {
-              try {
-                canvas.width = video.videoWidth
-                canvas.height = video.videoHeight
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-                const qrResult = jsQR(imageData.data, imageData.width, imageData.height, {
-                  inversionAttempts: 'attemptBoth',
-                })
-                if (qrResult?.data?.trim()) {
-                  value = qrResult.data.trim()
-                }
-              } catch {
-                // Frame em transição ignorado
-              }
-            }
-
-            if (value && active && !deliveredRef.current) {
-              deliveredRef.current = true
-              onReadRef.current(value)
-              window.setTimeout(() => {
-                if (!active || kitRef.current) return
-                deliveredRef.current = false
-                frameId = requestAnimationFrame(scan)
-              }, 900)
-              return
-            }
+          const idle = typingRef.current || document.hidden ||
+            video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || video.videoWidth === 0
+          if (idle) {
+            scheduleScan()
+            return
           }
-          if (active) frameId = requestAnimationFrame(scan)
+
+          const value = await readFrame()
+          if (value && active && !deliveredRef.current) {
+            deliveredRef.current = true
+            onReadRef.current(value)
+            window.setTimeout(() => {
+              if (!active || kitRef.current) return
+              deliveredRef.current = false
+              scheduleScan(0)
+            }, 900)
+            return
+          }
+          scheduleScan()
         }
-        frameId = requestAnimationFrame(scan)
+        scheduleScan(0)
       } catch (error) {
         if (!active) return
         const denied = error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError'
@@ -117,7 +160,8 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
 
     return () => {
       active = false
-      cancelAnimationFrame(frameId)
+      window.clearTimeout(frameId)
+      worker?.terminate()
       stream?.getTracks().forEach((track) => track.stop())
       if (videoElement) videoElement.srcObject = null
     }
@@ -184,7 +228,7 @@ export default function KitQrScannerModal({ isOpen, onClose, onRead, athlete, ki
               <form onSubmit={submitManual} className="kit-scanner-manual">
                 <label htmlFor="kit-scanner-code">Ou digite o código do kit</label>
                 <div className="kit-scanner-input-row">
-                  <input id="kit-scanner-code" value={manualCode} onChange={(event) => setManualCode(event.target.value)} autoComplete="off" placeholder="Código impresso no kit" />
+                  <input id="kit-scanner-code" value={manualCode} onChange={(event) => setManualCode(event.target.value)} onFocus={() => { typingRef.current = true }} onBlur={() => { typingRef.current = false }} autoComplete="off" inputMode="text" placeholder="Código impresso no kit" />
                   <button type="submit" disabled={!manualCode.trim()}>Consultar</button>
                 </div>
               </form>

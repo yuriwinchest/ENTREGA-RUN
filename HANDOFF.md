@@ -1,5 +1,20 @@
 # Handoff
 
+## 2026-09-28 — Leitor de QR lento ao digitar e botões de decisão no fim da ficha (Fase A)
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
+- **Pedido do Yuri (prints do iPhone):** (1) no modal de associação (câmera/QR), digitar o código no campo está muito lento; (2) após confirmar a associação, levar o operador ao final da página em vez de deixá-lo no topo. Autorizou subir via PR ao final.
+- **Causa da lentidão [verificado]:** sem `BarcodeDetector` (Safari/iOS), o modal rodava `jsQR` na thread da interface, em 1280×720, com `attemptBoth`, a cada quadro (`requestAnimationFrame`). Medição local: quadro realista com QR 70 ms → 12,9 ms a 640×360 (lendo o mesmo QR); pior caso (ruído) 3,7 s → 0,38 s.
+- **Implementação:**
+  1. `client/src/utils/qrFrame.js` (novo): redução do quadro para 640px no lado maior + `decodeQrFrame`. `qrFrame.test.mjs` gera um QR real com `qrcode` e confirma a leitura no quadro reduzido.
+  2. `client/src/utils/qrDecodeWorker.js` (novo): decodificação em Web Worker (bundle separado), fora da thread da interface.
+  3. `client/src/components/KitQrScannerModal.jsx`: laço a cada 200 ms (≈5 leituras/s) em vez de todo quadro; leitura pausada enquanto o campo manual tem foco e com a aba oculta; worker com fallback para a thread principal se o aparelho não suportar worker de módulo; detector nativo continua preferido quando existe (Android/Chrome).
+  4. `client/src/components/OperacaoPage.jsx/.css`: bloco ENTREGAR KIT / DESFAZER repetido no fim da ficha (após "Entregue para / Retirado por") quando o kit está associado e não entregue; após "Confirmar associação" a ficha rola sozinha até esse bloco (com margem para a barra inferior).
+  5. `.github/workflows/deploy.yml`: CI roda `qrFrame.test.mjs`.
+- **Validação real (local, 375×812 com toque emulado):** associação por código manual → ficha rola até o fim com os botões visíveis acima da barra (topo 668px, base 716px, barra em 748px); ENTREGAR KIT de baixo → volta à busca com aviso e trava liberada. Worker carregado no navegador respondeu em 91 ms. `node --test` 21/21, `oxlint` 0 erros, `vite build` ok (worker em `qrDecodeWorker-*.js`).
+- **Limite:** a câmera é bloqueada no navegador de teste; leitura pela câmera e fluidez da digitação precisam ser confirmadas no iPhone real.
+- **Próximo passo:** homologação do Yuri no iPhone (digitar o código no modal e ler QR pela câmera).
+
 ## 2026-09-28 — Barra inferior do celular subindo com o teclado (Fase A)
 
 - **Autor:** Claude Code (Opus 5.5) / Equipe TONE.

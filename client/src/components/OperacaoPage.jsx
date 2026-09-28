@@ -394,6 +394,8 @@ export default function OperacaoPage({
   const [pendingKitDecision, setPendingKitDecision] = useState(() => readKitDecision(event?.id))
   const [kitDecisionNotice, setKitDecisionNotice] = useState('')
   const [entregaNotice, setEntregaNotice] = useState('')
+  const detailBottomActionsRef = useRef(null)
+  const scrollToBottomActionsRef = useRef(false)
   const detailActionLockRef = useRef(false)
   const deliveryLocksRef = useRef(new Set())
   const tableResponsiveRef = useRef(null)
@@ -1573,6 +1575,7 @@ export default function OperacaoPage({
     setDetailForm(draft)
     setDetailInitialForm(draft)
     setDetailFeedback('Kit associado com sucesso! Confirme a entrega do kit abaixo ou desfaça a associação se necessário.')
+    scrollToBottomActionsRef.current = true
     setDetailSourceTab('atletas')
     setActiveTab('entrega')
     publishEspelho('ATENDENDO', updated)
@@ -1594,6 +1597,13 @@ export default function OperacaoPage({
 
   const executeCloseRef = useRef(executeCloseAthleteDetail)
   executeCloseRef.current = executeCloseAthleteDetail
+
+  // Após associar, leva o operador ao fim da ficha: "Retirado por" + ENTREGAR KIT / DESFAZER.
+  useEffect(() => {
+    if (!scrollToBottomActionsRef.current || !detailBottomActionsRef.current) return
+    scrollToBottomActionsRef.current = false
+    detailBottomActionsRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [selectedAthlete, detailForm])
 
   function lockKitDecision(athlete) {
     setPendingKitDecision(writeKitDecision(currentEvent.id, athlete))
@@ -3070,6 +3080,34 @@ export default function OperacaoPage({
                     />
                   </div>
                 </div>
+
+                {detailForm.status !== 'ENTREGUE' && !canAssociateAthleteKit(detailForm) && (
+                  <div ref={detailBottomActionsRef} className="athlete-detail-bottom-actions">
+                    <button
+                      type="button"
+                      className={`btn-detail-entregar ${deliverBlockedByEdits ? 'btn-detail-blocked' : ''}`}
+                      onClick={() => handleSaveAndDeliver()}
+                      disabled={detailActionInProgress || deliverBlockedByEdits}
+                      title={deliverBlockedByEdits
+                        ? 'Existem alterações não salvas — clique em SALVAR ALTERAÇÕES para liberar a entrega'
+                        : 'Entregar o kit com os dados salvos'}
+                    >
+                      <CheckCircleIcon />
+                      <span>ENTREGAR KIT</span>
+                    </button>
+                    {(canUndo || userRole !== 'SUB_ADMIN') && (
+                      <button
+                        type="button"
+                        className="btn-detail-undo"
+                        onClick={handleUndoAssociation}
+                        title="Desfazer associação do kit (limpa chip, QR Code e número e volta para a lista)"
+                      >
+                        <UndoIcon />
+                        <span>DESFAZER</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               /* VIEW B: LISTA NORMAL DE ENTREGA (BUSCA + ÚLTIMAS ENTREGAS) */

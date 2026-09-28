@@ -2204,6 +2204,23 @@
 }
 
 /* 5. Card: Entregue Para */
+/* Decisão repetida no fim da ficha: o operador confirma logo após o "Retirado por". */
+.athlete-detail-bottom-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 4px 0 24px;
+  scroll-margin-bottom: 96px;
+}
+
+@media (max-width: 768px) {
+  .athlete-detail-bottom-actions > button {
+    flex: 1;
+    justify-content: center;
+    min-height: 48px;
+  }
+}
+
 .athlete-entregue-para-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
