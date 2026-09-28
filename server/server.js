@@ -59,6 +59,17 @@ function sanitizeUser(user) {
   return safe
 }
 
+// Administrador principal = conta de emergência definida por ADMIN_EMAIL no .env.
+// Não pode ser removido, desativado nem rebaixado: garante que sempre sobre um
+// acesso capaz de destravar o sistema. Trocar ADMIN_EMAIL transfere o papel.
+function isPrincipalAdmin(user) {
+  return Boolean(user && String(user.email || '').toLowerCase().trim() === ADMIN_EMAIL)
+}
+
+function publicUser(user) {
+  return { ...sanitizeUser(user), isPrincipal: isPrincipalAdmin(user) }
+}
+
 function revokeUserSessions(userId) {
   for (const [token, session] of sessions) {
     if (session.userId === userId) sessions.delete(token)
@@ -1437,7 +1448,7 @@ app.get('/api/users', requireAdminOrSubAdmin, (req, res) => {
   const visibleUsers = req.session.role === 'SUB_ADMIN' && req.session.eventId !== 'all'
     ? inMemoryUsers.filter((user) => user.eventId === req.session.eventId)
     : inMemoryUsers
-  res.json({ ok: true, users: visibleUsers.map(sanitizeUser) })
+  res.json({ ok: true, users: visibleUsers.map(publicUser) })
 })
 
 // POST /api/users — Cria usuário com a senha escolhida pelo administrador.
@@ -1520,8 +1531,12 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
     }
   }
 
+  if (isPrincipalAdmin(current) && ((body.status && body.status !== 'ATIVO') || (body.role && body.role !== 'ADMIN'))) {
+    return res.status(400).json({ ok: false, message: 'O administrador principal não pode ser desativado nem rebaixado.' })
+  }
+
   if (req.session?.role === 'SUB_ADMIN') {
-    if (current.role === 'ADMIN' || userId === 'admin_pacetime') {
+    if (current.role === 'ADMIN' || isPrincipalAdmin(current)) {
       return res.status(403).json({ ok: false, message: 'Sub-Admin não pode alterar o Super Admin.' })
     }
     if (body.role === 'ADMIN') {
@@ -1555,21 +1570,20 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   if (!writeUsersToDisk(nextUsers)) return res.status(500).json({ ok: false, message: 'Não foi possível salvar o usuário.' })
   inMemoryUsers = nextUsers
   if (body.password !== undefined || body.role !== undefined || body.status !== undefined || body.eventId !== undefined) revokeUserSessions(userId)
-  res.json({ ok: true, user: sanitizeUser(updated) })
+  res.json({ ok: true, user: publicUser(updated) })
 })
 
 // DELETE /api/users/:id — Remove usuário
 app.delete('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   const userId = String(req.params.id || '').trim()
-  if (userId === 'admin_pacetime' || userId === inMemoryUsers.find(u => u.email === ADMIN_EMAIL)?.id) {
-    return res.status(400).json({ ok: false, message: 'Não é possível remover o administrador principal.' })
-  }
-
   const idx = inMemoryUsers.findIndex((u) => u.id === userId)
   if (idx === -1) {
     return res.status(404).json({ ok: false, message: 'Usuário não encontrado.' })
   }
   const target = inMemoryUsers[idx]
+  if (isPrincipalAdmin(target)) {
+    return res.status(400).json({ ok: false, message: 'Não é possível remover o administrador principal.' })
+  }
   if (req.session.role === 'SUB_ADMIN' && (target.role === 'ADMIN' || target.createdBy !== req.session.userId || (req.session.eventId !== 'all' && target.eventId !== req.session.eventId))) {
     return res.status(403).json({ ok: false, message: 'Sub-Admin só pode remover usuários que criou no próprio evento.' })
   }

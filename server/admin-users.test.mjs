@@ -9,9 +9,9 @@ import { hashPassword } from './passwords.js'
 
 const serverFile = fileURLToPath(new URL('./server.js', import.meta.url))
 
-async function startServer(dataDir, port) {
+async function startServer(dataDir, port, extraEnv = {}) {
   const child = spawn(process.execPath, [serverFile], {
-    env: { ...process.env, DATA_DIR: dataDir, PORT: String(port), ADMIN_PASSWORD: 'test-admin-123456' },
+    env: { ...process.env, DATA_DIR: dataDir, PORT: String(port), ADMIN_PASSWORD: 'test-admin-123456', ...extraEnv },
     stdio: 'ignore',
   })
   for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -139,6 +139,39 @@ test('senha manual persiste e exclusão respeita autoria do sub-admin', async ()
     if (!path.resolve(dataDir).startsWith(`${path.resolve(os.tmpdir(), 'entregas-admin-test-')}`)) {
       throw new Error('Diretório temporário fora do prefixo esperado')
     }
+    fs.rmSync(dataDir, { recursive: true, force: true })
+  }
+})
+
+test('administrador principal segue ADMIN_EMAIL: o antigo vira removível e o novo fica protegido', async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'entregas-principal-test-'))
+  fs.writeFileSync(path.join(dataDir, 'users.json'), JSON.stringify([
+    { id: 'admin_pacetime', name: 'Felipe Admin', email: 'pacetime@entregas.com', passwordHash: hashPassword('senha-felipe-1'), role: 'ADMIN', eventId: 'all', status: 'ATIVO' },
+    { id: 'agner', name: 'AGNER ARAUJO', email: 'agneraraujo@hotmail.com', passwordHash: hashPassword('senha-agner-1'), role: 'ADMIN', eventId: 'all', status: 'ATIVO' },
+  ]))
+  fs.writeFileSync(path.join(dataDir, 'events.json'), JSON.stringify([]))
+  const port = 5400 + Math.floor(Math.random() * 1000)
+  let child
+  try {
+    child = await startServer(dataDir, port, { ADMIN_EMAIL: 'agneraraujo@hotmail.com' })
+    const login = await request(port, '/api/login', 'POST', { email: 'agneraraujo@hotmail.com', password: 'senha-agner-1' })
+    assert.equal(login.status, 200, 'o novo principal entra com a própria senha')
+    const token = login.data.token
+
+    const list = await request(port, '/api/users', 'GET', undefined, token)
+    const principal = Object.fromEntries(list.data.users.map((u) => [u.id, u.isPrincipal]))
+    assert.deepEqual(principal, { admin_pacetime: false, agner: true })
+    assert.equal(list.data.users.some((u) => 'passwordHash' in u), false)
+
+    assert.equal((await request(port, '/api/users/agner', 'PUT', { status: 'INATIVO' }, token)).status, 400)
+    assert.equal((await request(port, '/api/users/agner', 'PUT', { role: 'SUB_ADMIN' }, token)).status, 400)
+    assert.equal((await request(port, '/api/users/agner', 'DELETE', undefined, token)).status, 400)
+
+    assert.equal((await request(port, '/api/users/admin_pacetime', 'DELETE', undefined, token)).status, 200)
+    const after = await request(port, '/api/users', 'GET', undefined, token)
+    assert.deepEqual(after.data.users.map((u) => u.id), ['agner'])
+  } finally {
+    child?.kill()
     fs.rmSync(dataDir, { recursive: true, force: true })
   }
 })

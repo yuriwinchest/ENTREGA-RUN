@@ -394,7 +394,7 @@ export default function UsuariosPage({
       alert('Você só pode remover usuários que criou no seu ambiente.')
       return
     }
-    if (userId === user?.id || userId === 'admin_pacetime') {
+    if (userId === user?.id || targetUser?.isPrincipal) {
       alert('Não é possível remover o administrador principal.')
       return
     }
@@ -562,7 +562,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     </button>
                   )}
 
-                  {!(user?.role === 'SUB_ADMIN' && item.role === 'ADMIN') && (
+                  {!(user?.role === 'SUB_ADMIN' && item.role === 'ADMIN') && !item.isPrincipal && (
                     <button
                       type="button"
                       className="btn-deactivate"
@@ -572,7 +572,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     </button>
                   )}
 
-                  {(user?.role === 'ADMIN' || (user?.role === 'SUB_ADMIN' && item.createdBy === user.id && item.role !== 'ADMIN' && (user.eventId === 'all' || item.eventId === user.eventId))) && item.id !== user?.id && item.id !== 'admin_pacetime' && (
+                  {(user?.role === 'ADMIN' || (user?.role === 'SUB_ADMIN' && item.createdBy === user.id && item.role !== 'ADMIN' && (user.eventId === 'all' || item.eventId === user.eventId))) && item.id !== user?.id && !item.isPrincipal && (
                     <button
                       type="button"
                       className="icon-action-btn"

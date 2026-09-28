@@ -1,0 +1,99 @@
+name: Trocar administrador principal (ADMIN_EMAIL)
+
+# Manual. Transfere o papel de administrador principal (conta de emergência que
+# não pode ser removida nem desativada) para outra conta ADMIN já cadastrada.
+# Vitor: mesma trava do deploy, backup do .env, mesma imagem em execução,
+# healthcheck antes/depois e volta automática se qualquer passo falhar.
+on:
+  workflow_dispatch:
+    inputs:
+      admin_email:
+        description: E-mail da conta ADMIN ativa que vira o novo principal
+        required: true
+
+concurrency:
+  group: entregas-run-deploy
+  cancel-in-progress: false
+
+jobs:
+  trocar-principal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validar e-mail informado
+        env:
+          NOVO_ADMIN_EMAIL: ${{ inputs.admin_email }}
+        run: |
+          printf '%s' "$NOVO_ADMIN_EMAIL" | grep -Eq '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' || { echo 'E-mail inválido.'; exit 1; }
+
+      - name: Trocar ADMIN_EMAIL com backup, healthcheck e volta automática
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          NOVO_ADMIN_EMAIL: ${{ inputs.admin_email }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          envs: NOVO_ADMIN_EMAIL
+          script: |
+            set -euo pipefail
+            APP=/opt/entregas-run
+            SVC=entregas-run-web
+            cd "$APP"
+            exec 9>"$APP/.deploy.lock"
+            flock -n 9 || { echo 'Deploy em andamento; nada alterado.'; exit 1; }
+
+            [[ "$NOVO_ADMIN_EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || { echo 'E-mail inválido.'; exit 1; }
+            NOVO="$(printf '%s' "$NOVO_ADMIN_EMAIL" | tr 'A-Z' 'a-z')"
+
+            curl -sf --max-time 5 http://127.0.0.1:3050/api/health >/dev/null || { echo 'Serviço sem saúde; nada alterado.'; exit 1; }
+            ATUAL="$(docker exec "$SVC" printenv ADMIN_EMAIL || true)"
+            echo "Principal atual: ${ATUAL:-padrão do compose}"
+            if [ "$ATUAL" = "$NOVO" ]; then echo 'Já é o principal; nada a fazer.'; exit 0; fi
+
+            docker exec -e NOVO="$NOVO" "$SVC" node -e '
+              const users = JSON.parse(require("fs").readFileSync("/app/data/users.json", "utf8"));
+              const u = users.find((x) => String(x.email || "").toLowerCase().trim() === process.env.NOVO);
+              if (!u || u.role !== "ADMIN" || (u.status && u.status !== "ATIVO") || !(u.passwordHash || u.password)) {
+                console.error("Conta não encontrada como ADMIN ativo com senha; nada alterado.");
+                process.exit(1);
+              }
+              console.log("Conta confirmada: " + u.name + " (ADMIN, ATIVO, com senha).");'
+
+            umask 077
+            mkdir -p backups
+            BAK="backups/env-before-admin-email-$(date -u +%Y%m%dT%H%M%SZ)"
+            cp .env "$BAK"
+            IMG="$(docker inspect -f '{{.Config.Image}}' "$SVC")"
+            OVR="$(mktemp /tmp/entregas-admin.XXXXXX.yml)"
+            printf 'services:\n  %s:\n    image: %s\n' "$SVC" "$IMG" > "$OVR"
+
+            recreate() { docker compose -f docker-compose.yml -f "$OVR" up -d --no-build --no-deps "$SVC"; }
+            healthy() {
+              for i in $(seq 1 20); do
+                curl -sf --max-time 5 http://127.0.0.1:3050/api/health >/dev/null && return 0
+                sleep 2
+              done
+              return 1
+            }
+            rollback() {
+              echo 'Falha; restaurando o .env e o container anteriores.'
+              cp "$BAK" .env
+              recreate || true
+              if healthy; then echo 'Volta concluída; serviço saudável.'; else echo 'ATENÇÃO: verificar o serviço imediatamente.'; fi
+              rm -f "$OVR"
+              exit 1
+            }
+
+            if grep -q '^ADMIN_EMAIL=' .env; then
+              sed -i "s|^ADMIN_EMAIL=.*|ADMIN_EMAIL=$NOVO|" .env
+            else
+              printf '\nADMIN_EMAIL=%s\n' "$NOVO" >> .env
+            fi
+
+            recreate || rollback
+            healthy || rollback
+            [ "$(docker exec "$SVC" printenv ADMIN_EMAIL)" = "$NOVO" ] || rollback
+            [ "$(docker inspect -f '{{.Config.Image}}' "$SVC")" = "$IMG" ] || rollback
+            rm -f "$OVR"
+            echo "Principal agora: $NOVO | imagem mantida: $IMG | backup do .env: $BAK"
