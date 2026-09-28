@@ -37,7 +37,8 @@ import {
 } from '../utils/kitDecisionLock.js'
 import KitQrScannerModal from './KitQrScannerModal.jsx'
 import ExportColumnsModal from './ExportColumnsModal.jsx'
-import RetiradaPhotoCard from './RetiradaPhotoCard.jsx'
+import { RetiradaCameraButton, RetiradaPhotoThumb } from './RetiradaPhoto.jsx'
+import useRetiradaPhoto from '../hooks/useRetiradaPhoto.js'
 import { deleteRetiradaPhoto } from '../utils/retiradaPhotoApi.js'
 import { projectTable } from '../utils/exportColumns.js'
 import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
@@ -470,6 +471,8 @@ export default function OperacaoPage({
     pendentes: 0,
     concl: '0.0%',
   }, [event])
+
+  const retiradaPhoto = useRetiradaPhoto(currentEvent.id, selectedAthlete?.id != null ? String(selectedAthlete.id) : '')
 
   // Load and manage athletes per event with localStorage persistence
   const [athletes, setAthletes] = useState(() => {
@@ -1871,6 +1874,7 @@ export default function OperacaoPage({
     // Entrega desfeita: a foto deixa de comprovar algo e não deve ficar guardada.
     if (currentEvent?.id && athleteRef.id) {
       deleteRetiradaPhoto(currentEvent.id, String(athleteRef.id)).catch(() => {})
+      retiradaPhoto.clear()
     }
 
     // Persistência no backend / volume
@@ -2673,17 +2677,23 @@ export default function OperacaoPage({
                 })()}
 
                 {/* 3. Metadados de Entrega (Pills à direita) */}
-                {detailForm.status === 'ENTREGUE' && (
+                {(detailForm.status === 'ENTREGUE' || retiradaPhoto.photo) && (
                   <div className="athlete-detail-meta-row">
-                    <div className="meta-pill-group">
-                      <span className="meta-pill-label">ENTREGUE EM</span>
-                      <span className="meta-pill-badge">{detailForm.entregueEm}</span>
-                    </div>
+                    <RetiradaPhotoThumb photoState={retiradaPhoto} athleteName={detailForm.nome} />
 
-                    <div className="meta-pill-group">
-                      <span className="meta-pill-label">ENTREGUE POR</span>
-                      <span className="meta-pill-badge">{detailForm.entreguePor}</span>
-                    </div>
+                    {detailForm.status === 'ENTREGUE' && (
+                      <>
+                        <div className="meta-pill-group">
+                          <span className="meta-pill-label">ENTREGUE EM</span>
+                          <span className="meta-pill-badge">{detailForm.entregueEm}</span>
+                        </div>
+
+                        <div className="meta-pill-group">
+                          <span className="meta-pill-label">ENTREGUE POR</span>
+                          <span className="meta-pill-badge">{detailForm.entreguePor}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -3058,10 +3068,13 @@ export default function OperacaoPage({
                 {/* Card: RETIRADO POR / ENTREGUE PARA (posicionado no final da página) */}
                 <div className="athlete-entregue-para-card" style={{ marginTop: '16px', marginBottom: '16px' }}>
                   <div className="athlete-form-group">
-                    <label className="athlete-form-label" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>👤 ENTREGUE PARA / RETIRADO POR</span>
-                      <small style={{ fontWeight: 400, color: '#64748b' }}>(Se terceiro estiver retirando, digite o nome aqui antes de entregar)</small>
-                    </label>
+                    <div className="entregue-para-label-row">
+                      <label className="athlete-form-label" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                        <span>👤 ENTREGUE PARA / RETIRADO POR</span>
+                        <small style={{ fontWeight: 400, color: '#64748b' }}>(Se terceiro estiver retirando, digite o nome aqui antes de entregar)</small>
+                      </label>
+                      <RetiradaCameraButton photoState={retiradaPhoto} />
+                    </div>
                     <input
                       type="text"
                       className="athlete-form-input entregue-para-input"
@@ -3078,15 +3091,6 @@ export default function OperacaoPage({
                     />
                   </div>
                 </div>
-
-                {currentEvent.id && selectedAthlete?.id && (
-                  <RetiradaPhotoCard
-                    key={`${currentEvent.id}:${selectedAthlete.id}`}
-                    eventId={currentEvent.id}
-                    athleteId={String(selectedAthlete.id)}
-                    athleteName={detailForm.nome}
-                  />
-                )}
 
                 {detailForm.status !== 'ENTREGUE' && !canAssociateAthleteKit(detailForm) && (
                   <div ref={detailBottomActionsRef} className="athlete-detail-bottom-actions">

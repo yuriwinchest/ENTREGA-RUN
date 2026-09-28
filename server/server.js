@@ -149,7 +149,8 @@ app.use(
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
         'connect-src': ["'self'", 'https://servicodados.ibge.gov.br'],
-        'img-src': ["'self'", 'data:', 'https:'],
+        // blob: = foto da retirada exibida após download autenticado (não é pública).
+        'img-src': ["'self'", 'data:', 'blob:', 'https:'],
       },
     },
   })

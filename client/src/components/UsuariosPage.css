@@ -78,9 +78,11 @@
 }
 
 /* user cards grid */
+/* Colunas conforme o espaço real (3 → 2 → 1): com a barra lateral, a faixa de
+   769–1200px não comporta 2 colunas fixas e os cartões vazavam. */
 .users-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
   gap: 20px;
 }
 
@@ -313,19 +315,9 @@
   color: #ef4444;
 }
 
-@media (max-width: 1200px) {
-  .users-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 @media (max-width: 768px) {
   .usuarios-main {
     padding: 20px 16px 88px;
-  }
-
-  .users-grid {
-    grid-template-columns: 1fr;
   }
 }
 

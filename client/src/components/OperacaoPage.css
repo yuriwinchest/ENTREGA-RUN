@@ -2221,6 +2221,14 @@
   }
 }
 
+.entregue-para-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
 .athlete-entregue-para-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;

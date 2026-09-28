@@ -1,5 +1,24 @@
 # Handoff
 
+## 2026-09-28 — CSS quebrado acima de 768px, foto quebrada em produção e câmera ao lado do "Retirado por" (Fase A)
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
+- **Pedido do Yuri (prints do iPhone do cliente):** (1) ao tirar o zoom, Usuários/Eventos aparecem sem estilo; (2) ícone de câmera ao lado de "Entregue para / Retirado por", com prévia SALVAR/REFAZER; a foto salva aparece no topo da ficha, no espaço à esquerda de "Entregue em / Entregue por".
+- **Causas [verificado]:**
+  1. `EventDashboardPage.css` perdeu o `}` de fechamento do `@media (max-width: 768px)` (commit `bbbaec3`, 27/09). Em produção o CSS vira um arquivo só: todo o CSS depois dele (Eventos, Usuários e outros) ficou dentro dessa media query — acima de 768px (zoom afastado no iPhone, tablet, computador) essas telas perdiam o estilo. Medido no build: 255 regras de topo antes, 1594 depois.
+  2. O minificador do Vite 8 reescrevia `max-width` como `width <=`, ignorado por iOS < 16.4.
+  3. A CSP do `helmet` não liberava `blob:` em `img-src`: a foto da retirada publicada em `cee82fe` aparecia quebrada em produção (em dev não há CSP).
+  4. Usuários: 2 colunas fixas entre 769–1200px vazavam com a barra lateral.
+- **Implementação:**
+  1. `EventDashboardPage.css`: `}` restaurado. `client/src/utils/cssIntegrity.test.mjs` (novo, no CI) falha se qualquer `.css` tiver chave desbalanceada (validado reintroduzindo o defeito: aponta a linha 986).
+  2. `client/vite.config.js`: `build.cssTarget` Safari/iOS 14 → media queries em `max-width` (0 ocorrências de `width<=`).
+  3. `server/server.js`: `img-src` com `blob:`; teste HTTP confere o cabeçalho.
+  4. `UsuariosPage.css`: grade `auto-fill` (3 colunas no desktop, 1 no celular, sem vazar em 780px).
+  5. Foto: `client/src/hooks/useRetiradaPhoto.js` + `components/RetiradaPhoto.jsx/.css` — `RetiradaCameraButton` ao lado do rótulo "Entregue para / Retirado por" (fora do `<label>` para o toque no texto não abrir a câmera) com prévia REFAZER / SALVAR / Cancelar e aviso LGPD; `RetiradaPhotoThumb` no topo, à esquerda de "Entregue em / Entregue por", ampliável com autor, horário e data de exclusão. `RetiradaPhotoCard` removido.
+- **Validação real (build de produção servido pelo Express local):** Eventos e Usuários com estilo em 780px; Usuários 3/1 colunas em 1440/375px; câmera → prévia → nada salvo antes de SALVAR → miniatura no topo à esquerda das pills (720×540 decodificada) → ampliar com legenda. `node --test` client 34/34, server 13/13; `oxlint` 0 erros; CSS final balanceado.
+- **Limite:** câmera real e zoom real do iPhone não existem no emulador; confirmar no aparelho.
+- **Próximo passo:** homologação do Yuri no iPhone (zoom afastado em Eventos/Usuários; foto pela câmera na ficha).
+
 ## 2026-09-28 — Foto da retirada do kit (com exclusão automática) e painel de entregas por dia (Fase A)
 
 - **Autor:** Claude Code (Opus 5.5) / Equipe TONE.

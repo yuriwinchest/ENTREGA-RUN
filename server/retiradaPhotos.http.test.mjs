@@ -50,6 +50,10 @@ test('foto de retirada: exige login, valida JPEG, serve sem cache e apaga', asyn
     }
     assert.equal(ready, true, 'servidor local não subiu')
 
+    // A tela mostra a foto via URL blob:; sem isso na CSP a miniatura fica quebrada em produção.
+    const csp = (await call('GET', '/api/health')).headers.get('content-security-policy') || ''
+    assert.ok(/img-src[^;]* blob:/.test(csp), 'CSP img-src precisa liberar blob:')
+
     const login = await (await call('POST', '/api/login', { email: 'admin@teste.local', password: adminPassword })).json()
     assert.equal(login.ok, true)
     token = login.token
