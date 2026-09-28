@@ -1,5 +1,29 @@
 # Handoff
 
+## 2026-09-28 — Trava de decisão na ficha após associar kit (Entregar ou Desfazer) (Fase A)
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
+- **Pedido do Yuri (PO, áudio):** após confirmar a associação atleta ↔ chip e a ficha exibir ENTREGAR KIT / DESFAZER, o operador não pode sair sem decidir (voltar, outra aba, menu, voltar do navegador). Autorizou commit + push para deploy via CI/CD.
+- **Contexto:** o commit `bbbaec3` removeu o popup `PendingKitDecisionModal` e, junto, a trava; a guarda de `popstate` do `App.jsx` ficou morta porque a chave `entregas_run_kit_decision_*` passou a ser apagada na associação.
+- **Implementação (sem popup; a trava vive na própria ficha):**
+  1. `client/src/utils/kitDecisionLock.js` (novo) + `kitDecisionLock.test.mjs`: leitura/gravação da decisão pendente por evento e regra "ainda pendente = kit associado e não entregue".
+  2. `client/src/components/OperacaoPage.jsx`: `confirmKitAssociation` liga a trava; `handleSaveAndDeliver` e `handleUndoAssociation` soltam. Enquanto ligada e com a ficha aberta, `closeAthleteDetail` (VOLTAR À LISTA, Voltar do topo, menu lateral, sair, troca de aba) e abertura de outro atleta são bloqueados com aviso âmbar. Ao recarregar (F5) a ficha pendente reabre; se o servidor mostrar que a decisão já foi tomada em outro dispositivo, a trava é solta. `beforeunload` avisa ao fechar/recarregar. Entrada-guarda no histórico faz o primeiro "voltar" do navegador disparar `popstate` mesmo com a página aberta direto pela URL.
+  3. `client/src/App.jsx`: guarda de `popstate` usa `readKitDecision` e reempilha a entrada-guarda.
+  4. `client/src/components/OperacaoPage.css`: estilo do botão travado e do aviso.
+  5. Removidos `PendingKitDecisionModal.jsx/.css` (sem uso desde `bbbaec3`).
+  6. `.github/workflows/deploy.yml`: CI passa a rodar `kitDecisionLock.test.mjs`.
+- **Validação real (servidor local isolado, `DATA_DIR` temporário, sem Appwrite, admin de teste):**
+  - Associação atleta 1 → trava ligada; VOLTAR À LISTA, menu EVENTOS e aba ATLETAS bloqueados com aviso; "voltar" do navegador (3x) mantém a ficha.
+  - Abertura direta da URL com pendência gravada reabre a ficha do atleta certo (nº 101 / CH101).
+  - ENTREGAR KIT solta a trava; VOLTAR À LISTA volta a funcionar. Atleta 2: associar → DESFAZER volta à lista e solta a trava.
+  - Servidor: `a1 | 101 | CH101 | ENTREGUE`, `a2` limpo `PENDENTE`.
+  - `node --test` (client utils): 16/16. `oxlint`: 0 erros (avisos pré-existentes). `vite build`: ok.
+- **Riscos/pendências:**
+  - Fechar/recarregar a aba só pode ser avisado pelo navegador, não impedido; a pendência gravada reabre a ficha na volta.
+  - Sem rede na hora de entregar/desfazer, a trava fica ligada até a ação ter sucesso (os botões continuam disponíveis).
+  - Crowley (fora do escopo, pré-existente): `server/server.js:35` tem senha padrão de admin hardcoded como fallback quando `ADMIN_PASSWORD` não está definido. Confirmar que produção define a variável e remover o fallback.
+- **Próximo passo:** homologação do Yuri no celular/tablet da operação (associar → tentar sair → entregar/desfazer).
+
 ## 2026-09-27 — Leitura de Kit (QR Code), Remoção do Popup de Decisão com Destaque para Entregar/Desfazer na Ficha, e Produtividade Dinâmica de Operadores (Fase A)
 
 - **Autor:** Antigravity / Equipe TONE (Tech Lead, Ana UI/UX, Kastiel Dev, Crowley Segurança, Teclide QA & Vitor Infra).

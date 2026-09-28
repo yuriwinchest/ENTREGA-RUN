@@ -9,6 +9,7 @@ import ValidarAtletaPage from './components/ValidarAtletaPage.jsx'
 import TutorialModal from './components/TutorialModal.jsx'
 import UsuariosPage from './components/UsuariosPage.jsx'
 import { apiFetchEvents, apiUpdateEvent } from './utils/eventsApi.js'
+import { readKitDecision } from './utils/kitDecisionLock.js'
 
 const MOCK_EVENT_IDS = [
   '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6',
@@ -221,8 +222,8 @@ export default function App() {
   // Sincroniza navegação via botões voltar/avançar do navegador
   useEffect(() => {
     function handlePopState() {
-      if (currentPage === 'operacao' && effectiveEventId && localStorage.getItem(`entregas_run_kit_decision_${effectiveEventId}`)) {
-        window.history.pushState({}, '', `/operacao/${effectiveEventId}`)
+      if (currentPage === 'operacao' && readKitDecision(effectiveEventId)) {
+        window.history.pushState({ kitDecisionGuard: true }, '', `/operacao/${effectiveEventId}`)
         return
       }
       const path = window.location.pathname

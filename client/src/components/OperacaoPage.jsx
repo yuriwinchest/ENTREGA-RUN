@@ -27,6 +27,12 @@ import {
 } from '../utils/athleteTable.js'
 import { getEspelhoConfig, publishEspelhoState } from '../utils/espelhoSync.js'
 import { getRecentDeliveries } from '../utils/deliveryFeed.js'
+import {
+  clearKitDecision,
+  findPendingKitDecisionAthlete,
+  readKitDecision,
+  writeKitDecision,
+} from '../utils/kitDecisionLock.js'
 import KitQrScannerModal from './KitQrScannerModal.jsx'
 import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
 import { apiFetchEventOperators } from '../utils/usersApi.js'
@@ -384,6 +390,9 @@ export default function OperacaoPage({
   const [detailInitialForm, setDetailInitialForm] = useState(null)
   const [detailFeedback, setDetailFeedback] = useState('')
   const [detailActionInProgress, setDetailActionInProgress] = useState(false)
+  // Após associar o kit, o operador só sai da ficha entregando ou desfazendo.
+  const [pendingKitDecision, setPendingKitDecision] = useState(() => readKitDecision(event?.id))
+  const [kitDecisionNotice, setKitDecisionNotice] = useState('')
   const detailActionLockRef = useRef(false)
   const deliveryLocksRef = useRef(new Set())
   const tableResponsiveRef = useRef(null)
@@ -1418,6 +1427,10 @@ export default function OperacaoPage({
 
   // Open Athlete Detail View
   function handleOpenAthleteDetail(athleteId) {
+    if (pendingKitDecision && selectedAthlete) {
+      warnPendingKitDecision()
+      return
+    }
     setKitSearch('')
     const athlete = athletes.find(
       (a) => String(a.numero) === String(athleteId) || String(a.id) === String(athleteId)
@@ -1543,9 +1556,7 @@ export default function OperacaoPage({
     }
     skipNextAthletesAutosaveRef.current = true
     setAthletes(nextAthletes)
-    try {
-      localStorage.removeItem(`entregas_run_kit_decision_${currentEvent.id}`)
-    } catch {}
+    lockKitDecision(updated)
 
     // Abre a tela/ficha do atleta na aba de entrega com os botões ENTREGAR KIT e DESFAZER
     setSelectedAthlete(updated)
@@ -1575,7 +1586,74 @@ export default function OperacaoPage({
   const executeCloseRef = useRef(executeCloseAthleteDetail)
   executeCloseRef.current = executeCloseAthleteDetail
 
+  function lockKitDecision(athlete) {
+    setPendingKitDecision(writeKitDecision(currentEvent.id, athlete))
+    setKitDecisionNotice('')
+  }
+
+  function releaseKitDecision() {
+    clearKitDecision(currentEvent.id)
+    setPendingKitDecision(null)
+    setKitDecisionNotice('')
+    // Consome a entrada-guarda para o "voltar" não acumular passos mortos.
+    if (window.history.state?.kitDecisionGuard) window.history.back()
+  }
+
+  function warnPendingKitDecision() {
+    setKitDecisionNotice('Kit associado: clique em ENTREGAR KIT ou em DESFAZER para liberar a tela e seguir para o próximo atleta.')
+  }
+
+  const kitDecisionHandlersRef = useRef({ release: releaseKitDecision, warn: warnPendingKitDecision })
+  kitDecisionHandlersRef.current = { release: releaseKitDecision, warn: warnPendingKitDecision }
+
+  // Reabre a ficha pendente após recarregar a página e solta a trava se a decisão
+  // já foi tomada em outro dispositivo. Só solta depois de ouvir o servidor, para
+  // não confiar num cache local desatualizado.
+  useEffect(() => {
+    if (!pendingKitDecision) return
+    const target = findPendingKitDecisionAthlete(pendingKitDecision, athletes)
+    if (!target) {
+      if (serverHydratedRef.current) kitDecisionHandlersRef.current.release()
+      return
+    }
+    if (selectedAthlete) return
+    const draft = buildAthleteDetailDraft(target)
+    setSelectedAthlete(target)
+    setDetailForm(draft)
+    setDetailInitialForm(draft)
+    setDetailSourceTab('atletas')
+    setActiveTab('entrega')
+    kitDecisionHandlersRef.current.warn()
+  }, [athletes, pendingKitDecision, selectedAthlete])
+
+  useEffect(() => {
+    if (!pendingKitDecision) return undefined
+    function blockUnload(e) {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    // O App.jsx devolve a URL; aqui só explicamos ao operador por que não saiu.
+    function explainBlockedBack() {
+      kitDecisionHandlersRef.current.warn()
+    }
+    // Entrada-guarda: garante que o primeiro "voltar" fique neste documento
+    // (e dispare popstate) mesmo quando a operação foi aberta direto pela URL.
+    if (!window.history.state?.kitDecisionGuard) {
+      window.history.pushState({ kitDecisionGuard: true }, '', window.location.href)
+    }
+    window.addEventListener('beforeunload', blockUnload)
+    window.addEventListener('popstate', explainBlockedBack)
+    return () => {
+      window.removeEventListener('beforeunload', blockUnload)
+      window.removeEventListener('popstate', explainBlockedBack)
+    }
+  }, [pendingKitDecision])
+
   function closeAthleteDetail({ force = false } = {}) {
+    if (pendingKitDecision && selectedAthlete) {
+      warnPendingKitDecision()
+      return false
+    }
     if (!force && detailHasChanges) {
       const shouldDiscard = window.confirm(
         'Existem alterações não salvas. Deseja descartar e voltar para a lista?'
@@ -1789,6 +1867,8 @@ export default function OperacaoPage({
         .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
         .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
     }
+
+    releaseKitDecision()
 
     // Se NÃO estava entregue (era apenas associação de kit pendente):
     // Volta direto para a lista de entrega na aba 'entrega' para escolher um novo atleta!
@@ -2038,6 +2118,7 @@ export default function OperacaoPage({
       const deliveredDraft = buildAthleteDetailDraft(deliveredAthlete)
       setDetailForm(deliveredDraft)
       setDetailInitialForm(deliveredDraft)
+      releaseKitDecision()
       setDetailFeedback('✓ Kit entregue com sucesso!')
       publishEspelho('ENTREGUE', deliveredAthlete)
       setKitSearch('')
@@ -2504,17 +2585,23 @@ export default function OperacaoPage({
 
                   <button
                     type="button"
-                    className="btn-detail-cancel"
+                    className={`btn-detail-cancel ${pendingKitDecision ? 'btn-detail-locked' : ''}`}
                     onClick={() => closeAthleteDetail()}
-                    title="Voltar à lista"
+                    aria-disabled={pendingKitDecision ? 'true' : undefined}
+                    title={pendingKitDecision ? 'Entregue o kit ou desfaça a associação para voltar à lista' : 'Voltar à lista'}
                   >
                     <CancelIcon />
                     <span>VOLTAR À LISTA</span>
                   </button>
                 </div>
 
+                {pendingKitDecision && kitDecisionNotice && (
+                  <div className="athlete-detail-feedback kit-decision-notice" role="alert">
+                    {kitDecisionNotice}
+                  </div>
+                )}
 
-                {detailFeedback && !detailHasChanges && (
+                {detailFeedback && !detailHasChanges && !(pendingKitDecision && kitDecisionNotice) && (
                   <div className="athlete-detail-feedback" role="status">
                     {detailFeedback}
                   </div>

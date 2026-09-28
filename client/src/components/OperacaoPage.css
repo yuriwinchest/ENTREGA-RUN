@@ -1774,6 +1774,15 @@
   color: #0c142c;
 }
 
+/* Trava da decisão de kit: continua clicável para explicar por que não sai */
+.btn-detail-cancel.btn-detail-locked,
+.btn-detail-cancel.btn-detail-locked:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
 /* Botão SALVAR ALTERAÇÕES / SALVO */
 .btn-detail-save {
   display: inline-flex;
@@ -1880,6 +1889,12 @@
   font-weight: 800;
   line-height: 1.45;
   text-align: center;
+}
+
+.athlete-detail-feedback.kit-decision-notice {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #b45309;
 }
 
 /* 2. Três Cards de Destaque */
