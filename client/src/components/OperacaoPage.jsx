@@ -37,6 +37,8 @@ import {
 } from '../utils/kitDecisionLock.js'
 import KitQrScannerModal from './KitQrScannerModal.jsx'
 import ExportColumnsModal from './ExportColumnsModal.jsx'
+import RetiradaPhotoCard from './RetiradaPhotoCard.jsx'
+import { deleteRetiradaPhoto } from '../utils/retiradaPhotoApi.js'
 import { projectTable } from '../utils/exportColumns.js'
 import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
 import { apiFetchEventOperators } from '../utils/usersApi.js'
@@ -1866,6 +1868,11 @@ export default function OperacaoPage({
       }
     }
 
+    // Entrega desfeita: a foto deixa de comprovar algo e não deve ficar guardada.
+    if (currentEvent?.id && athleteRef.id) {
+      deleteRetiradaPhoto(currentEvent.id, String(athleteRef.id)).catch(() => {})
+    }
+
     // Persistência no backend / volume
     if (currentEvent?.id && !skipServerSave) {
       saveAthletesInOrder(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet, { undoAthleteId: String(athleteRef.id || '') })
@@ -3071,6 +3078,15 @@ export default function OperacaoPage({
                     />
                   </div>
                 </div>
+
+                {currentEvent.id && selectedAthlete?.id && (
+                  <RetiradaPhotoCard
+                    key={`${currentEvent.id}:${selectedAthlete.id}`}
+                    eventId={currentEvent.id}
+                    athleteId={String(selectedAthlete.id)}
+                    athleteName={detailForm.nome}
+                  />
+                )}
 
                 {detailForm.status !== 'ENTREGUE' && !canAssociateAthleteKit(detailForm) && (
                   <div ref={detailBottomActionsRef} className="athlete-detail-bottom-actions">

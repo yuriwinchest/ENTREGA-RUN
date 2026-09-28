@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { apiFetchAthletes } from '../utils/eventsApi.js'
 import { getAgeHighlights, parseAthleteBirth } from '../utils/ageHighlights.js'
 import Sidebar from './Sidebar.jsx'
+import DailyDeliveryPanel from './DailyDeliveryPanel.jsx'
 import './EventDashboardPage.css'
 
 function HelpCircleIcon() {
@@ -604,6 +605,7 @@ export default function EventDashboardPage({
               <div className="dash-stat-card green"><div className="dash-stat-label"><PackageIcon /> Entregues</div><div className="dash-stat-val">{entreguesCount}</div><span className="dash-stat-sub">{entreguesPct}%</span></div>
               <div className="dash-stat-card coral"><div className="dash-stat-label"><PackageIcon /> Pendentes</div><div className="dash-stat-val">{faltantesCount}</div><span className="dash-stat-sub">{faltantesPct}%</span></div>
             </div>
+            <DailyDeliveryPanel event={event} athletes={athletes} pending={faltantesCount} />
             <DeliveryChart title="Kits por Modalidade" data={groupDeliveries(athletes, ['modalidade', 'distancia'])} />
             <div className="dash-two-charts">
               <DeliveryChart title="Camisetas" data={groupDeliveries(athletes, ['camiseta', 'tamanho', 'CAMISETA', 'TAMANHO'], sortShirtSizes)} />

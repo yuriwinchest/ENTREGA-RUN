@@ -1,5 +1,24 @@
 # Handoff
 
+## 2026-09-28 — Foto da retirada do kit (com exclusão automática) e painel de entregas por dia (Fase A)
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE.
+- **Pedido do Yuri (áudio):** (1) painel com gráfico de entregas por dia, meta sugerida por dia e quem entregou; (2) botão para fotografar quem retira o kit, foto visível ao abrir a ficha (prova contra "não peguei o kit"); (3) fotos não podem entupir o banco — ficam por tempo limitado. Decisões do Yuri: apagar **7 dias após a corrida**, guardar **no servidor em pasta separada**, foto **opcional**, painel no **Dashboard do evento**.
+- **Achados de infraestrutura (Vitor) [verificado]:** `scripts/deploy-vps.sh` compacta `data/` inteira a cada deploy e **nunca apaga** backups antigos; o deploy **não** atualiza o `docker-compose.yml` da VPS (build em worktree separado). Por isso as fotos ficam em `data/fotos-retirada/` (mesmo volume/permissão já existentes) e o backup passa a excluir essa pasta.
+- **Implementação:**
+  1. `server/retiradaPhotos.js` (novo) + testes unitários e HTTP: aceita só JPEG real (assinatura) ≤ 600 KB; nome do arquivo = hash do id do atleta (sem CPF/nome, sem `../`); gravação atômica; prazo = fim do 7º dia após a corrida (BRT; sem data → 7 dias após a foto); varredura remove vencidas e fotos de evento excluído.
+  2. `server/server.js`: `PUT/GET/DELETE /api/events/:eventId/athletes/:athleteId/photo` com login obrigatório, escopo do evento, limite de requisições, `Cache-Control: private, no-store`; varredura 30 s após subir e a cada hora (com trava), e ao excluir evento.
+  3. `scripts/deploy-vps.sh`: `tar --exclude='data/fotos-retirada'` no backup de dados.
+  4. `client/src/utils/retiradaPhotoApi.js` + `components/RetiradaPhotoCard.jsx/.css`: câmera traseira (`capture="environment"`), compressão no aparelho para 720 px / JPEG 0,72, miniatura, ampliar ao tocar, "tirada por … em …" e "apagada em …", aviso de uso (LGPD). Cartão na ficha, acima de ENTREGAR KIT / DESFAZER; DESFAZER apaga a foto.
+  5. `client/src/utils/dailyDeliveries.js` + testes e `components/DailyDeliveryPanel.jsx/.css` no Dashboard do evento → Entrega de Kit: meta sugerida (pendentes ÷ dias de hoje até a véspera da corrida, fuso de Brasília), dias restantes, entregues hoje (% da meta), colunas por dia com linha de meta, detalhe de quem entregou ao tocar e tabela por dia. Nomes de operador unificados sem diferenciar maiúsculas. Verde das colunas `#16a34a` (contraste ≥ 3:1 validado; o `#22c55e` existente dá 2,2:1).
+  6. `.github/workflows/deploy.yml`: CI roda os novos testes.
+- **Validação real (local, servidor isolado):** foto 1600×1200 → gravada 720×540 em `data/fotos-retirada/<evento>/<hash>.jpg`; ficha reaberta mostra a foto; ampliar funciona; DESFAZER removeu imagem e metadado; expiração exibida 12/10/2026 para corrida em 04/10. Painel: 125 pendentes / 6 dias = meta 21/dia; hoje 17 (81 %); detalhe por operador; sem estouro horizontal em 375 px. `node --test` client 33/33, server 13/13; `oxlint` 0 erros; `vite build` ok; `bash -n` do deploy ok.
+- **Riscos/pendências:**
+  - Backups de deploy em `/opt/entregas-run/backups` não têm rotação — crescem a cada deploy (pré-existente).
+  - Fotos anteriores a este deploy não existem; a funcionalidade vale a partir de agora.
+  - Câmera real do iPhone/Android não testada no emulador.
+- **Próximo passo:** homologação do Yuri: tirar foto numa entrega real, abrir a ficha em outro aparelho e ver a foto; conferir o painel diário no Dashboard do evento.
+
 ## 2026-09-28 — iPhone: zoom e "site para computador" quebrando a tela / fundo preto (Fase A)
 
 - **Autor:** Claude Code (Opus 5.5) / Equipe TONE.

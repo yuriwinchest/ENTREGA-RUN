@@ -9,6 +9,14 @@ import rateLimit from 'express-rate-limit'
 import { hashPassword, verifyPassword } from './passwords.js'
 import { eventMetrics, mergeActiveAthletes } from './athleteSync.js'
 import {
+  decodeJpegDataUrl,
+  deletePhoto,
+  photoRoot,
+  readPhoto,
+  savePhoto,
+  sweepExpiredPhotos,
+} from './retiradaPhotos.js'
+import {
   appwriteStatus,
   deleteEventFromAppwrite,
   fetchAthletesFromAppwrite,
@@ -770,6 +778,8 @@ app.delete('/api/events/:eventId', (req, res) => {
   inMemoryEvents = inMemoryEvents.filter((e) => e.id !== eventId)
 
   markEventDeleted(eventId)
+  // Evento excluído não mantém foto de atleta guardada.
+  runPhotoSweep()
 
   if (inMemoryEvents.length === initialLength) {
     return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
@@ -1116,6 +1126,102 @@ setInterval(() => {
     if (now - upload.updatedAt > 15 * 60 * 1000) athleteChunkUploads.delete(key)
   }
 }, 5 * 60 * 1000).unref?.()
+
+// ============================================================
+// FOTO DE RETIRADA (Crowley + Vitor): prova da retirada do kit. Só com login e
+// no escopo do evento; nunca pública nem cacheada; apagada 7 dias após a corrida.
+// ============================================================
+const PHOTO_ROOT = photoRoot(DATA_DIR)
+const photoLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { ok: false, message: 'Muitas requisições de foto. Aguarde um instante.' },
+})
+
+function resolvePhotoTarget(req, res) {
+  const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const athleteId = String(req.params.athleteId || '').trim().slice(0, 120)
+  const session = req.session
+  if (session.role !== 'ADMIN' && session.eventId && session.eventId !== 'all' && session.eventId !== safeEventId) {
+    res.status(403).json({ ok: false, message: 'Sem permissão para este evento.' })
+    return null
+  }
+  const event = inMemoryEvents.find((e) => e.id === safeEventId)
+  if (!event || !athleteId) {
+    res.status(404).json({ ok: false, message: 'Evento ou atleta não encontrado.' })
+    return null
+  }
+  return { event, eventId: safeEventId, athleteId }
+}
+
+app.put('/api/events/:eventId/athletes/:athleteId/photo', photoLimiter, requireAuth, (req, res) => {
+  const target = resolvePhotoTarget(req, res)
+  if (!target) return
+  const athletes = loadAthletesForEvent(target.eventId)?.athletes || []
+  if (!athletes.some((a) => String(a.id) === target.athleteId)) {
+    return res.status(404).json({ ok: false, message: 'Atleta não encontrado neste evento.' })
+  }
+  let buffer
+  try {
+    buffer = decodeJpegDataUrl(req.body?.image)
+  } catch (err) {
+    return res.status(400).json({ ok: false, message: err.message })
+  }
+  try {
+    const meta = savePhoto(PHOTO_ROOT, {
+      event: target.event,
+      athleteId: target.athleteId,
+      buffer,
+      takenBy: req.session.name || req.session.email,
+    })
+    res.json({ ok: true, takenAt: meta.takenAt, takenBy: meta.takenBy, expiresAt: meta.expiresAt })
+  } catch (err) {
+    console.error('[fotos] Falha ao salvar foto de retirada:', err?.message)
+    res.status(500).json({ ok: false, message: 'Não foi possível salvar a foto.' })
+  }
+})
+
+app.get('/api/events/:eventId/athletes/:athleteId/photo', photoLimiter, requireAuth, (req, res) => {
+  const target = resolvePhotoTarget(req, res)
+  if (!target) return
+  const photo = readPhoto(PHOTO_ROOT, target.eventId, target.athleteId)
+  if (!photo || (photo.meta.expiresAt && Date.now() >= photo.meta.expiresAt)) {
+    return res.status(404).json({ ok: false, message: 'Sem foto de retirada.' })
+  }
+  res.set({
+    'Content-Type': 'image/jpeg',
+    'Cache-Control': 'private, no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Foto-Tirada-Em': String(photo.meta.takenAt || ''),
+    'X-Foto-Expira-Em': String(photo.meta.expiresAt || ''),
+    'X-Foto-Por': encodeURIComponent(photo.meta.takenBy || ''),
+  })
+  res.send(photo.buffer)
+})
+
+app.delete('/api/events/:eventId/athletes/:athleteId/photo', photoLimiter, requireAuth, (req, res) => {
+  const target = resolvePhotoTarget(req, res)
+  if (!target) return
+  res.json({ ok: true, removed: deletePhoto(PHOTO_ROOT, target.eventId, target.athleteId) })
+})
+
+let photoSweepRunning = false
+function runPhotoSweep() {
+  if (photoSweepRunning) return
+  photoSweepRunning = true
+  try {
+    const removed = sweepExpiredPhotos(PHOTO_ROOT, inMemoryEvents)
+    if (removed > 0) console.log(`[fotos] ${removed} foto(s) de retirada vencida(s) apagada(s).`)
+  } catch (err) {
+    console.error('[fotos] Falha na limpeza de fotos vencidas:', err?.message)
+  } finally {
+    photoSweepRunning = false
+  }
+}
+setTimeout(runPhotoSweep, 30 * 1000).unref?.()
+setInterval(runPhotoSweep, 60 * 60 * 1000).unref?.()
 
 // PUT /api/events/:eventId/athletes/:numero/status — Atualiza status da entrega
 app.put('/api/events/:eventId/athletes/:numero/status', express.json(), (req, res) => {

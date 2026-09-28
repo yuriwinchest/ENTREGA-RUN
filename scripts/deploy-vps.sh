@@ -102,7 +102,9 @@ docker tag "$PREVIOUS_IMAGE" "$ROLLBACK_IMAGE"
   exit 1
 }
 DATA_BACKUP="$BACKUP_DIR/data-before-$SHORT_SHA-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
-tar -C "$APP_DIR" -czf "$DATA_BACKUP" data
+# Fotos de retirada ficam fora do backup: são apagadas 7 dias após a corrida e
+# não podem sobreviver em cópias antigas (LGPD) nem inflar o disco a cada deploy.
+tar -C "$APP_DIR" --exclude='data/fotos-retirada' -czf "$DATA_BACKUP" data
 tar -tzf "$DATA_BACKUP" >/dev/null
 verify_backup_hashes() {
   for file in "$APP_DIR/data/users.json" "$APP_DIR/data/events.json" "$APP_DIR"/data/athletes_*.json; do
