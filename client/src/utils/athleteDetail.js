@@ -105,9 +105,9 @@ export function normalizeAthleteDetail(original = {}, draft = {}) {
   }
 }
 
-function editableSnapshot(value = {}) {
+function editableSnapshot(value = {}, ignore = []) {
   return {
-    fields: EDITABLE_DETAIL_FIELDS.map((field) => {
+    fields: EDITABLE_DETAIL_FIELDS.filter((field) => !ignore.includes(field)).map((field) => {
       const v = text(value[field])
       if (field === 'sexo') return normalizeSexo(v)
       return v
@@ -118,9 +118,15 @@ function editableSnapshot(value = {}) {
   }
 }
 
-export function hasAthleteDetailChanges(initialDraft, currentDraft) {
+export function hasAthleteDetailChanges(initialDraft, currentDraft, { ignore = [] } = {}) {
   if (!initialDraft || !currentDraft) return false
-  return JSON.stringify(editableSnapshot(initialDraft)) !== JSON.stringify(editableSnapshot(currentDraft))
+  return JSON.stringify(editableSnapshot(initialDraft, ignore)) !== JSON.stringify(editableSnapshot(currentDraft, ignore))
+}
+
+// "Retirado por" faz parte da própria entrega (ENTREGAR KIT já grava o nome),
+// então sozinho não exige salvar antes; só cadastro alterado bloqueia a entrega.
+export function hasCadastralChanges(initialDraft, currentDraft) {
+  return hasAthleteDetailChanges(initialDraft, currentDraft, { ignore: ['entreguePara'] })
 }
 
 export function matchesAthleteReference(record, reference) {

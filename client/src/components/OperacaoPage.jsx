@@ -17,6 +17,7 @@ import {
   buildAthleteDetailDraft,
   canAssociateAthleteKit,
   hasAthleteDetailChanges,
+  hasCadastralChanges,
   matchesAthleteReference,
   normalizeAthleteDetail,
   normalizeSexo,
@@ -1806,10 +1807,13 @@ export default function OperacaoPage({
     }
   }
 
-  // Fluxo definido pelo PO: ao editar qualquer campo, a entrega fica
-  // bloqueada até salvar; sem alterações pendentes, a entrega é liberada.
-  const detailHasPendingEdits = detailHasChanges
-  const deliverBlockedByEdits = canEditAthlete && detailHasPendingEdits
+  // Fluxo definido pelo PO: cadastro editado bloqueia a entrega até salvar.
+  // Só o "Retirado por" alterado não bloqueia: ENTREGAR KIT já grava o nome.
+  const detailHasCadastralEdits = useMemo(
+    () => hasCadastralChanges(detailInitialForm, detailForm),
+    [detailInitialForm, detailForm]
+  )
+  const deliverBlockedByEdits = canEditAthlete && detailHasCadastralEdits
 
   // Desfazer Associação / Entrega: limpa completamente chip, qrCode, entrega e status
   function handleUndoAssociation({ skipServerSave = false } = {}) {
@@ -2551,7 +2555,7 @@ export default function OperacaoPage({
                     </>
                   ) : (
                     <>
-                      {canEditAthlete && detailHasChanges && (
+                      {canEditAthlete && detailHasCadastralEdits && (
                         <button
                           type="button"
                           className="btn-detail-save btn-detail-save-active"
@@ -3106,7 +3110,7 @@ export default function OperacaoPage({
 
                 {detailForm.status !== 'ENTREGUE' && !canAssociateAthleteKit(detailForm) && (
                   <div ref={detailBottomActionsRef} className="athlete-detail-bottom-actions">
-                    {canEditAthlete && detailHasChanges && (
+                    {canEditAthlete && detailHasCadastralEdits && (
                       <button
                         type="button"
                         className="btn-detail-save btn-detail-save-active"

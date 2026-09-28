@@ -1,5 +1,12 @@
 # Handoff
 
+## 2026-09-28 — "Retirado por" sozinho não exige salvar antes de entregar (Fase A)
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE. Jev ativo: `injected`, Kastiel 90 %, `nova_feature` 64 %, risco de produção 15 %, severidade 0,10 (574 ms).
+- **Pedido do Yuri:** aprovou a sugestão — quando a única alteração é "Entregue para / Retirado por", ENTREGAR KIT fica liberado sem o passo SALVAR.
+- **Implementação:** `client/src/utils/athleteDetail.js` — `hasAthleteDetailChanges(..., { ignore })` e `hasCadastralChanges` (ignora `entreguePara`); `OperacaoPage.jsx` — `deliverBlockedByEdits` e os botões SALVAR (topo e fim) usam só alterações de cadastro. `detailHasChanges` continua valendo para o aviso de "alterações não salvas" ao sair. Teste novo `athleteDetail.test.mjs` no CI.
+- **Validação real (build de produção local, 375×812):** nome alterado → SALVAR aparece e ENTREGAR bloqueia; só "Retirado por" = "MARIA TERCEIRA" → ENTREGAR liberado, entrega feita; servidor gravou `ENTREGUE`, `entreguePara: MARIA TERCEIRA`, nome intacto. `node --test` 36/36, `oxlint` 0 erros, `vite build` ok.
+
 ## 2026-09-28 — Ficha abre no topo e SALVAR ALTERAÇÕES também embaixo (Fase A) — primeiro pedido com Jev ativo no Claude Code
 
 - **Autor:** Claude Code (Opus 5.5) / Equipe TONE.

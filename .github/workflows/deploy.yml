@@ -29,7 +29,7 @@ jobs:
         working-directory: client
         run: |
           npm ci
-          node --test src/utils/deliveryFeed.test.mjs src/utils/kitDecisionLock.test.mjs src/utils/mobileKeyboard.test.mjs src/utils/qrFrame.test.mjs src/utils/exportColumns.test.mjs src/utils/dailyDeliveries.test.mjs src/utils/cssIntegrity.test.mjs
+          node --test src/utils/deliveryFeed.test.mjs src/utils/kitDecisionLock.test.mjs src/utils/mobileKeyboard.test.mjs src/utils/qrFrame.test.mjs src/utils/exportColumns.test.mjs src/utils/dailyDeliveries.test.mjs src/utils/cssIntegrity.test.mjs src/utils/athleteDetail.test.mjs
           npm run lint
           npm run build
 
