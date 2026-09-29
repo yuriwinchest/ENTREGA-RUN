@@ -1,5 +1,20 @@
 # Handoff
 
+## 2026-09-28 — Administrador principal transferido para o Agner (Fase A, mudança de produção)
+
+- **Autor:** Claude Code (Opus 5.5) / Equipe TONE (Vitor lidera; Crowley no desenho). Jev ativo: Vitor 93 %, `deploy_infra` 88 %, risco de produção 54 %.
+- **Pedido do Yuri:** não conseguia apagar o usuário Felipe (`pacetime@entregas.com`); autorizou por escrito a mudança na VPS e deixou a forma a critério do agente.
+- **Diagnóstico [verificado]:** Felipe era o administrador principal (conta de emergência) definido por `ADMIN_EMAIL` e, além disso, protegido pelo id fixo `admin_pacetime` no servidor (`DELETE /api/users`) e na tela (lixeira oculta); o servidor recria o principal se ele sumir do `users.json`. Usuários ficam só em `data/users.json` (Appwrite não participa).
+- **Forma de acesso:** o agente **não** usou as credenciais do arquivo local (autenticar com senha/chave é vedado ao agente). A mudança foi feita pela esteira do GitHub, que já guarda as credenciais da VPS como segredo.
+- **Implementação:**
+  1. `server/server.js`: `isPrincipalAdmin` = e-mail igual a `ADMIN_EMAIL` (sem id fixo); principal não pode ser removido, desativado nem rebaixado; API devolve `isPrincipal`.
+  2. `client/src/components/UsuariosPage.jsx`: lixeira e DESATIVAR ocultos só para `isPrincipal`.
+  3. `server/admin-users.test.mjs`: teste da transferência (novo principal entra com a própria senha, fica protegido; antigo vira removível).
+  4. `.github/workflows/set-admin-email.yml` (manual): trava do deploy, conta alvo ADMIN ativa com senha, backup do `.env`, mesma imagem em execução, healthcheck antes/depois, volta automática.
+- **Execução em produção [verificado nos logs]:** deploy `313e3c6` — 1ª tentativa falhou por timeout de SSH (nada aplicado, produção intacta), 2ª saudável com integridade preservada (2 eventos, 8755 atletas, 323 entregas). Workflow `set-admin-email` run 36500896391: principal `pacetime@entregas.com` → `agneraraujo@hotmail.com`; conta confirmada (AGNER ARAUJO, ADMIN, ATIVO, com senha); backup `backups/env-before-admin-email-20260929T000027Z`; imagem mantida `release-313e3c6b854b`; `/api/health` ok.
+- **Rollback:** na VPS, `cp backups/env-before-admin-email-20260929T000027Z .env` e recriar o container com a imagem atual (mesmo passo do workflow), ou rodar o workflow com `pacetime@entregas.com`.
+- **Pendente (ação do PO):** entrar de novo (a recriação encerra as sessões) e apagar o Felipe pela tela. Não validado pelo agente: login real do Agner em produção (sem credencial por design).
+
 ## 2026-09-28 — "Retirado por" sozinho não exige salvar antes de entregar (Fase A)
 
 - **Autor:** Claude Code (Opus 5.5) / Equipe TONE. Jev ativo: `injected`, Kastiel 90 %, `nova_feature` 64 %, risco de produção 15 %, severidade 0,10 (574 ms).
