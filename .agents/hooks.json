@@ -1,11 +1,1 @@
-{
-  "jev-system-one-router": {
-    "PreInvocation": [
-      {
-        "type": "command",
-        "command": "node \"./scripts/jev-pre-invocation-hook.cjs\"",
-        "timeout": 20
-      }
-    ]
-  }
-}
+{}

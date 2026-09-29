@@ -43,6 +43,15 @@ jobs:
       - name: Validar Script de Deploy
         run: bash -n scripts/deploy-vps.sh
 
+      - name: Conferir tamanho do HANDOFF (aviso, nao bloqueia)
+        run: |
+          linhas=$(wc -l < HANDOFF.md)
+          if [ "$linhas" -gt 150 ]; then
+            echo "::warning::HANDOFF.md tem $linhas linhas (limite 150). Mova entradas antigas para docs/handoff/."
+          else
+            echo "HANDOFF.md com $linhas linhas (limite 150)."
+          fi
+
       - name: Validar imagem com arquivos de origem restritos
         run: |
           chmod -R go-rwx server
