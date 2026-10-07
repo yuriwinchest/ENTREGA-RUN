@@ -2351,3 +2351,4 @@
 ## Linhas movidas de "Últimas entregas" em 2026-10-07
 
 - 2026-09-28 · Claude Code · Trava da ficha após associar kit, volta à busca após entregar, login em Eventos, correções de responsividade no iPhone.
+- 2026-09-28 · Claude Code · Exportar planilha escolhendo colunas/ordem; leitor de QR sem travar a digitação.

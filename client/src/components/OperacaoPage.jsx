@@ -494,7 +494,6 @@ export default function OperacaoPage({
       return null
     }
   })
-  const isAssociationEvent = Array.isArray(kits) && kits.length > 0
 
   useEffect(() => {
     if (!entregaNotice) return undefined
@@ -2156,13 +2155,9 @@ export default function OperacaoPage({
       espelhoClearedForRef.current = String(deliveredAthlete.id ?? deliveredAthlete.numero ?? '')
       publishEspelho('LIVRE')
       setKitSearch('')
-      // Evento com planilha de kits (associação): o operador volta direto para a busca.
-      if (isAssociationEvent) {
-        executeCloseAthleteDetail({ keepEspelho: true })
-        setEntregaNotice(`✓ Kit entregue para ${deliveredAthlete.nome || 'o atleta'} (Nº ${deliveredAthlete.numero}). Busque o próximo atleta.`)
-        return deliveredAthlete
-      }
-      setDetailFeedback('✓ Kit entregue com sucesso!')
+      // Em todo evento o operador volta direto para a busca limpa e já atende o próximo.
+      executeCloseAthleteDetail({ keepEspelho: true })
+      setEntregaNotice(`✓ Kit entregue para ${deliveredAthlete.nome || 'o atleta'} (Nº ${deliveredAthlete.numero}). Busque o próximo atleta.`)
       return deliveredAthlete
     } finally {
       window.setTimeout(() => {

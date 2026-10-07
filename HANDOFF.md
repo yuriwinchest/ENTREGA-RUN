@@ -11,10 +11,10 @@
 ## Última sessão
 
 - **Quando / quem:** 2026-10-07 · Claude Code (Opus 5.5).
-- **O que fez:** ao clicar ENTREGAR KIT, o espelho vai para LIVRE ("GUICHÊ DISPONÍVEL") na hora e só volta a mostrar dados quando o operador abre o próximo atleta (`client/src/components/OperacaoPage.jsx`).
-- **Por quê:** o espelho continuava exibindo o atleta entregue até o próximo clique, confundindo quem olha a tela; a sincronização automática da ficha também republicava o atleta entregue.
-- **Validação real:** servidor local + build de produção: abrir atleta → ATENDENDO com dados; ENTREGAR → LIVRE imediato e ainda LIVRE 1 s depois; abrir o próximo → ATENDENDO com o próximo; tela do espelho exibiu "LIVRE · AGUARDANDO LEITURA · GUICHÊ DISPONÍVEL". `node --test` 36/36, lint 0, build ok.
-- **Próximo passo:** Yuri homologar com o espelho aberto numa segunda tela.
+- **O que fez:** depois de ENTREGAR KIT a tela volta sempre para a busca limpa, com aviso "Kit entregue para… Busque o próximo atleta", em **todo** evento (antes só em evento com planilha de kits); espelho segue limpando para LIVRE (`client/src/components/OperacaoPage.jsx`).
+- **Por quê:** na Corrida da Renascença (sem planilha de kits) a ficha ficava aberta após a entrega; a regra de volta estava restrita a eventos de associação.
+- **Validação real:** evento local sem kits: abrir atleta → ENTREGAR → ficha fecha, busca vazia, aviso exibido, espelho LIVRE. `node --test` 36/36, lint 0, build ok.
+- **Próximo passo:** Yuri homologar na Renascença.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -34,6 +34,7 @@
 
 ## Últimas entregas (mais recente primeiro)
 
+- 2026-10-07 · Claude Code · Volta à busca limpa após entregar em todo evento (não só com planilha de kits).
 - 2026-10-07 · Claude Code · Espelho limpa (LIVRE) ao entregar o kit e só mostra o próximo ao abri-lo.
 - 2026-09-28 · Claude Code · Jev desligado; HANDOFF enxuto + arquivo em `docs/handoff/`.
 - 2026-09-28 · Claude Code · Admin principal só por `ADMIN_EMAIL`; troca para o Agner via workflow (`313e3c6`).
@@ -41,4 +42,3 @@
 - 2026-09-28 · Claude Code · Jev integrado ao Claude Code e correção do encerramento no Windows (`1908645`) — depois desligado por não gerar economia.
 - 2026-09-28 · Claude Code · CSS quebrado acima de 768px (chave faltando), foto em produção (CSP `blob:`), câmera no "Retirado por" (`8fa7be0`).
 - 2026-09-28 · Claude Code · Foto da retirada com exclusão automática e painel de entregas por dia (`cee82fe`).
-- 2026-09-28 · Claude Code · Exportar planilha escolhendo colunas/ordem; leitor de QR sem travar a digitação.
