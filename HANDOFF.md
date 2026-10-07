@@ -10,10 +10,11 @@
 
 ## Última sessão
 
-- **Quando / quem:** 2026-09-28 · Claude Code (Opus 5.5).
-- **O que fez:** desligou o Jev em todos os agentes; enxugou este arquivo (71 mil → ~2 mil tokens) e moveu o histórico para `docs/handoff/`; regras de sessão por assunto no `AGENTS.md`.
-- **Por quê:** medição real mostrou que o Jev só classifica (não desvia trabalho do modelo caro), custa ~1.100 tokens e ~1 s por pedido, sem economia; e o HANDOFF gigante era relido inteiro a cada sessão nova.
-- **Próximo passo:** o Yuri apaga o usuário Felipe pela tela (Usuários → lixeira) após entrar de novo; próxima demanda em sessão nova.
+- **Quando / quem:** 2026-10-07 · Claude Code (Opus 5.5).
+- **O que fez:** ao clicar ENTREGAR KIT, o espelho vai para LIVRE ("GUICHÊ DISPONÍVEL") na hora e só volta a mostrar dados quando o operador abre o próximo atleta (`client/src/components/OperacaoPage.jsx`).
+- **Por quê:** o espelho continuava exibindo o atleta entregue até o próximo clique, confundindo quem olha a tela; a sincronização automática da ficha também republicava o atleta entregue.
+- **Validação real:** servidor local + build de produção: abrir atleta → ATENDENDO com dados; ENTREGAR → LIVRE imediato e ainda LIVRE 1 s depois; abrir o próximo → ATENDENDO com o próximo; tela do espelho exibiu "LIVRE · AGUARDANDO LEITURA · GUICHÊ DISPONÍVEL". `node --test` 36/36, lint 0, build ok.
+- **Próximo passo:** Yuri homologar com o espelho aberto numa segunda tela.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -33,6 +34,7 @@
 
 ## Últimas entregas (mais recente primeiro)
 
+- 2026-10-07 · Claude Code · Espelho limpa (LIVRE) ao entregar o kit e só mostra o próximo ao abri-lo.
 - 2026-09-28 · Claude Code · Jev desligado; HANDOFF enxuto + arquivo em `docs/handoff/`.
 - 2026-09-28 · Claude Code · Admin principal só por `ADMIN_EMAIL`; troca para o Agner via workflow (`313e3c6`).
 - 2026-09-28 · Claude Code · "Retirado por" sozinho não exige salvar (`da1c244`); ficha abre no topo + SALVAR embaixo (`857e38c`).
@@ -40,4 +42,3 @@
 - 2026-09-28 · Claude Code · CSS quebrado acima de 768px (chave faltando), foto em produção (CSP `blob:`), câmera no "Retirado por" (`8fa7be0`).
 - 2026-09-28 · Claude Code · Foto da retirada com exclusão automática e painel de entregas por dia (`cee82fe`).
 - 2026-09-28 · Claude Code · Exportar planilha escolhendo colunas/ordem; leitor de QR sem travar a digitação.
-- 2026-09-28 · Claude Code · Trava da ficha após associar kit, volta à busca após entregar, login em Eventos, correções de responsividade no iPhone.

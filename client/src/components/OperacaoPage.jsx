@@ -1418,9 +1418,15 @@ export default function OperacaoPage({
     }
   }, [currentEvent?.id, currentEvent?.name])
 
+  // Atleta que acabou de receber o kit: o espelho já foi limpo e não pode voltar
+  // a exibi-lo pela sincronização abaixo enquanto a ficha segue aberta.
+  const espelhoClearedForRef = useRef(null)
+
   // Sincronização automática contínua em tempo real com o Espelho (SSE) durante digitação/alteração
   useEffect(() => {
     if (!detailForm || !currentEvent?.id) return
+    const detailKey = String(detailForm.id ?? detailForm.numero ?? '')
+    if (detailForm.status === 'ENTREGUE' && espelhoClearedForRef.current === detailKey) return
     const timer = setTimeout(() => {
       publishEspelho(detailForm.status === 'ENTREGUE' ? 'ENTREGUE' : 'ATENDENDO', detailForm)
     }, 50) // 50ms debounce para sincronização instantânea na digitação sem sobrecarregar rede
@@ -1433,6 +1439,7 @@ export default function OperacaoPage({
       warnPendingKitDecision()
       return
     }
+    espelhoClearedForRef.current = null
     setKitSearch('')
     setEntregaNotice('')
     const athlete = athletes.find(
@@ -2102,13 +2109,6 @@ export default function OperacaoPage({
       deliveryLocksRef.current.delete(deliveryKey)
     }, 0)
 
-    publishEspelho('ENTREGUE', {
-      ...athlete,
-      camiseta: newAudit.camiseta,
-      kit: newAudit.kit,
-      modalidade: newAudit.modalidade,
-    })
-
     return newAudit
   }
 
@@ -2151,10 +2151,12 @@ export default function OperacaoPage({
       setDetailForm(deliveredDraft)
       setDetailInitialForm(deliveredDraft)
       releaseKitDecision()
-      publishEspelho('ENTREGUE', deliveredAthlete)
+      // Kit entregue: o espelho volta a "disponível" na hora; só mostra dados de
+      // novo quando o operador abrir o próximo atleta.
+      espelhoClearedForRef.current = String(deliveredAthlete.id ?? deliveredAthlete.numero ?? '')
+      publishEspelho('LIVRE')
       setKitSearch('')
-      // Evento com planilha de kits (associação): o operador volta direto para a
-      // busca e já atende o próximo; o espelho segue mostrando "entregue".
+      // Evento com planilha de kits (associação): o operador volta direto para a busca.
       if (isAssociationEvent) {
         executeCloseAthleteDetail({ keepEspelho: true })
         setEntregaNotice(`✓ Kit entregue para ${deliveredAthlete.nome || 'o atleta'} (Nº ${deliveredAthlete.numero}). Busque o próximo atleta.`)

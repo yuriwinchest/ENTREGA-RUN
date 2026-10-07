@@ -2347,3 +2347,7 @@
   - `npm run lint --prefix client`: 0 erros e 0 avisos.
   - `npm run build --prefix client`: 127 módulos construídos em 1.17s.
 - **Próximo passo**: Yuri homologar as telas e rotacionar a chave no dashboard da TypeSafe se desejar.
+
+## Linhas movidas de "Últimas entregas" em 2026-10-07
+
+- 2026-09-28 · Claude Code · Trava da ficha após associar kit, volta à busca após entregar, login em Eventos, correções de responsividade no iPhone.
