@@ -168,6 +168,13 @@ app.use(
 )
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || true }))
 
+// Desabilita cache HTTP para todas as rotas de API — garante sincronização em tempo real
+app.use('/api', (_req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  res.set('Pragma', 'no-cache')
+  next()
+})
+
 // ============================================================
 // ESPELHO PÚBLICO (segunda tela / QR Code)
 // Quadro de avisos em memória por evento com persistência de configuração:
@@ -1289,7 +1296,61 @@ app.put('/api/events/:eventId/athletes/:numero/status', express.json(), (req, re
   res.json({ ok: true, athlete: data.athletes[idx] })
 })
 
-// GET /api/events/:eventId/operators — Lista operadores vinculados ao evento (requer autenticação)
+// ============================================================
+// CONTAGEM EM TEMPO REAL DE ENTREGAS POR OPERADOR / USUÁRIO
+// Permite que o Super Admin acompanhe a produtividade de cada operador
+// ao vivo nas telas de Usuários e Dashboards.
+// ============================================================
+function getUserDeliveryCounts(restrictedEventId = null) {
+  const countsByNormalizedName = new Map()
+  const eventsToScan = restrictedEventId && restrictedEventId !== 'all'
+    ? inMemoryEvents.filter((e) => e.id === restrictedEventId)
+    : inMemoryEvents
+
+  for (const event of eventsToScan) {
+    const data = loadAthletesForEvent(event.id)
+    if (data && Array.isArray(data.athletes)) {
+      for (const athlete of data.athletes) {
+        if (athlete && String(athlete.status || '').toUpperCase() === 'ENTREGUE') {
+          const raw = String(athlete.entreguePor || '').trim().toLowerCase()
+          if (raw) {
+            countsByNormalizedName.set(raw, (countsByNormalizedName.get(raw) || 0) + 1)
+          }
+        }
+      }
+    }
+  }
+  return countsByNormalizedName
+}
+
+function resolveUserDeliveries(user, countsMap) {
+  if (!user || !countsMap) return 0
+  const normName = String(user.name || '').trim().toLowerCase()
+  const normEmail = String(user.email || '').trim().toLowerCase()
+  const normId = String(user.id || '').trim().toLowerCase()
+
+  let count = 0
+  if (normName && countsMap.has(normName)) {
+    count += countsMap.get(normName)
+  }
+  if (normEmail && normEmail !== normName && countsMap.has(normEmail)) {
+    count += countsMap.get(normEmail)
+  }
+  if (normId && normId !== normName && normId !== normEmail && countsMap.has(normId)) {
+    count += countsMap.get(normId)
+  }
+
+  if (count === 0 && normName) {
+    for (const [key, val] of countsMap.entries()) {
+      if (key && (key === normName || key.startsWith(normName) || normName.startsWith(key))) {
+        count += val
+      }
+    }
+  }
+  return count
+}
+
+// GET /api/events/:eventId/operators — Lista operadores vinculados ao evento com entregas reais
 app.get('/api/events/:eventId/operators', requireAuth, (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
   const visibleUsers = inMemoryUsers.filter((user) =>
@@ -1298,7 +1359,14 @@ app.get('/api/events/:eventId/operators', requireAuth, (req, res) => {
     user.role === 'ADMIN' ||
     (user.role === 'SUB_ADMIN' && (user.eventId === 'all' || user.eventId === safeEventId))
   )
-  res.json({ ok: true, operators: visibleUsers.map(sanitizeUser) })
+  const countsMap = getUserDeliveryCounts(safeEventId)
+  res.json({
+    ok: true,
+    operators: visibleUsers.map((u) => ({
+      ...sanitizeUser(u),
+      deliveries: resolveUserDeliveries(u, countsMap),
+    })),
+  })
 })
 
 // ============================================================
@@ -1443,12 +1511,18 @@ function writeUsersToDisk(users) {
   return true
 }
 
-// GET /api/users — Lista usuários cadastrados (somente ADMIN ou SUB_ADMIN, sem senhas)
+// GET /api/users — Lista usuários cadastrados com total de entregas em tempo real
 app.get('/api/users', requireAdminOrSubAdmin, (req, res) => {
-  const visibleUsers = req.session.role === 'SUB_ADMIN' && req.session.eventId !== 'all'
+  const isRestrictedSubAdmin = req.session.role === 'SUB_ADMIN' && req.session.eventId !== 'all'
+  const visibleUsers = isRestrictedSubAdmin
     ? inMemoryUsers.filter((user) => user.eventId === req.session.eventId)
     : inMemoryUsers
-  res.json({ ok: true, users: visibleUsers.map(publicUser) })
+  const countsMap = getUserDeliveryCounts(isRestrictedSubAdmin ? req.session.eventId : null)
+  const usersWithDeliveries = visibleUsers.map((u) => ({
+    ...publicUser(u),
+    deliveries: resolveUserDeliveries(u, countsMap),
+  }))
+  res.json({ ok: true, users: usersWithDeliveries })
 })
 
 // POST /api/users — Cria usuário com a senha escolhida pelo administrador.

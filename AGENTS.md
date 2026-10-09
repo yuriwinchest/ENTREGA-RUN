@@ -27,3 +27,16 @@ devem ser lidos na ordem que o projeto determinar.
 - `HANDOFF.md` com no máximo 150 linhas; detalhe técnico vai para `docs/` com link.
 - Jev (TypeSafe) está desligado; não reativar sem pedido do PO.
 
+<!-- VPS-HOSTINGER-MCP:INICIO (bloco gerenciado; fonte: D:\Projetos\VPS-HOSTINGER-MCP.md; editar lá e rodar D:\Projetos\aplicar-aviso-vps.ps1) -->
+## Infraestrutura: VPS Hostinger e MCP (vale para todos os projetos do Yuri)
+
+- Todos os projetos de `D:\Projetos\Pessoal` e `D:\Projetos\Clientes` estão ou serão hospedados na **mesma VPS Hostinger** do Yuri. Antes de propor outro provedor ou servidor, considerar essa VPS.
+- Existe integração **MCP** com a API da Hostinger, configurada em 2026-10-02 no **Claude Code** (escopo de usuário: `%USERPROFILE%\.claude.json`), pacote `@hostinger/mcp@2.7.0` fixado. Servidores: `hostinger-vps`, `hostinger-dns`, `hostinger-domains`, `hostinger-hosting`, `hostinger-billing`, `hostinger-reach`, `hostinger-ecommerce`. Cada um expõe `search` (acha a operação da API), `execute` e `multi-execute`.
+- Outros agentes (Codex, Gemini, Antigravity, Cline...) só têm a integração se ela estiver na configuração de MCP deles. Conferir antes de afirmar que existe; se faltar, avisar o Yuri. Não pedir, copiar nem repetir o token.
+- O token fica só na configuração local do agente. **Nunca** em Git, `.env` versionado, chat, log, print, memória ou HANDOFF.
+- Identificar a VPS consultando o MCP (operação `vps_virtual-machines_list`), não por nome ou IP gravado em arquivo.
+- Regras de uso:
+  - Ler e listar (VPS, métricas, DNS, domínios, faturas): livre.
+  - Alterar (reiniciar, reinstalar, recriar, firewall, chave SSH, snapshot, backup, restore, DNS, domínio): passa pelo Vitor (SRE) e só roda depois de um "sim" explícito do Yuri no chat, com rollback escrito. Vários projetos dividem a VPS: reiniciar derruba todos.
+  - Comprar, renovar, pagar ou cancelar (billing, purchase): **proibido** ao agente; o Yuri faz.
+<!-- VPS-HOSTINGER-MCP:FIM -->

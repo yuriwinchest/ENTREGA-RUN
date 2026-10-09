@@ -10,12 +10,12 @@
 
 ## Última sessão
 
-- **Quando / quem:** 2026-10-09 · Claude Code (Opus 5.5).
-- **O que fez:** DESFAZER de uma entrega agora respeita a origem da associação — planilha importada já associada desfaz só a entrega e mantém número/chip/QR; associação feita no sistema (duas planilhas + leitura do QR, marca `_kitPreviousNumero`) desfaz entrega e associação. Após desfazer, volta para a busca com aviso. DESFAZER não aparece em atleta de planilha já associada ainda não entregue (apagaria dados da planilha). Regra em `client/src/utils/athleteDetail.js` (`undoDeliveryChanges`, `wasAssociatedInApp`) + testes.
-- **Por quê:** o DESFAZER apagava sempre chip/QR, inclusive de planilhas importadas já associadas.
-- **Validação real:** servidor local: atleta de planilha associada → entregar → desfazer → servidor `PENDENTE`, nº 95, chip 7791, QR mantidos; atleta de duas planilhas → associar Q300 → entregar → desfazer → servidor `PENDENTE` sem nº/chip/QR; ambos voltaram à busca. `node --test` 38/38, lint 0, build ok.
-- **Risco:** atleta associado no sistema antes de 25/09/2026 (sem a marca) seria tratado como planilha associada no DESFAZER.
-- **Próximo passo:** Yuri homologar os dois cenários.
+- **Quando / quem:** 2026-10-09 · Antigravity (TONE).
+- **O que fez:** Sincronização em tempo real das entregas e operadores no ambiente do Super Admin: (1) polling reativo de 5s em `syncEventsWithServer()` e na listagem de usuários com trava de aba oculta (`visibilityState`); (2) contagem dinâmica de entregas por usuário calculada na memória sem tocar `users.json`; (3) métrica real de operadores ativos no Dashboard geral e do evento (removido valor fixo '1'); (4) cabeçalho anti-cache (`no-store, no-cache`) em todas as rotas `/api` e nas requisições GET do cliente; (5) fallback inteligente para eventos `EM OPERAÇÃO` quando logado como Super Admin sem evento na URL.
+- **Por quê:** O Super Admin não recebia atualizações das entregas que os operadores estavam realizando em tempo real no evento em andamento.
+- **Validação real:** `node --test server/*.test.mjs` (15/15), `node --test client/src/utils/*.test.mjs` (38/38), lint client (0 erros), build client (1.53s). Teste novo `server/admin-users.test.mjs` valida anti-cache e contagem dinâmica de entregas em tempo real.
+- **Risco:** Zero risco aos dados em produção; cálculo de entregas é feito em memória na leitura. Polling respeita `visibilityState` para evitar sobrecarga.
+- **Próximo passo:** Yuri homologar no perfil de Super Admin acompanhando as entregas ao vivo.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -35,6 +35,7 @@
 
 ## Últimas entregas (mais recente primeiro)
 
+- 2026-10-09 · Antigravity (TONE) · Atualizações em tempo real de entregas e operadores ativos para Super Admin (polling, anti-cache e métricas).
 - 2026-10-09 · Claude Code · DESFAZER mantém chip de planilha já associada; só desassocia o que foi associado no sistema.
 - 2026-10-07 · Claude Code · Volta à busca limpa após entregar em todo evento (não só com planilha de kits).
 - 2026-10-07 · Claude Code · Espelho limpa (LIVRE) ao entregar o kit e só mostra o próximo ao abri-lo.
@@ -42,4 +43,3 @@
 - 2026-09-28 · Claude Code · Admin principal só por `ADMIN_EMAIL`; troca para o Agner via workflow (`313e3c6`).
 - 2026-09-28 · Claude Code · "Retirado por" sozinho não exige salvar (`da1c244`); ficha abre no topo + SALVAR embaixo (`857e38c`).
 - 2026-09-28 · Claude Code · Jev integrado ao Claude Code e correção do encerramento no Windows (`1908645`) — depois desligado por não gerar economia.
-- 2026-09-28 · Claude Code · CSS quebrado acima de 768px (chave faltando), foto em produção (CSP `blob:`), câmera no "Retirado por" (`8fa7be0`).

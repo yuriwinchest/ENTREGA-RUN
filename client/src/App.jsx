@@ -93,7 +93,7 @@ export default function App() {
     }
   }, [])
 
-  // Sincroniza eventos locais com o servidor central e puxa atualizações
+  // Sincroniza eventos locais com o servidor central e puxa atualizações em tempo real
   useEffect(() => {
     let isMounted = true
 
@@ -117,12 +117,19 @@ export default function App() {
       }
     }
 
-    syncEventsWithServer()
+    void syncEventsWithServer()
+
+    // Polling contínuo a cada 5s para refletir entregas feitas por outros operadores
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'hidden') {
+        void syncEventsWithServer()
+      }
+    }, 5000)
 
     // Sincroniza automaticamente quando o usuário voltar para a aba ou desbloquear a tela
     function handleVisibilityOrFocus() {
       if (document.visibilityState === 'visible') {
-        syncEventsWithServer()
+        void syncEventsWithServer()
       }
     }
 
@@ -131,10 +138,11 @@ export default function App() {
 
     return () => {
       isMounted = false
+      window.clearInterval(timer)
       window.removeEventListener('visibilitychange', handleVisibilityOrFocus)
       window.removeEventListener('focus', handleVisibilityOrFocus)
     }
-  }, [])
+  }, [user])
 
   // Limpa resíduos de dados mockados do navegador
   useEffect(() => {
@@ -172,11 +180,13 @@ export default function App() {
     (user.role === 'OPERADOR' || user.role === 'SUPERVISOR' || (user.eventId && user.eventId !== 'all'))
   )
 
+  const activeEventFallback = events.find((e) => e.status === 'EM OPERAÇÃO' || e.status === 'EM_OPERACAO') || events[0]
+
   const effectiveEventId = isRestrictedUser
     ? (user?.eventId || '')
     : (selectedEventId && events.some((e) => e.id === selectedEventId)
       ? selectedEventId
-      : (events[0]?.id || ''))
+      : (activeEventFallback?.id || ''))
 
   const [currentPage, setCurrentPage] = useState(() => {
     const path = window.location.pathname
@@ -388,7 +398,7 @@ export default function App() {
 
   const assignedEventFallback = isRestrictedUser && user?.eventId
     ? { id: user.eventId, name: user.eventName || 'PROJETO ATRIBUÍDO' }
-    : events[0]
+    : activeEventFallback
 
   return (
     <div className="app-container">

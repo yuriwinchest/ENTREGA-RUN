@@ -175,19 +175,37 @@ export default function UsuariosPage({
   const [users, setUsers] = useState([])
   const [loadError, setLoadError] = useState('')
 
-  // Remove cache legado que continha senhas em texto puro.
+  // Remove cache legado que continha senhas em texto puro e sincroniza usuários em tempo real
   useEffect(() => {
     try { localStorage.removeItem('entregas_run_users') } catch {}
     let isMounted = true
-    apiFetchUsers().then((serverUsers) => {
+
+    const loadUsers = async () => {
+      if (document.visibilityState === 'hidden') return
+      const serverUsers = await apiFetchUsers()
       if (!isMounted) return
-      if (Array.isArray(serverUsers)) setUsers(serverUsers)
-      else setLoadError('Não foi possível carregar os usuários do servidor.')
-    })
+      if (Array.isArray(serverUsers)) {
+        setUsers(serverUsers)
+        setLoadError('')
+      } else if (!users.length) {
+        setLoadError('Não foi possível carregar os usuários do servidor.')
+      }
+    }
+
+    void loadUsers()
+
+    // Polling a cada 5 segundos para refletir novas entregas por operador
+    const timer = window.setInterval(loadUsers, 5000)
+    window.addEventListener('focus', loadUsers)
+    document.addEventListener('visibilitychange', loadUsers)
+
     return () => {
       isMounted = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', loadUsers)
+      document.removeEventListener('visibilitychange', loadUsers)
     }
-  }, [])
+  }, [users.length])
 
   const [showAddUserModal, setShowAddUserModal] = useState(false)
   const [showPasswordInAddModal, setShowPasswordInAddModal] = useState(false)

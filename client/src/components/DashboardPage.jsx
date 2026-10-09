@@ -98,6 +98,18 @@ export default function DashboardPage({
   const percentConcluido = totalAtletas > 0 ? ((totalEntregues / totalAtletas) * 100).toFixed(1) + '%' : '0.0%'
   const eventosEmOperacao = visibleEvents.filter((e) => e.status === 'EM OPERAÇÃO' || e.status === 'EM_OPERACAO').length
 
+  const uniqueOperators = new Set()
+  visibleEvents.forEach((e) => {
+    if (Array.isArray(e.operadores)) {
+      e.operadores.forEach((op) => {
+        if (op && typeof op === 'string' && op.trim()) uniqueOperators.add(op.trim())
+      })
+    }
+  })
+  const totalOperadoresAtivos = uniqueOperators.size > 0
+    ? uniqueOperators.size
+    : (visibleEvents.reduce((sum, e) => sum + (Number(e.operadoresAtivos) || 0), 0) || (totalEntregues > 0 ? 1 : 0))
+
   return (
     <div className="dashboard-layout">
       <Sidebar activePage="dashboard" onNavigate={onNavigate} onLogout={onLogout} user={user} />
@@ -155,11 +167,11 @@ export default function DashboardPage({
             <div className="metric-label">% CONCLUÍDO</div>
           </div>
 
-          <div className="metric-card neutral">
+          <div className="metric-card neutral" title={uniqueOperators.size > 0 ? `Operadores: ${Array.from(uniqueOperators).join(', ')}` : 'Operadores com entregas registradas'}>
             <div className="metric-top">
               <div className="metric-icon"><ZapIcon /></div>
             </div>
-            <div className="metric-number">1</div>
+            <div className="metric-number">{totalOperadoresAtivos}</div>
             <div className="metric-label">OPERADORES ATIVOS</div>
           </div>
 
@@ -238,6 +250,9 @@ export default function DashboardPage({
                       <h3 className="event-col-title">{ev.name}</h3>
                       <span className="event-col-meta">
                         {ev.date || ev.dateInput || '—'} • {ev.city || ev.location || '—'}
+                        {Array.isArray(ev.operadores) && ev.operadores.length > 0 && (
+                          <> • {ev.operadores.length} operador(es) em campo</>
+                        )}
                       </span>
                     </div>
 

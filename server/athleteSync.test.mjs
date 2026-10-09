@@ -15,7 +15,15 @@ test('an old browser cannot roll back a delivery from another browser', () => {
   assert.equal(merged[0].status, 'ENTREGUE')
   assert.equal(merged[0].entreguePor, 'operador A')
   assert.equal(merged[1].status, 'ENTREGUE')
-  assert.deepEqual(eventMetrics(merged), { total: 2, entregues: 2, pendentes: 0, concl: '100.0%' })
+  assert.deepEqual(eventMetrics(merged), {
+    total: 2,
+    entregues: 2,
+    delivered_count: 2,
+    pendentes: 0,
+    concl: '100.0%',
+    operadoresAtivos: 2,
+    operadores: ['operador A', 'operador B'],
+  })
 })
 
 test('a stale sheet cannot clear an association or remove an athlete during an active event', () => {

@@ -36,12 +36,22 @@ export function mergeActiveAthletes(current, incoming, { undoAthleteId = '', can
 }
 
 export function eventMetrics(athletes) {
-  const total = athletes.length
-  const entregues = athletes.filter(isDelivered).length
+  const total = Array.isArray(athletes) ? athletes.length : 0
+  const deliveredList = Array.isArray(athletes) ? athletes.filter(isDelivered) : []
+  const entregues = deliveredList.length
+  const uniqueOperators = new Set(
+    deliveredList
+      .map((a) => String(a.entreguePor || '').trim())
+      .filter(Boolean)
+  )
+  const operadores = Array.from(uniqueOperators)
   return {
     total,
     entregues,
-    pendentes: total - entregues,
+    delivered_count: entregues,
+    pendentes: Math.max(0, total - entregues),
     concl: total ? `${((entregues / total) * 100).toFixed(1)}%` : '0.0%',
+    operadoresAtivos: operadores.length,
+    operadores,
   }
 }

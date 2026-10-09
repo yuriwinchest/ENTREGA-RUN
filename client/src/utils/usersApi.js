@@ -21,6 +21,7 @@ export async function apiFetchUsers() {
   try {
     const res = await fetch('/api/users', {
       headers: authHeaders(),
+      cache: 'no-store',
     })
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
@@ -38,6 +39,7 @@ export async function apiFetchEventOperators(eventId) {
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/operators`, {
       headers: authHeaders(),
+      cache: 'no-store',
     })
     if (!res.ok) {
       const all = await apiFetchUsers()

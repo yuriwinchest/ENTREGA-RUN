@@ -152,7 +152,7 @@ export default function EventDashboardPage({
       }
     }
     refresh()
-    const timer = window.setInterval(refresh, 10000)
+    const timer = window.setInterval(refresh, 5000)
     window.addEventListener('focus', refresh)
     document.addEventListener('visibilitychange', refresh)
     return () => {

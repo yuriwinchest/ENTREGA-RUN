@@ -20,6 +20,7 @@ export async function apiFetchEvents() {
   try {
     const res = await fetch('/api/events', {
       headers: getAuthHeaders(),
+      cache: 'no-store',
     })
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
@@ -116,6 +117,7 @@ export async function apiFetchAthletes(eventId) {
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes`, {
       headers: getAuthHeaders(),
+      cache: 'no-store',
     })
     if (!res.ok) return null
     const data = await res.json()

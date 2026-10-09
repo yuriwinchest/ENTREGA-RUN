@@ -175,3 +175,53 @@ test('administrador principal segue ADMIN_EMAIL: o antigo vira removível e o no
     fs.rmSync(dataDir, { recursive: true, force: true })
   }
 })
+
+test('contagem de entregas por usuário reflete entregas em tempo real e anti-cache presente', async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'entregas-counts-test-'))
+  fs.writeFileSync(path.join(dataDir, 'users.json'), JSON.stringify([
+    { id: 'admin_pacetime', name: 'Felipe Admin', email: 'pacetime@entregas.com', passwordHash: hashPassword('test-admin-123456'), role: 'ADMIN', eventId: 'all', status: 'ATIVO' },
+    { id: 'op1', name: 'Operador 1', email: 'op1@example.com', passwordHash: hashPassword('123456'), role: 'OPERADOR', eventId: 'event-alpha', status: 'ATIVO' },
+  ]))
+  fs.writeFileSync(path.join(dataDir, 'events.json'), JSON.stringify([
+    { id: 'event-alpha', name: 'Corrida Alpha', status: 'EM OPERAÇÃO' },
+  ]))
+  fs.writeFileSync(path.join(dataDir, 'athletes_event-alpha.json'), JSON.stringify({
+    eventId: 'event-alpha',
+    athletes: [
+      { id: '1', numero: '10', status: 'ENTREGUE', entreguePor: 'Operador 1', entregueEm: '09/10/2026, 12:00:00' },
+      { id: '2', numero: '11', status: 'ENTREGUE', entreguePor: 'Operador 1', entregueEm: '09/10/2026, 12:05:00' },
+      { id: '3', numero: '12', status: 'ENTREGUE', entreguePor: 'Felipe Admin', entregueEm: '09/10/2026, 12:10:00' },
+      { id: '4', numero: '13', status: 'PENDENTE' },
+    ],
+  }))
+  const port = 5500 + Math.floor(Math.random() * 1000)
+  let child
+  try {
+    child = await startServer(dataDir, port)
+    const login = await request(port, '/api/login', 'POST', { email: 'pacetime@entregas.com', password: 'test-admin-123456' })
+    assert.equal(login.status, 200)
+    const token = login.data.token
+
+    const rawRes = await fetch(`http://127.0.0.1:${port}/api/users`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    assert.equal(rawRes.headers.get('cache-control')?.includes('no-store'), true, 'headers de API contêm no-store')
+    const usersData = await rawRes.json()
+    assert.equal(usersData.ok, true)
+
+    const op1 = usersData.users.find((u) => u.id === 'op1')
+    const admin = usersData.users.find((u) => u.id === 'admin_pacetime')
+    assert.equal(op1?.deliveries, 2, 'operador 1 tem 2 entregas')
+    assert.equal(admin?.deliveries, 1, 'admin tem 1 entrega')
+
+    const eventsRes = await request(port, '/api/events', 'GET', undefined, token)
+    assert.equal(eventsRes.status, 200)
+    const ev = eventsRes.data.events.find((e) => e.id === 'event-alpha')
+    assert.equal(ev?.entregues, 3, 'evento tem 3 entregues')
+    assert.equal(ev?.operadoresAtivos, 2, 'evento tem 2 operadores ativos')
+    assert.deepEqual(ev?.operadores?.sort(), ['Felipe Admin', 'Operador 1'].sort())
+  } finally {
+    child?.kill()
+    fs.rmSync(dataDir, { recursive: true, force: true })
+  }
+})
