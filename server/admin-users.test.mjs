@@ -7,6 +7,17 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hashPassword } from './passwords.js'
 
+// O servidor grava as sessões ao receber SIGTERM: limpar a pasta antes de ele
+// sair dá ENOTEMPTY no Linux. Espera o processo encerrar de fato.
+async function stopServer(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return
+  await new Promise((resolve) => {
+    child.once('exit', resolve)
+    child.kill()
+  })
+}
+
+
 const serverFile = fileURLToPath(new URL('./server.js', import.meta.url))
 
 async function startServer(dataDir, port, extraEnv = {}) {
@@ -135,7 +146,7 @@ test('senha manual persiste e exclusão respeita autoria do sub-admin', async ()
     child = await startServer(dataDir, port)
     assert.equal((await request(port, '/api/login', 'POST', { email: 'sub@example.com', password: 'minha-senha-fixa' })).status, 200)
   } finally {
-    if (child && child.exitCode === null) child.kill()
+    await stopServer(child)
     if (!path.resolve(dataDir).startsWith(`${path.resolve(os.tmpdir(), 'entregas-admin-test-')}`)) {
       throw new Error('Diretório temporário fora do prefixo esperado')
     }
@@ -171,7 +182,7 @@ test('administrador principal segue ADMIN_EMAIL: o antigo vira removível e o no
     const after = await request(port, '/api/users', 'GET', undefined, token)
     assert.deepEqual(after.data.users.map((u) => u.id), ['agner'])
   } finally {
-    child?.kill()
+    await stopServer(child)
     fs.rmSync(dataDir, { recursive: true, force: true })
   }
 })
@@ -221,7 +232,7 @@ test('contagem de entregas por usuário reflete entregas em tempo real e anti-ca
     assert.equal(ev?.operadoresAtivos, 2, 'evento tem 2 operadores ativos')
     assert.deepEqual(ev?.operadores?.sort(), ['Felipe Admin', 'Operador 1'].sort())
   } finally {
-    child?.kill()
+    await stopServer(child)
     fs.rmSync(dataDir, { recursive: true, force: true })
   }
 })

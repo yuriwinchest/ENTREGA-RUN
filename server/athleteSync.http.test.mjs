@@ -6,6 +6,17 @@ import path from 'node:path'
 import net from 'node:net'
 import test from 'node:test'
 
+// O servidor grava as sessões ao receber SIGTERM: limpar a pasta antes de ele
+// sair dá ENOTEMPTY no Linux. Espera o processo encerrar de fato.
+async function stopServer(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return
+  await new Promise((resolve) => {
+    child.once('exit', resolve)
+    child.kill()
+  })
+}
+
+
 async function freePort() {
   const server = net.createServer()
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -91,7 +102,7 @@ test('two old clients can deliver without erasing each other, including chunk up
     const afterFinalizedStaleWrite = await request('GET', route)
     assert.equal(afterFinalizedStaleWrite.body.athletes.filter((athlete) => athlete.status === 'ENTREGUE').length, 2)
   } finally {
-    child.kill()
+    await stopServer(child)
     fs.rmSync(dataDir, { recursive: true, force: true })
   }
 })

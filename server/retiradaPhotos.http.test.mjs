@@ -6,6 +6,17 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
+// O servidor grava as sessões ao receber SIGTERM: limpar a pasta antes de ele
+// sair dá ENOTEMPTY no Linux. Espera o processo encerrar de fato.
+async function stopServer(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return
+  await new Promise((resolve) => {
+    child.once('exit', resolve)
+    child.kill()
+  })
+}
+
+
 async function freePort() {
   const server = net.createServer()
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -92,7 +103,7 @@ test('foto de retirada: exige login, valida JPEG, serve sem cache e apaga', asyn
     assert.equal((await (await call('DELETE', route)).json()).removed, true)
     assert.equal((await call('GET', route)).status, 404)
   } finally {
-    child.kill()
+    await stopServer(child)
     fs.rmSync(dataDir, { recursive: true, force: true })
   }
 })
