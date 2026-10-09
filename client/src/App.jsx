@@ -119,12 +119,15 @@ export default function App() {
 
     void syncEventsWithServer()
 
-    // Polling contínuo a cada 5s para refletir entregas feitas por outros operadores
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== 'hidden') {
-        void syncEventsWithServer()
-      }
-    }, 5000)
+    // Só admin/sub-admin acompanham todos os eventos ao vivo. Operador já recebe
+    // as entregas pela tela de operação; polling em dezenas de celulares a cada
+    // 5 s dobrava a carga da VPS (2 vCPU compartilhada) durante o evento.
+    const watchesAllEvents = user?.role === 'ADMIN' || user?.role === 'SUB_ADMIN'
+    const timer = watchesAllEvents
+      ? window.setInterval(() => {
+        if (document.visibilityState !== 'hidden') void syncEventsWithServer()
+      }, 10000)
+      : null
 
     // Sincroniza automaticamente quando o usuário voltar para a aba ou desbloquear a tela
     function handleVisibilityOrFocus() {
@@ -138,7 +141,7 @@ export default function App() {
 
     return () => {
       isMounted = false
-      window.clearInterval(timer)
+      if (timer) window.clearInterval(timer)
       window.removeEventListener('visibilitychange', handleVisibilityOrFocus)
       window.removeEventListener('focus', handleVisibilityOrFocus)
     }

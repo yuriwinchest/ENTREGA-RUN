@@ -194,8 +194,8 @@ export default function UsuariosPage({
 
     void loadUsers()
 
-    // Polling a cada 5 segundos para refletir novas entregas por operador
-    const timer = window.setInterval(loadUsers, 5000)
+    // A cada 10 s: contagem de entregas por operador sem sobrecarregar a VPS.
+    const timer = window.setInterval(loadUsers, 10000)
     window.addEventListener('focus', loadUsers)
     document.addEventListener('visibilitychange', loadUsers)
 

@@ -662,7 +662,7 @@ export default function OperacaoPage({
     void refresh()
     const timer = window.setInterval(() => {
       if (document.visibilityState !== 'hidden') void refresh()
-    }, 5000)
+    }, 10000)
     window.addEventListener('focus', refresh)
     return () => {
       isMounted = false

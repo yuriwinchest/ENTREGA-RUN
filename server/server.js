@@ -8,6 +8,7 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { hashPassword, verifyPassword } from './passwords.js'
 import { eventMetrics, mergeActiveAthletes } from './athleteSync.js'
+import { createSessionStore } from './sessionStore.js'
 import {
   decodeJpegDataUrl,
   deletePhoto,
@@ -50,7 +51,7 @@ if (!process.env.ADMIN_PASSWORD) {
 // Token aleatório emitido no login, validado em /api/session e
 // exigido nas rotas /api/users. Senha nunca volta em resposta.
 // ============================================================
-const sessions = new Map() // token -> { userId, email, role, eventId, eventName, name, expiresAt }
+const sessions = createSessionStore(path.join(DATA_DIR, 'sessions.json'))
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 function sanitizeUser(user) {
@@ -71,9 +72,7 @@ function publicUser(user) {
 }
 
 function revokeUserSessions(userId) {
-  for (const [token, session] of sessions) {
-    if (session.userId === userId) sessions.delete(token)
-  }
+  sessions.revokeUser(userId)
 }
 
 function createSession(user) {
@@ -96,10 +95,6 @@ function getSessionFromReq(req) {
   if (!token) return null
   const session = sessions.get(token)
   if (!session) return null
-  if (session.expiresAt < Date.now()) {
-    sessions.delete(token)
-    return null
-  }
   return { token, ...session }
 }
 
@@ -136,12 +131,15 @@ function requireAdminOrSubAdmin(req, res, next) {
   next()
 }
 
-setInterval(() => {
-  const now = Date.now()
-  for (const [token, session] of sessions) {
-    if (session.expiresAt < now) sessions.delete(token)
-  }
-}, 60 * 60 * 1000).unref?.()
+setInterval(() => sessions.prune(), 60 * 60 * 1000).unref?.()
+
+// docker stop/deploy envia SIGTERM: grava sessões pendentes antes de sair.
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.once(signal, () => {
+    sessions.flushNow()
+    process.exit(0)
+  })
+}
 
 try {
   if (!fs.existsSync(DATA_DIR)) {

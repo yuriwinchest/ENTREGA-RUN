@@ -10,12 +10,11 @@
 
 ## Última sessão
 
-- **Quando / quem:** 2026-10-09 · Antigravity (TONE).
-- **O que fez:** Sincronização em tempo real das entregas e operadores no ambiente do Super Admin: (1) polling reativo de 5s em `syncEventsWithServer()` e na listagem de usuários com trava de aba oculta (`visibilityState`); (2) contagem dinâmica de entregas por usuário calculada na memória sem tocar `users.json`; (3) métrica real de operadores ativos no Dashboard geral e do evento (removido valor fixo '1'); (4) cabeçalho anti-cache (`no-store, no-cache`) em todas as rotas `/api` e nas requisições GET do cliente; (5) fallback inteligente para eventos `EM OPERAÇÃO` quando logado como Super Admin sem evento na URL; (6) gate de deploy e preflight tornados dinâmicos para qualquer evento ativo em vez de id fixo antigo.
-- **Por quê:** O Super Admin não recebia atualizações das entregas que os operadores estavam realizando em tempo real no evento em andamento.
-- **Validação real:** `node --test server/*.test.mjs` (15/15), `node --test client/src/utils/*.test.mjs` (38/38), lint client (0 erros), build client (1.53s). Teste novo `server/admin-users.test.mjs` valida anti-cache e contagem dinâmica de entregas em tempo real.
-- **Risco:** Zero risco aos dados em produção; cálculo de entregas é feito em memória na leitura. Polling respeita `visibilityState` para evitar sobrecarga.
-- **Próximo passo:** Yuri homologar no perfil de Super Admin acompanhando as entregas ao vivo.
+- **Quando / quem:** 2026-10-09 · Claude Code (Opus 5.5) — incidente "site caindo" durante a Corrida Corredores de Gravata.
+- **Diagnóstico [verificado]:** VPS (2 vCPU, compartilhada) com CPU 88–92 % às 12h17–12h48; o Gemini (commits `1249e83`, `7a008a8`) reduziu a atualização automática de 10 s para 5 s nas telas de operação e criou consultas a cada 5 s em **todos** os aparelhos; cada deploy recriava o container e deslogava todos (sessões só em memória). Sem perda de dados (integridade do deploy: 12.901 atletas, 567 entregas).
+- **O que fez:** sessões persistentes em `data/sessions.json` (só hash do token, fora do backup) — deploy não desloga mais; atualização volta a 10 s; a consulta geral de eventos só roda para admin/sub-admin. Recursos do Gemini para o admin (contagem por operador) mantidos.
+- **Validação real:** login → restart do servidor (SIGTERM) → mesma sessão 200, token falso 401, token ausente do arquivo; `node --test` client 38/38, server 17/17; lint 0; build ok.
+- **Próximo passo:** este deploy desloga uma última vez; os próximos não. Acompanhar CPU da VPS no próximo pico.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -35,6 +34,7 @@
 
 ## Últimas entregas (mais recente primeiro)
 
+- 2026-10-09 · Claude Code · Incidente: sessões persistentes (deploy não desloga) e atualização de 5 s → 10 s / só admin.
 - 2026-10-09 · Antigravity (TONE) · Atualizações em tempo real de entregas e operadores ativos para Super Admin (polling, anti-cache e métricas).
 - 2026-10-09 · Claude Code · DESFAZER mantém chip de planilha já associada; só desassocia o que foi associado no sistema.
 - 2026-10-07 · Claude Code · Volta à busca limpa após entregar em todo evento (não só com planilha de kits).
@@ -42,4 +42,3 @@
 - 2026-09-28 · Claude Code · Jev desligado; HANDOFF enxuto + arquivo em `docs/handoff/`.
 - 2026-09-28 · Claude Code · Admin principal só por `ADMIN_EMAIL`; troca para o Agner via workflow (`313e3c6`).
 - 2026-09-28 · Claude Code · "Retirado por" sozinho não exige salvar (`da1c244`); ficha abre no topo + SALVAR embaixo (`857e38c`).
-- 2026-09-28 · Claude Code · Jev integrado ao Claude Code e correção do encerramento no Windows (`1908645`) — depois desligado por não gerar economia.
