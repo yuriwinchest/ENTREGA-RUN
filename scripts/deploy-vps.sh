@@ -11,7 +11,10 @@ APP_DIR=/opt/entregas-run
 BACKUP_DIR="$APP_DIR/backups"
 COMPOSE_FILE="$APP_DIR/docker-compose.yml"
 SERVICE=entregas-run-web
-CRITICAL_EVENT_ID=event-1790318665638
+CRITICAL_EVENT_ID="${CRITICAL_EVENT_ID:-}"
+if [[ -z "$CRITICAL_EVENT_ID" && -f "$APP_DIR/data/events.json" ]]; then
+  CRITICAL_EVENT_ID="$(node -e 'const fs=require("fs"); try { const ev=JSON.parse(fs.readFileSync("'"$APP_DIR"'/data/events.json","utf8")); const act=ev.find(e=>e.status==="EM OPERAÇÃO")||ev[0]; if(act&&act.id) console.log(act.id); } catch(e){}' 2>/dev/null || true)"
+fi
 SHORT_SHA="${DEPLOY_SHA:0:12}"
 IMAGE="entregas-run:release-$SHORT_SHA"
 ROLLBACK_IMAGE="entregas-run:rollback-$SHORT_SHA"
