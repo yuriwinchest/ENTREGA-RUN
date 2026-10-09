@@ -18,6 +18,8 @@ import {
   canAssociateAthleteKit,
   hasAthleteDetailChanges,
   hasCadastralChanges,
+  undoDeliveryChanges,
+  wasAssociatedInApp,
   matchesAthleteReference,
   normalizeAthleteDetail,
   normalizeSexo,
@@ -1835,26 +1837,10 @@ export default function OperacaoPage({
       return null
     }
 
-    const updatedAthlete = {
-      ...athleteRef,
-      status: 'PENDENTE',
-      chip: '',
-      qrCode: '',
-      entregueEm: '',
-      entreguePor: '',
-      entreguePara: '',
-    }
-
-    // Se o número de peito foi associado via kit de leitura ou importação sem número fixo,
-    // ou se o kit associado corresponde a este número, limpa o número também
-    if (Object.prototype.hasOwnProperty.call(athleteRef, '_kitPreviousNumero')) {
-      updatedAthlete.numero = athleteRef._kitPreviousNumero
-      delete updatedAthlete._kitPreviousNumero
-    } else if (athleteRef._origNumero === '' || athleteRef._wasUnassignedNumber || athleteRef.id?.startsWith('import-')) {
-      if (Array.isArray(kits) && kits.some((k) => String(k.numero).trim() === String(athleteRef.numero).trim())) {
-        updatedAthlete.numero = ''
-      }
-    }
+    // Planilha importada já associada: desfaz só a entrega e mantém chip/número.
+    // Associação feita no sistema (leitura do QR): desfaz entrega e associação.
+    const associatedInApp = wasAssociatedInApp(athleteRef)
+    const updatedAthlete = undoDeliveryChanges(athleteRef)
 
     const nextAthletes = athletes.map((a) =>
       matchesAthleteReference(a, athleteRef) ? updatedAthlete : a
@@ -1916,12 +1902,11 @@ export default function OperacaoPage({
       return updatedAthlete
     }
 
-    const nextDraft = buildAthleteDetailDraft(updatedAthlete)
-    setSelectedAthlete(updatedAthlete)
-    setDetailForm(nextDraft)
-    setDetailInitialForm(nextDraft)
-    setDetailFeedback('Associação desfeita com sucesso! Chip, QR Code e status foram limpos.')
-    publishEspelho('ATENDENDO', updatedAthlete)
+    // Entrega desfeita: volta para a busca limpa, como após entregar.
+    executeCloseAthleteDetail()
+    setEntregaNotice(associatedInApp
+      ? `↺ Entrega e associação desfeitas para ${updatedAthlete.nome || 'o atleta'}. O kit pode ser associado de novo.`
+      : `↺ Entrega desfeita para ${updatedAthlete.nome || 'o atleta'} (Nº ${updatedAthlete.numero}). Chip mantido conforme a planilha.`)
     return updatedAthlete
   }
 
@@ -2595,7 +2580,7 @@ export default function OperacaoPage({
                               <span>ENTREGAR KIT</span>
                             </button>
 
-                            {(canUndo || userRole !== 'SUB_ADMIN') && isKitAssociated && (
+                            {(canUndo || userRole !== 'SUB_ADMIN') && isKitAssociated && wasAssociatedInApp(detailForm) && (
                               <button
                                 type="button"
                                 className="btn-detail-undo"
@@ -3131,7 +3116,7 @@ export default function OperacaoPage({
                       <CheckCircleIcon />
                       <span>ENTREGAR KIT</span>
                     </button>
-                    {(canUndo || userRole !== 'SUB_ADMIN') && (
+                    {(canUndo || userRole !== 'SUB_ADMIN') && wasAssociatedInApp(detailForm) && (
                       <button
                         type="button"
                         className="btn-detail-undo"

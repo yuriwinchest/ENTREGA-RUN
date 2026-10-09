@@ -144,3 +144,30 @@ export function matchesAthleteReference(record, reference) {
     String(record.numero) === String(reference.numero)
   )
 }
+
+// Associação feita no sistema (leitura do QR no fluxo de duas planilhas) deixa a
+// marca _kitPreviousNumero. Planilha importada já associada não tem a marca: o
+// chip/número vêm da planilha e não podem ser apagados por um DESFAZER.
+export function wasAssociatedInApp(athlete = {}) {
+  return Object.prototype.hasOwnProperty.call(athlete || {}, '_kitPreviousNumero')
+}
+
+// DESFAZER: sempre volta a entrega para pendente; só desassocia o kit quando a
+// associação foi feita no sistema.
+export function undoDeliveryChanges(athlete = {}) {
+  const updated = {
+    ...athlete,
+    status: 'PENDENTE',
+    entregueEm: '',
+    entreguePor: '',
+    entreguePara: '',
+  }
+  if (wasAssociatedInApp(athlete)) {
+    updated.chip = ''
+    updated.qrCode = ''
+    updated.numero = athlete._kitPreviousNumero
+    delete updated._kitPreviousNumero
+  }
+  return updated
+}
+

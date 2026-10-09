@@ -2352,3 +2352,4 @@
 
 - 2026-09-28 · Claude Code · Trava da ficha após associar kit, volta à busca após entregar, login em Eventos, correções de responsividade no iPhone.
 - 2026-09-28 · Claude Code · Exportar planilha escolhendo colunas/ordem; leitor de QR sem travar a digitação.
+- 2026-09-28 · Claude Code · Foto da retirada com exclusão automática e painel de entregas por dia (`cee82fe`).

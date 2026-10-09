@@ -10,11 +10,12 @@
 
 ## Última sessão
 
-- **Quando / quem:** 2026-10-07 · Claude Code (Opus 5.5).
-- **O que fez:** depois de ENTREGAR KIT a tela volta sempre para a busca limpa, com aviso "Kit entregue para… Busque o próximo atleta", em **todo** evento (antes só em evento com planilha de kits); espelho segue limpando para LIVRE (`client/src/components/OperacaoPage.jsx`).
-- **Por quê:** na Corrida da Renascença (sem planilha de kits) a ficha ficava aberta após a entrega; a regra de volta estava restrita a eventos de associação.
-- **Validação real:** evento local sem kits: abrir atleta → ENTREGAR → ficha fecha, busca vazia, aviso exibido, espelho LIVRE. `node --test` 36/36, lint 0, build ok.
-- **Próximo passo:** Yuri homologar na Renascença.
+- **Quando / quem:** 2026-10-09 · Claude Code (Opus 5.5).
+- **O que fez:** DESFAZER de uma entrega agora respeita a origem da associação — planilha importada já associada desfaz só a entrega e mantém número/chip/QR; associação feita no sistema (duas planilhas + leitura do QR, marca `_kitPreviousNumero`) desfaz entrega e associação. Após desfazer, volta para a busca com aviso. DESFAZER não aparece em atleta de planilha já associada ainda não entregue (apagaria dados da planilha). Regra em `client/src/utils/athleteDetail.js` (`undoDeliveryChanges`, `wasAssociatedInApp`) + testes.
+- **Por quê:** o DESFAZER apagava sempre chip/QR, inclusive de planilhas importadas já associadas.
+- **Validação real:** servidor local: atleta de planilha associada → entregar → desfazer → servidor `PENDENTE`, nº 95, chip 7791, QR mantidos; atleta de duas planilhas → associar Q300 → entregar → desfazer → servidor `PENDENTE` sem nº/chip/QR; ambos voltaram à busca. `node --test` 38/38, lint 0, build ok.
+- **Risco:** atleta associado no sistema antes de 25/09/2026 (sem a marca) seria tratado como planilha associada no DESFAZER.
+- **Próximo passo:** Yuri homologar os dois cenários.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -34,6 +35,7 @@
 
 ## Últimas entregas (mais recente primeiro)
 
+- 2026-10-09 · Claude Code · DESFAZER mantém chip de planilha já associada; só desassocia o que foi associado no sistema.
 - 2026-10-07 · Claude Code · Volta à busca limpa após entregar em todo evento (não só com planilha de kits).
 - 2026-10-07 · Claude Code · Espelho limpa (LIVRE) ao entregar o kit e só mostra o próximo ao abri-lo.
 - 2026-09-28 · Claude Code · Jev desligado; HANDOFF enxuto + arquivo em `docs/handoff/`.
@@ -41,4 +43,3 @@
 - 2026-09-28 · Claude Code · "Retirado por" sozinho não exige salvar (`da1c244`); ficha abre no topo + SALVAR embaixo (`857e38c`).
 - 2026-09-28 · Claude Code · Jev integrado ao Claude Code e correção do encerramento no Windows (`1908645`) — depois desligado por não gerar economia.
 - 2026-09-28 · Claude Code · CSS quebrado acima de 768px (chave faltando), foto em produção (CSP `blob:`), câmera no "Retirado por" (`8fa7be0`).
-- 2026-09-28 · Claude Code · Foto da retirada com exclusão automática e painel de entregas por dia (`cee82fe`).
