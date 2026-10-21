@@ -9,6 +9,7 @@ import rateLimit from 'express-rate-limit'
 import { hashPassword, verifyPassword } from './passwords.js'
 import { eventMetrics, mergeActiveAthletes } from './athleteSync.js'
 import { createSessionStore } from './sessionStore.js'
+import { deployCheckTokenFile } from './deployCheck.js'
 import {
   decodeJpegDataUrl,
   deletePhoto,
@@ -132,6 +133,31 @@ function requireAdminOrSubAdmin(req, res, next) {
 }
 
 setInterval(() => sessions.prune(), 60 * 60 * 1000).unref?.()
+
+// Leitura do gate de deploy (ver deployCheck.js): token novo a cada boot, só
+// em GET, só do loopback do próprio container e só nas rotas que o gate lê.
+const DEPLOY_CHECK_TOKEN = crypto.randomBytes(32).toString('hex')
+try {
+  fs.writeFileSync(deployCheckTokenFile(PORT), DEPLOY_CHECK_TOKEN, { mode: 0o600 })
+} catch (err) {
+  console.warn('[server] Token do gate de deploy não gravado:', err?.message)
+}
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1'])
+
+function isDeployCheck(req) {
+  const given = Buffer.from(String(req.headers['x-deploy-check'] || ''))
+  const expected = Buffer.from(DEPLOY_CHECK_TOKEN)
+  return req.method === 'GET' &&
+    LOOPBACK.has(req.socket.remoteAddress) &&
+    given.length === expected.length &&
+    crypto.timingSafeEqual(given, expected)
+}
+
+function requireAuthOrDeployCheck(req, res, next) {
+  if (!isDeployCheck(req)) return requireAuth(req, res, next)
+  req.session = { userId: 'deploy-check', role: 'ADMIN', eventId: 'all', name: 'deploy-check' }
+  next()
+}
 
 // docker stop/deploy envia SIGTERM: grava sessões pendentes antes de sair.
 for (const signal of ['SIGTERM', 'SIGINT']) {
@@ -681,19 +707,19 @@ function mirrorEventToAppwrite(event) {
   })()
 }
 
-app.get('/api/events', (req, res) => {
+app.get('/api/events', requireAuthOrDeployCheck, (req, res) => {
   const events = inMemoryEvents.map((event) => {
     const athletes = loadAthletesForEvent(event.id)?.athletes
     return Array.isArray(athletes) && athletes.length > 0
       ? { ...event, ...eventMetrics(athletes) }
       : event
   })
-  const session = getSessionFromReq(req)
-  if (session && session.role !== 'ADMIN' && session.eventId && session.eventId !== 'all') {
+  const session = req.session
+  if (session.role !== 'ADMIN' && session.eventId && session.eventId !== 'all') {
     const userEvents = events.filter((e) => e.id === session.eventId)
     return res.json({ ok: true, events: userEvents })
   }
-  if (session && session.role === 'OPERADOR' && (!session.eventId || session.eventId === 'all')) {
+  if (session.role === 'OPERADOR' && (!session.eventId || session.eventId === 'all')) {
     const fallback = events.length > 0 ? [events[0]] : []
     return res.json({ ok: true, events: fallback })
   }
@@ -701,9 +727,8 @@ app.get('/api/events', (req, res) => {
 })
 
 // POST /api/events — Cria novo evento
-app.post('/api/events', (req, res) => {
-  const session = getSessionFromReq(req)
-  if (session && session.role === 'OPERADOR') {
+app.post('/api/events', requireAuth, (req, res) => {
+  if (req.session.role === 'OPERADOR') {
     return res.status(403).json({ ok: false, message: 'Operador não tem permissão para criar eventos.' })
   }
 
@@ -735,13 +760,13 @@ app.post('/api/events', (req, res) => {
 })
 
 // PUT /api/events/:eventId — Atualiza dados e status do evento
-app.put('/api/events/:eventId', (req, res) => {
+app.put('/api/events/:eventId', requireAuth, (req, res) => {
   const eventId = String(req.params.eventId || '').trim().slice(0, 64)
-  const session = getSessionFromReq(req)
-  if (session && session.role === 'OPERADOR') {
+  const session = req.session
+  if (session.role === 'OPERADOR') {
     return res.status(403).json({ ok: false, message: 'Operador não tem permissão para alterar eventos.' })
   }
-  if (session && session.role === 'SUB_ADMIN' && session.eventId !== 'all' && session.eventId !== eventId) {
+  if (session.role === 'SUB_ADMIN' && session.eventId !== 'all' && session.eventId !== eventId) {
     return res.status(403).json({ ok: false, message: 'Sub-Admin só pode alterar o evento atribuído a ele.' })
   }
 
@@ -781,9 +806,8 @@ app.put('/api/events/:eventId', (req, res) => {
 })
 
 // DELETE /api/events/:eventId — Remove evento (somente Super Admin)
-app.delete('/api/events/:eventId', (req, res) => {
-  const session = getSessionFromReq(req)
-  if (session && session.role !== 'ADMIN') {
+app.delete('/api/events/:eventId', requireAuth, (req, res) => {
+  if (req.session.role !== 'ADMIN') {
     return res.status(403).json({
       ok: false,
       message: 'Sub-Admin não tem permissão para excluir eventos. Somente o Super Admin pode realizar exclusões.',
@@ -808,7 +832,10 @@ app.delete('/api/events/:eventId', (req, res) => {
 })
 
 // POST /api/events/sync — Sincronização em lote (dispositivo móvel -> servidor)
-app.post('/api/events/sync', (req, res) => {
+app.post('/api/events/sync', requireAuth, (req, res) => {
+  if (req.session.role === 'OPERADOR') {
+    return res.status(403).json({ ok: false, message: 'Operador não tem permissão para criar eventos.' })
+  }
   const incoming = Array.isArray(req.body?.events) ? req.body.events : []
   let changed = false
 
@@ -945,10 +972,10 @@ function validateKits(kits) {
 // GET /api/events/:eventId/athletes — Recupera lista de atletas e schema
 // Fallback: disco vazio + Appwrite com dados => devolve Appwrite e
 // reidrata o disco (cura a divergência total x lista zerada).
-app.get('/api/events/:eventId/athletes', async (req, res) => {
+app.get('/api/events/:eventId/athletes', requireAuthOrDeployCheck, async (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
-  const session = getSessionFromReq(req)
-  if (session && session.role !== 'ADMIN') {
+  const session = req.session
+  if (session.role !== 'ADMIN') {
     if (session.eventId && session.eventId !== 'all' && session.eventId !== safeEventId) {
       return res.status(403).json({
         ok: false,
@@ -996,10 +1023,10 @@ app.get('/api/events/:eventId/athletes', async (req, res) => {
 // POST /api/events/:eventId/athletes — Sincroniza/persiste lista de atletas
 // Kits inválidos NÃO derrubam mais a lista: atletas são salvos e o aviso
 // volta em kitsWarning (causa raiz da divergência total x lista zerada).
-app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
+app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
-  const session = getSessionFromReq(req)
-  if (session && session.role !== 'ADMIN') {
+  const session = req.session
+  if (session.role !== 'ADMIN') {
     if (session.eventId && session.eventId !== 'all' && session.eventId !== safeEventId) {
       return res.status(403).json({
         ok: false,
@@ -1032,7 +1059,7 @@ app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
     existing?.athletes?.some((athlete) => String(athlete.status || '').toUpperCase() === 'ENTREGUE')
   const safeUndoId = String(undoAthleteId || '').slice(0, 64)
   const undoTarget = existing?.athletes?.find((athlete) => String(athlete.id) === safeUndoId)
-  const canUndoDelivery = session?.role === 'ADMIN' || session?.role === 'SUPERVISOR'
+  const canUndoDelivery = session.role === 'ADMIN' || session.role === 'SUPERVISOR'
   if (undoTarget?.status === 'ENTREGUE' && !canUndoDelivery) {
     return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
   }
@@ -1058,10 +1085,10 @@ app.post('/api/events/:eventId/athletes', athletesJsonParser, (req, res) => {
 // Evita payload gigante único (ex: 1.011 atletas) e permite retry por fatia.
 const athleteChunkUploads = new Map()
 
-app.post('/api/events/:eventId/athletes/chunks', athletesJsonParser, (req, res) => {
+app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser, (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
-  const session = getSessionFromReq(req)
-  if (session && session.role !== 'ADMIN') {
+  const session = req.session
+  if (session.role !== 'ADMIN') {
     if (session.eventId && session.eventId !== 'all' && session.eventId !== safeEventId) {
       return res.status(403).json({
         ok: false,
@@ -1113,7 +1140,7 @@ app.post('/api/events/:eventId/athletes/chunks', athletesJsonParser, (req, res) 
   const protectExistingChunk = curEvChunk?.status === 'EM OPERAÇÃO' ||
     existingChunk?.athletes?.some((athlete) => String(athlete.status || '').toUpperCase() === 'ENTREGUE')
   const undoTargetChunk = existingChunk?.athletes?.find((athlete) => String(athlete.id) === upload.undoAthleteId)
-  const canUndoDelivery = session?.role === 'ADMIN' || session?.role === 'SUPERVISOR'
+  const canUndoDelivery = session.role === 'ADMIN' || session.role === 'SUPERVISOR'
   if (undoTargetChunk?.status === 'ENTREGUE' && !canUndoDelivery) {
     athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
     return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
@@ -1241,11 +1268,11 @@ setTimeout(runPhotoSweep, 30 * 1000).unref?.()
 setInterval(runPhotoSweep, 60 * 60 * 1000).unref?.()
 
 // PUT /api/events/:eventId/athletes/:numero/status — Atualiza status da entrega
-app.put('/api/events/:eventId/athletes/:numero/status', express.json(), (req, res) => {
+app.put('/api/events/:eventId/athletes/:numero/status', requireAuth, express.json(), (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
   const safeNumero = String(req.params.numero || '').trim().slice(0, 50)
-  const session = getSessionFromReq(req)
-  if (session && session.role !== 'ADMIN') {
+  const session = req.session
+  if (session.role !== 'ADMIN') {
     if (session.eventId && session.eventId !== 'all' && session.eventId !== safeEventId) {
       return res.status(403).json({
         ok: false,

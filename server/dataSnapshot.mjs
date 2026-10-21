@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { readDeployCheckToken } from './deployCheck.js'
 
 const safeFile = /^athletes_[\w-]+\.json$/
 const delivered = (athlete) => String(athlete?.status || '').toUpperCase() === 'ENTREGUE'
@@ -93,8 +94,9 @@ export function verifySnapshot(before, dataDir) {
   return after
 }
 
-export async function verifyApiSnapshot(before, baseUrl = 'http://127.0.0.1:3001') {
-  const eventResponse = await fetch(`${baseUrl}/api/events`)
+export async function verifyApiSnapshot(before, baseUrl = 'http://127.0.0.1:3001', checkToken = '') {
+  const headers = checkToken ? { 'x-deploy-check': checkToken } : {}
+  const eventResponse = await fetch(`${baseUrl}/api/events`, { headers })
   if (!eventResponse.ok) throw new Error('API de eventos indisponível após o deploy.')
   const eventBody = await eventResponse.json()
   const eventIds = new Set((eventBody.events || []).map((event) => String(event.id)))
@@ -104,7 +106,7 @@ export async function verifyApiSnapshot(before, baseUrl = 'http://127.0.0.1:3001
   for (const [file, previous] of Object.entries(before.athletesByFile)) {
     if (!safeFile.test(file)) throw new Error('Nome de planilha inválido no manifesto.')
     const eventId = file.slice('athletes_'.length, -'.json'.length)
-    const response = await fetch(`${baseUrl}/api/events/${encodeURIComponent(eventId)}/athletes`)
+    const response = await fetch(`${baseUrl}/api/events/${encodeURIComponent(eventId)}/athletes`, { headers })
     if (!response.ok) throw new Error(`API de atletas indisponível: ${eventId}`)
     const body = await response.json()
     if (!Array.isArray(body.athletes)) throw new Error(`Resposta de atletas inválida: ${eventId}`)
@@ -134,7 +136,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.stdout.write(`Integridade preservada: ${after.eventIds.length} eventos, ${total} atletas, ${deliveredCount} entregas.\n`)
     } else if (process.argv[2] === 'verify-api' && process.argv[3]) {
       const before = readJson(process.argv[3])
-      await verifyApiSnapshot(before)
+      const port = Number(process.env.PORT || 3001)
+      await verifyApiSnapshot(before, `http://127.0.0.1:${port}`, readDeployCheckToken(port))
       process.stdout.write('API manteve todos os eventos, atletas e entregas anteriores.\n')
     } else {
       throw new Error('Uso: capture | verify <manifesto>')

@@ -30,14 +30,22 @@ test('two old clients can deliver without erasing each other, including chunk up
   const port = await freePort()
   const child = spawn(process.execPath, ['server/server.js'], {
     cwd: path.resolve(import.meta.dirname, '..'),
-    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, APPWRITE_ENABLED: 'false' },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      DATA_DIR: dataDir,
+      APPWRITE_ENABLED: 'false',
+      ADMIN_EMAIL: 'admin@teste.local',
+      ADMIN_PASSWORD: 'senha-sync-teste',
+    },
     stdio: 'ignore',
   })
   const base = `http://127.0.0.1:${port}`
+  let token = ''
   const request = async (method, route, body) => {
     const response = await fetch(`${base}${route}`, {
       method,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
     return { status: response.status, body: await response.json() }
@@ -52,6 +60,8 @@ test('two old clients can deliver without erasing each other, including chunk up
       await new Promise((resolve) => setTimeout(resolve, 100))
     }
     assert.equal(ready, true, 'local server did not start')
+    token = (await request('POST', '/api/login', { email: 'admin@teste.local', password: 'senha-sync-teste' })).body.token
+    assert.ok(token, 'admin login failed')
 
     const eventId = 'event-sync-test'
     const route = `/api/events/${eventId}/athletes`

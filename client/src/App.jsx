@@ -8,7 +8,7 @@ import EspelhoPage from './components/EspelhoPage.jsx'
 import ValidarAtletaPage from './components/ValidarAtletaPage.jsx'
 import TutorialModal from './components/TutorialModal.jsx'
 import UsuariosPage from './components/UsuariosPage.jsx'
-import { apiFetchEvents, apiUpdateEvent } from './utils/eventsApi.js'
+import { SESSION_EXPIRED_EVENT, apiFetchEvents, apiUpdateEvent } from './utils/eventsApi.js'
 import { readKitDecision } from './utils/kitDecisionLock.js'
 
 const MOCK_EVENT_IDS = [
@@ -58,7 +58,17 @@ export default function App() {
       } catch {
         token = ''
       }
-      if (!token) return
+      // Usuário em cache sem token (login anterior às sessões) não passa mais
+      // nas rotas de eventos/atletas: volta ao login em vez de operar sem salvar.
+      if (!token) {
+        setUser(null)
+        try {
+          localStorage.removeItem('entregas_run_user')
+        } catch {
+          // ignore
+        }
+        return
+      }
       try {
         const res = await fetch('/api/session', {
           headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
@@ -93,8 +103,27 @@ export default function App() {
     }
   }, [])
 
+  // Token vencido ou revogado no meio do uso: o servidor recusa com 401 e o
+  // eventsApi avisa; sem isto a tela seguiria mostrando entregas não salvas.
+  useEffect(() => {
+    if (!user) return undefined
+    function handleSessionExpired() {
+      setUser(null)
+      try {
+        localStorage.removeItem('entregas_run_user')
+        localStorage.removeItem('entregas_run_token')
+      } catch {
+        // ignore
+      }
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
+  }, [user])
+
   // Sincroniza eventos locais com o servidor central e puxa atualizações em tempo real
   useEffect(() => {
+    // Deslogado (login, espelho, validação pública) a API de eventos exige token.
+    if (!user) return undefined
     let isMounted = true
 
     async function syncEventsWithServer() {

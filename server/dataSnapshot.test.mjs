@@ -58,6 +58,10 @@ test('deploy gate verifies that the API still exposes confirmed deliveries', asy
   let status = 'ENTREGUE'
   const server = http.createServer((request, response) => {
     response.setHeader('content-type', 'application/json')
+    if (request.headers['x-deploy-check'] !== 'token-do-gate') {
+      response.statusCode = 401
+      return response.end('{}')
+    }
     response.end(JSON.stringify(request.url === '/api/events'
       ? { events: [{ id: 'event-test' }] }
       : { athletes: [{ id: 'a', numero: '1', status }] }))
@@ -65,9 +69,10 @@ test('deploy gate verifies that the API still exposes confirmed deliveries', asy
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   try {
     const base = `http://127.0.0.1:${server.address().port}`
-    await assert.doesNotReject(verifyApiSnapshot(before, base))
+    await assert.rejects(verifyApiSnapshot(before, base), /API de eventos indisponível/)
+    await assert.doesNotReject(verifyApiSnapshot(before, base, 'token-do-gate'))
     status = 'PENDENTE'
-    await assert.rejects(verifyApiSnapshot(before, base), /API perdeu atletas ou entregas/)
+    await assert.rejects(verifyApiSnapshot(before, base, 'token-do-gate'), /API perdeu atletas ou entregas/)
   } finally {
     await new Promise((resolve) => server.close(resolve))
   }

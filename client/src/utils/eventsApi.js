@@ -16,12 +16,23 @@ function getAuthHeaders(extra = {}) {
   }
 }
 
+// As rotas de eventos e atletas exigem login. Token vencido ou revogado avisa o
+// App para voltar ao login, em vez de cada entrega falhar calada no servidor.
+export const SESSION_EXPIRED_EVENT = 'entregas-run:sessao-expirada'
+
+function flagExpiredSession(res) {
+  if (res.status === 401 && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+  }
+}
+
 export async function apiFetchEvents() {
   try {
     const res = await fetch('/api/events', {
       headers: getAuthHeaders(),
       cache: 'no-store',
     })
+    flagExpiredSession(res)
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
     }
@@ -42,6 +53,7 @@ export async function apiCreateEvent(eventData) {
       }),
       body: JSON.stringify(eventData),
     })
+    flagExpiredSession(res)
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
     }
@@ -62,6 +74,7 @@ export async function apiUpdateEvent(eventId, patchData) {
       }),
       body: JSON.stringify(patchData),
     })
+    flagExpiredSession(res)
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
     }
@@ -79,6 +92,7 @@ export async function apiDeleteEvent(eventId) {
       method: 'DELETE',
       headers: getAuthHeaders(),
     })
+    flagExpiredSession(res)
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
     }
@@ -95,12 +109,12 @@ export async function apiSyncEvents(localEvents) {
   try {
     const res = await fetch('/api/events/sync', {
       method: 'POST',
-      headers: {
+      headers: getAuthHeaders({
         'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+      }),
       body: JSON.stringify({ events: localEvents }),
     })
+    flagExpiredSession(res)
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
     }
@@ -119,6 +133,7 @@ export async function apiFetchAthletes(eventId) {
       headers: getAuthHeaders(),
       cache: 'no-store',
     })
+    flagExpiredSession(res)
     if (!res.ok) return null
     const data = await res.json()
     return data.ok
@@ -156,6 +171,7 @@ export async function apiSaveAthletes(eventId, athletes, schema = [], kits, orig
         ...(options.undoAthleteId ? { undoAthleteId: options.undoAthleteId } : {}),
       }),
     })
+    flagExpiredSession(res)
     if (!res.ok) return false
     const data = await res.json()
     return Boolean(data.ok)
@@ -192,6 +208,7 @@ export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kit
             : {}),
         }),
       })
+      flagExpiredSession(res)
       if (!res.ok) {
         // Servidor antigo sem rota de chunks: cai para o POST único
         if (res.status === 404 && totalChunks > 1) {
@@ -224,6 +241,7 @@ async function apiSaveAthletesSingle(eventId, athletes, schema = [], kits, origi
         ...(options.undoAthleteId ? { undoAthleteId: options.undoAthleteId } : {}),
       }),
     })
+    flagExpiredSession(res)
     if (!res.ok) return false
     const data = await res.json()
     return Boolean(data.ok)
