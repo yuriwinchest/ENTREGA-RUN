@@ -198,10 +198,11 @@
   cursor: pointer;
 }
 
+/* Padrão verde (Leve) antes das gravidades: senão anula a cor da ficha. */
+.med-sheet { --g: #2b8a3e; }
 .g-moderada { --g: #e67700; }
 .g-grave { --g: #d9480f; }
 .g-critica { --g: #a51d2d; }
-.med-sheet { --g: #2b8a3e; }
 
 .med-card.sel {
   border-color: var(--med-ink);
@@ -212,45 +213,45 @@
   opacity: 0.6;
 }
 
-.med-card.new {
-  outline: 2px solid var(--g);
-  outline-offset: 1px;
+/* Ocorrência sem reconhecimento: o próprio cartão pisca na cor da gravidade
+   até alguém tocar em "Assumir e silenciar". Sem estrobo: 1,6 s por ciclo. */
+@keyframes medCardAlert {
+  0%, 100% { background: #ffffff; box-shadow: 0 0 0 2px var(--g); }
+  50% { background: color-mix(in srgb, var(--g) 22%, #ffffff); box-shadow: 0 0 0 4px var(--g); }
+}
+.med-card.alerting {
+  animation: medCardAlert 1.6s ease-in-out infinite;
+}
+.med-card.alerting .med-card-grav::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--g);
+  vertical-align: 1px;
+}
+.med-card-ack {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--g);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
 }
 
-@keyframes medAlertPulse {
-  50% { box-shadow: inset 0 0 0 6px var(--g); }
-}
 .med-alerting { --g: #2b8a3e; }
 .med-alerting.g-moderada { --g: #e67700; }
 .med-alerting.g-grave { --g: #d9480f; }
 .med-alerting.g-critica { --g: #a51d2d; }
 .med-audio-state { padding: 8px 20px; font-size: 13px; }
 .med-audio-state button { margin-left: 8px; min-height: 36px; }
-.med-alert-band {
-  margin: 8px 20px;
-  padding: 16px;
-  border: 3px solid var(--g);
-  border-radius: 10px;
-  background: #fff;
-  animation: medAlertPulse 3s ease-in-out infinite;
-}
-.med-alert-band strong { font-size: 19px; }
-.med-alert-band p { margin: 6px 0; }
-.med-alert-band ul { display: flex; flex-wrap: wrap; gap: 12px; padding: 4px; list-style: none; max-height: 180px; overflow: auto; }
-.med-alert-band li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.med-alert-band button {
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 2px solid var(--g);
-  border-radius: 6px;
-  background: #fff;
-  color: var(--med-ink);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
 @media (prefers-reduced-motion: reduce) {
-  .med-alert-band { animation: none; box-shadow: inset 0 0 0 3px var(--g); }
+  .med-card.alerting { animation: none; background: color-mix(in srgb, var(--g) 14%, #ffffff); box-shadow: 0 0 0 3px var(--g); }
 }
 
 .med-card-top {
@@ -768,4 +769,14 @@
 .med-prev-outcomes ul {
   margin: 6px 0 0;
   padding-left: 18px;
+}
+
+.med-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }

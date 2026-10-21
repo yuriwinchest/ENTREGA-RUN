@@ -13,6 +13,9 @@ export function highestAlert(ocorrencias) {
   }, null)
 }
 
+// 1 = escala cheia do Web Audio, sem distorcer por saturação digital.
+export const ALERT_GAIN = 1
+
 // Cada pulso termina sozinho; stop também cancela as fontes já programadas.
 // O controlador é descartado junto com o AudioContext ao sair do painel.
 export function createAlertRepeater(ctx, timers = globalThis) {
@@ -23,7 +26,9 @@ export function createAlertRepeater(ctx, timers = globalThis) {
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     const start = ctx.currentTime
-    osc.type = 'sine'
+    // Volume máximo (pedido do Yuri): onda quadrada é a mais alta e estridente
+    // para a mesma amplitude. O limite final é o volume do aparelho.
+    osc.type = 'square'
     osc.frequency.setValueAtTime(660, start)
     for (let i = 0; i < 6; i += 1) {
       const t = start + i * 0.6
@@ -31,8 +36,8 @@ export function createAlertRepeater(ctx, timers = globalThis) {
       osc.frequency.linearRampToValueAtTime(i % 2 ? 660 : 880, t + 0.12)
     }
     gain.gain.setValueAtTime(0.0001, start)
-    gain.gain.exponentialRampToValueAtTime(0.10, start + 0.05)
-    gain.gain.setValueAtTime(0.10, start + 3.5)
+    gain.gain.exponentialRampToValueAtTime(ALERT_GAIN, start + 0.05)
+    gain.gain.setValueAtTime(ALERT_GAIN, start + 3.5)
     gain.gain.exponentialRampToValueAtTime(0.0001, start + 3.6)
     osc.connect(gain).connect(ctx.destination)
     sources.add(osc)

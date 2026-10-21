@@ -11,21 +11,20 @@
 ## Última atualização
 
 - **Quando / quem:** 2026-10-21 · Claude Code (Opus 5.5) · Fase B (homologação do Yuri).
+- **Pedido:** painel médico sem o cartão grande de alerta: só o cartão da ocorrência piscando na cor da gravidade até tocarem nele para atender; som no volume máximo.
+- **Entrega:** cartão sem reconhecimento pisca (1,6 s por ciclo, cor da gravidade, sem animação para quem pede movimento reduzido), com etiqueta "Toque para atender"; tocar no cartão assume (se aberta), silencia em todas as telas do evento e abre a ficha. Faixa grande removida. Sirene com onda quadrada e ganho 1 (era seno a 0,10). **Defeito grave achado e corrigido:** desde `663fd70` (hoje cedo), abrir `/operacao/<evento>` antes da lista de eventos carregar mandava o evento provisório "CARREGANDO..." inteiro ao servidor e **renomeava o evento real** (e podia trocar o status para EM OPERAÇÃO). Agora o client envia só contagens e o servidor ignora nome/status/data/local de um corpo "CARREGANDO...". Também: título da ficha médica ficava verde para qualquer gravidade (ordem do CSS). Arquivos: `client/src/components/MedicoPage.*`, `client/src/utils/medicoAlert.js`, `client/src/App.jsx`, `server/server.js` (PUT de evento), `server/medicoRegistro.http.test.mjs`.
+- **Validação real:** servidor 39/39 (teste novo: corpo "CARREGANDO..." mantém nome e status, renomear de propósito continua funcionando), client 66/66, lint sem erro, build ok. Navegador local: reproduzido o nome "CARREGANDO..." gravado; com a correção, abrir a operação direto pelo endereço mantém nome e status; cartões piscam; tocar na #3 tirou o pisca só dela, virou Em atendimento e abriu a ficha; título Crítica vermelho.
+- **Riscos / pendências:** eventos de produção podem ter sido renomeados para "CARREGANDO..." (ou ido para EM OPERAÇÃO) entre `663fd70` e este deploy: **Yuri conferir os nomes e status em Eventos e corrigir em Editar evento**. Volume final depende do volume do aparelho.
+- **Próximo passo:** Yuri conferir nomes/status dos eventos e homologar o cartão piscando + som no celular/computador da equipe médica.
+
+## Penúltima atualização
+
+- **Quando / quem:** 2026-10-21 · Claude Code (Opus 5.5) · Fase B (homologação do Yuri).
 - **Pedido:** (1) foto anexada pelo celular no Espelho não aparecia no navegador; (2) opção para tirar o nome da corrida do topo do Espelho quando o banner já traz os dados da prova.
 - **Causa / entrega:** o painel recusava a foto **antes** de otimizar: limite de 5 MB no arquivo bruto (foto de câmera passa disso) e tipos só PNG/JPG/WebP (HEIC do iPhone e tipo vazio de alguns Android). Agora aceita até 25 MB, `accept="image/*"`, deixa o navegador decodificar e reduz antes de enviar; mensagem clara se o aparelho não abrir o formato. Nova chave "Mostrar nome da corrida" (Aparência), salva no servidor (`showEventName`, padrão ligado) e respeitada na prévia e na segunda tela. Também corrigido: aparelho logado como MEDICO tinha `/espelho`, `/validar` e `/emergencia` reescritos para `/medico`. Arquivos: `client/src/components/EspelhoModal.jsx`, `EspelhoPage.jsx`, `client/src/utils/espelhoSync.js` (+teste), `client/src/App.jsx`, `server/server.js` (sanitização do Espelho), `server/espelho.http.test.mjs`.
 - **Validação real:** servidor 39/39, client 66/66, lint sem erro, build ok. Navegador local: "celular" (375 px) envia foto de 11,8 MB sem tipo → otimizada para 555 KB, gravada em `espelho_configs.json` e exibida na segunda tela já aberta (SSE); desligar o nome some da prévia e da segunda tela na hora e persiste no servidor; aparelho de médico abre `/espelho` sem redirecionar.
 - **Riscos / pendências:** HEIC só abre onde o navegador decodifica (Safari sim; Chrome no computador não). Nesse caso a mensagem pede JPG/print. Homologação em celular e TV reais.
 - **Próximo passo:** Yuri, no evento: Espelho → Aparência → desligar "Mostrar nome da corrida" e reenviar a foto pelo celular.
-
-## Penúltima atualização
-
-- **Quando / quem:** 2026-10-21 · Claude Code (Opus 5.5) · Fase A → publicação autorizada pelo Yuri ("pode fazer commit e push… para publicar as quatro frentes"). Continuação da central depois do limite de uso do Codex/Tony.
-- **Pedido:** Yuri pediu para continuar o que o GPT deixou pela metade (`docs/continuidade-central-2026-10-21.md`): fechar o alarme e implementar o registro de atendimento (prescrições, aplicações, condutas e desfecho/destino ao encerrar).
-- **Arquivos / entrega:** pasta de trabalho `D:/Projetos/Clientes/Entregas-run-import-fix`, branch `codex/substituir-planilha` (base = `main` publicada `00017e9`), commit `db3ecd1` publicado na `main` (`00017e9..db3ecd1`, fast-forward). Alarme: só conferido, documentado em `docs/saude-alerta-persistente.md`, e testes no CI. Registro: `server/medico.js`, `server/server.js` (`POST …/registros`, desfecho obrigatório ao encerrar), `client/src/components/MedicoPage.*`, `client/src/utils/medico.js` e `medicoApi.js`, testes `server/medicoRegistro.http.test.mjs` e `client/src/utils/medico.test.mjs`. Relatório: `docs/saude-registro-atendimento.md`. `deploy.yml` passa a rodar `medicoAlert`, `espelhoSync`, `medicoAlert.http`, `medicoRegistro.http` e `espelho.http`.
-- **Validação real:** na pasta de trabalho, com as quatro frentes juntas: servidor 39/39, client 65/65, lint sem erro, build ok, `bash -n` do deploy ok. Navegador local isolado: alarme com maior gravidade, assumir e silenciar, registro com autor/hora do servidor, rascunho mantido após atualização de 10 s, encerramento barrado sem hospital, encerrar, reabrir e encerrar de novo, celular 375 px. Um defeito achado e corrigido (mensagem de erro antiga ficava na tela).
-- **Produção:** GitHub Actions 39659988490 com sucesso em validate/preflight/deploy; "Deploy db3ecd1f7e35 saudável", "Integridade preservada: 3 eventos, 16211 atletas, 703 entregas". Os dois domínios com `/api/health` ok servem `index-BFMFq0Ls.js`, que contém as quatro frentes; `POST …/registros` sem login = 401.
-- **Riscos / pendências:** homologação do Yuri das quatro frentes em produção. Som real em celular/TV e Espelho em TV física não testados. Retenção LGPD de registros clínicos a definir.
-- **Próximo passo:** Yuri homologa em produção: importação (substituir/adicionar), Espelho, alarme (ativar som no aparelho) e registro/encerramento com desfecho.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -47,5 +46,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-21 · Claude Code · Painel médico: cartão piscando até atender, som no máximo; corrigido evento renomeado para "CARREGANDO...".
 - 2026-10-21 · Claude Code · Espelho: foto de celular (até 25 MB/HEIC) e chave para ocultar o nome da corrida.
-- 2026-10-21 · Claude Code · Publicadas as quatro frentes (importação, Espelho, alarme, registro de atendimento) em `db3ecd1`.

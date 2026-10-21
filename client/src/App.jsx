@@ -531,12 +531,15 @@ export default function App() {
           event={eventForOperacao}
           user={user}
           onUpdateEvent={(updatedEvent) => {
+            if (!updatedEvent?.id) return
+            // A operação só atualiza contagens. Mandar o evento inteiro gravava o
+            // provisório "CARREGANDO..." (nome e status) por cima do evento real.
+            const { total, entregues, pendentes, concl } = updatedEvent
+            const counts = { total, entregues, pendentes, concl }
             setEvents((prev) =>
-              prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e))
+              prev.map((e) => (e.id === updatedEvent.id ? { ...e, ...counts } : e))
             )
-            if (updatedEvent && updatedEvent.id) {
-              apiUpdateEvent(updatedEvent.id, updatedEvent).catch(() => {})
-            }
+            apiUpdateEvent(updatedEvent.id, counts).catch(() => {})
           }}
           onNavigate={navigateTo}
           onLogout={handleLogout}

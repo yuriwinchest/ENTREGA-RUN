@@ -820,7 +820,13 @@ app.put('/api/events/:eventId', requireAuth, (req, res) => {
 
   const current = inMemoryEvents[index]
   if (current.status === 'ARQUIVADO') return res.status(409).json({ ok: false, message: 'Restaure o evento antes de alterá-lo.' })
-  const body = req.body || {}
+  let body = req.body || {}
+  // Telas abertas antes da lista de eventos carregar mandavam o evento provisório
+  // "CARREGANDO..." inteiro: só as contagens dele valem, nunca nome/status/data/local.
+  if (typeof body.name === 'string' && body.name.trim().toUpperCase().startsWith('CARREGANDO')) {
+    const { name: _n, status: _s, active: _a, date: _d, dateInput: _di, location: _l, ...counts } = body
+    body = counts
+  }
   const validStatuses = ['PLANEJADO', 'EM OPERAÇÃO', 'FINALIZADO']
 
   const updated = {

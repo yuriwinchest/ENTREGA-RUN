@@ -115,6 +115,16 @@ test('registro de atendimento: autoria do servidor, encerramento com desfecho, r
     const publicText = JSON.stringify((await request(`/api/public/emergencia/${encodeURIComponent(code)}`)).data)
     for (const secret of ['Dipirona', 'HPS', 'Imobilização']) assert.equal(publicText.includes(secret), false, secret)
 
+    // Evento provisório "CARREGANDO..." (tela aberta antes da lista carregar) não
+    // renomeia nem muda status do evento real; só as contagens valem.
+    const placeholder = await request('/api/events/race', 'PUT', { id: 'race', name: 'CARREGANDO...', status: 'EM OPERAÇÃO', location: 'X', total: 7, entregues: 0 }, admin)
+    assert.equal(placeholder.status, 200)
+    assert.equal(placeholder.data.event.name, 'race', 'nome original preservado')
+    assert.equal(placeholder.data.event.status, 'PLANEJADO')
+    assert.equal(placeholder.data.event.total, 7)
+    const rename = await request('/api/events/race', 'PUT', { name: 'Corrida Real' }, admin)
+    assert.equal(rename.data.event.name, 'CORRIDA REAL', 'renomear de propósito continua funcionando')
+
     // Persistência após reiniciar o processo vem do arquivo do evento.
     const disk = JSON.parse(fs.readFileSync(path.join(dir, 'medico', 'ocorrencias_race.json'), 'utf-8'))
     assert.equal(disk.ocorrencias[0].registros.length, 3)

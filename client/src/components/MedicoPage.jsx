@@ -177,9 +177,13 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
     else repeaterRef.current?.stop()
   }
 
+  // Tocar no cartão que pisca é atender: assume (se aberta), silencia em todas as
+  // telas do evento e abre a ficha.
   function select(id) {
     if (soundOn) void ensureAudio()
     setSelectedId(id)
+    const item = data.ocorrencias.find((entry) => entry.id === id)
+    if (item && !item.alertaReconhecidoEm) void acknowledge(item)
   }
 
   async function acknowledge(item) {
@@ -310,24 +314,10 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
           <button type="button" onClick={() => void ensureAudio()}>Ativar som neste dispositivo</button>
         )}
       </div>
-      {hasAlerts && (
-        <section className={`med-alert-band g-${highest.gravidade.toLowerCase()}`} aria-label="Alertas não reconhecidos">
-          <div role="status">
-            <strong>{alerts.length} alerta{alerts.length === 1 ? '' : 's'} aguardando reconhecimento</strong>
-            <p>Maior gravidade pendente: {gravidadeLabel(highest.gravidade)}. O reconhecimento interrompe o aviso em todas as telas médicas deste evento; não encerra atendimento.</p>
-          </div>
-          <ul>
-            {alerts.map((item) => (
-              <li key={item.id}>
-                <span>#{item.protocolo} · {gravidadeLabel(item.gravidade)}</span>
-                <button type="button" disabled={Boolean(acknowledging || updating)} onClick={() => void acknowledge(item)}>
-                  {acknowledging === item.id ? 'Salvando…' : item.status === 'ABERTA' ? 'Assumir e silenciar' : 'Silenciar alerta'}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      {/* O aviso é o próprio cartão piscando na fila; aqui só o leitor de tela é avisado. */}
+      <p className="med-sr-only" role="status">
+        {hasAlerts ? `${alerts.length} ocorrência${alerts.length === 1 ? '' : 's'} aguardando atendimento` : ''}
+      </p>
 
       {loadError && <p className="med-banner" role="alert">{loadError}</p>}
 
@@ -355,11 +345,19 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
             </div>
           ) : (
             visible.map((item) => (
-              <button
+              <div
                 key={item.id}
-                type="button"
-                className={`med-card g-${String(item.gravidade).toLowerCase()} st-${item.status.toLowerCase()} ${selectedId === item.id ? 'sel' : ''} ${!item.alertaReconhecidoEm ? 'new' : ''}`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Ocorrência ${item.protocolo}, ${gravidadeLabel(item.gravidade)}${!item.alertaReconhecidoEm ? ', aguardando: tocar assume e silencia' : ''}`}
+                className={`med-card g-${String(item.gravidade).toLowerCase()} st-${item.status.toLowerCase()} ${selectedId === item.id ? 'sel' : ''} ${!item.alertaReconhecidoEm ? 'alerting' : ''}`}
                 onClick={() => select(item.id)}
+                onKeyDown={(e) => {
+                  if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault()
+                    select(item.id)
+                  }
+                }}
               >
                 <span className="med-card-top">
                   <span className="med-card-proto">#{item.protocolo}</span>
@@ -385,7 +383,12 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
                   {item.localTexto && <span className="med-card-loc">{item.localTexto}</span>}
                   {item.geo && !item.localTexto && <span className="med-card-loc">GPS</span>}
                 </span>
-              </button>
+                {!item.alertaReconhecidoEm && (
+                  <span className="med-card-ack" aria-hidden="true">
+                    {acknowledging === item.id ? 'Salvando…' : 'Toque para atender'}
+                  </span>
+                )}
+              </div>
             ))
           )}
         </section>
