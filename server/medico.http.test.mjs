@@ -49,6 +49,7 @@ async function startServer(dataDir, port) {
 
 test('fluxo completo: colunas de saúde da planilha, busca pública, ocorrência e painel do médico', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'entregas-medico-http-'))
+  fs.writeFileSync(path.join(dataDir, 'events.json'), '[]')
   fs.writeFileSync(path.join(dataDir, 'users.json'), JSON.stringify([{
     id: 'admin-1', name: 'ADMIN', email: ADMIN_EMAIL, passwordHash: hashPassword(ADMIN_PASSWORD),
     role: 'ADMIN', eventId: 'all', status: 'ATIVO',
@@ -190,8 +191,9 @@ test('fluxo completo: colunas de saúde da planilha, busca pública, ocorrência
 
     // Admin também acompanha; excluir o evento apaga as ocorrências.
     assert.equal((await request('/api/medico/ev-poa/ocorrencias', 'GET', undefined, admin)).status, 200)
-    assert.equal((await request('/api/events/ev-poa', 'DELETE', undefined, admin)).status, 200)
+    assert.equal((await request('/api/events/ev-poa', 'DELETE', { confirmQrInvalidation: true }, admin)).status, 200)
     assert.deepEqual(fs.readdirSync(path.join(dataDir, 'medico')).filter((f) => f.includes('ev-poa')), [])
+    assert.equal(fs.existsSync(path.join(dataDir, 'athletes_ev-poa.json')), false)
   } finally {
     await stopServer(child)
     fs.rmSync(dataDir, { recursive: true, force: true })

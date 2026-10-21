@@ -27,6 +27,7 @@ async function freePort() {
 
 test('foto de retirada: exige login, valida JPEG, serve sem cache e apaga', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'entregas-fotos-'))
+  fs.writeFileSync(path.join(dataDir, 'events.json'), '[]')
   const port = await freePort()
   const adminPassword = `t-${Date.now()}-senha`
   const child = spawn(process.execPath, ['server/server.js'], {
@@ -36,6 +37,7 @@ test('foto de retirada: exige login, valida JPEG, serve sem cache e apaga', asyn
       PORT: String(port),
       DATA_DIR: dataDir,
       APPWRITE_ENABLED: 'false',
+      APPWRITE_API_KEY: '',
       APPWRITE_ENDPOINT: '',
       ADMIN_EMAIL: 'admin@teste.local',
       ADMIN_PASSWORD: adminPassword,

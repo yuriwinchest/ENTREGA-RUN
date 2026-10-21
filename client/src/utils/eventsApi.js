@@ -86,11 +86,12 @@ export async function apiUpdateEvent(eventId, patchData) {
   }
 }
 
-export async function apiDeleteEvent(eventId) {
+export async function apiDeleteEvent(eventId, confirmQrInvalidation = false) {
   try {
     const res = await fetch(`/api/events/${encodeURIComponent(eventId)}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ confirmQrInvalidation }),
     })
     flagExpiredSession(res)
     if (!res.ok) {

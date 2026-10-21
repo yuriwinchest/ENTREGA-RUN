@@ -7,6 +7,21 @@ import path from 'node:path'
 import test from 'node:test'
 import { captureSnapshot, deliveredContentHash, verifyApiSnapshot, verifySnapshot } from './dataSnapshot.mjs'
 
+test('deploy gate preserva códigos de QR inclusive após exclusão do evento de origem', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'entregas-qr-gate-'))
+  try {
+    fs.writeFileSync(path.join(dir, 'events.json'), '[]')
+    const file = path.join(dir, 'emergency_links.json')
+    fs.writeFileSync(file, JSON.stringify({ links: { old: { eventId: 'new', revision: 2 } } }))
+    const before = captureSnapshot(dir)
+    assert.doesNotThrow(() => verifySnapshot(before, dir))
+    fs.writeFileSync(file, JSON.stringify({ links: { old: { eventId: 'other', revision: 2 } } }))
+    assert.throws(() => verifySnapshot(before, dir), /Vínculo de QR perdido/)
+    fs.rmSync(file)
+    assert.throws(() => verifySnapshot(before, dir), /Vínculo de QR perdido/)
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+})
+
 test('deploy gate rejects a missing active sheet or a lost delivery', () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'entregas-deploy-gate-'))
   const file = path.join(dataDir, 'athletes_event-test.json')

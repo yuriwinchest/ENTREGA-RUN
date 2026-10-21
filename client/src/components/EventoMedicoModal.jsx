@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { apiFetchAthletes } from '../utils/eventsApi.js'
 import { emergencyUrl } from '../utils/medico.js'
+import { emergencyLinksApi } from '../utils/medicoApi.js'
+import EmergencyLinksManager from './EmergencyLinksManager.jsx'
 import './EventoMedicoModal.css'
 
 function CloseIcon() {
@@ -32,17 +34,31 @@ function downloadHref(href, filename) {
   link.remove()
 }
 
-export default function EventoMedicoModal({ event, onClose, onOpenPainel, onOpenOperacao }) {
+export default function EventoMedicoModal({ event, events = [], canManageLinks = false, onClose, onOpenPainel, onOpenOperacao }) {
   const [qrPreview, setQrPreview] = useState('')
   const [copied, setCopied] = useState(false)
   const [health, setHealth] = useState(null)
+  const [links, setLinks] = useState(null)
+  const [linkError, setLinkError] = useState('')
+  const [refresh, setRefresh] = useState(0)
 
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  const linkEmergencia = emergencyUrl(origin, event?.id)
+  const linkEmergencia = links?.primaryCode ? emergencyUrl(origin, links.primaryCode) : ''
   const fileBase = `qr-emergencia-${slug(event?.name)}`
 
   useEffect(() => {
     let alive = true
+    emergencyLinksApi.issue(event.id).then((response) => {
+      if (!alive) return
+      if (response.ok) { setLinks(response.data); setLinkError('') }
+      else setLinkError(response.data?.message || 'Não foi possível preparar o QR permanente.')
+    })
+    return () => { alive = false }
+  }, [event.id, refresh])
+
+  useEffect(() => {
+    let alive = true
+    if (!linkEmergencia) return
     QRCode.toDataURL(linkEmergencia, { width: 420, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#0c142c', light: '#ffffff' } })
       .then((url) => { if (alive) setQrPreview(url) })
       .catch(() => { if (alive) setQrPreview('') })
@@ -121,20 +137,25 @@ export default function EventoMedicoModal({ event, onClose, onOpenPainel, onOpen
                 busca por peito, nome ou CPF. Correção de erro alta: funciona mesmo com o peito amassado ou molhado.
               </p>
               <div className="evmed-actions">
-                <button type="button" className="evmed-btn primary" onClick={downloadPng}>Baixar PNG (alta resolução)</button>
-                <button type="button" className="evmed-btn ghost" onClick={downloadSvg}>Baixar SVG (vetor)</button>
+                <button type="button" className="evmed-btn primary" disabled={!linkEmergencia || event.status === 'ARQUIVADO'} onClick={downloadPng}>Baixar PNG (alta resolução)</button>
+                <button type="button" className="evmed-btn ghost" disabled={!linkEmergencia || event.status === 'ARQUIVADO'} onClick={downloadSvg}>Baixar SVG (vetor)</button>
               </div>
             </div>
           </div>
 
           <div className="evmed-link-row">
             <span className="evmed-link-label">Página de emergência (pública)</span>
-            <code>{linkEmergencia}</code>
+            <code>{linkEmergencia || linkError || 'Preparando endereço permanente…'}</code>
             <div className="evmed-link-actions">
-              <button type="button" onClick={copyLink}>{copied ? 'Copiado' : 'Copiar'}</button>
-              <a href={linkEmergencia} target="_blank" rel="noreferrer">Abrir</a>
+              <button type="button" disabled={!linkEmergencia} onClick={copyLink}>{copied ? 'Copiado' : 'Copiar'}</button>
+              {linkEmergencia && <a href={linkEmergencia} target="_blank" rel="noreferrer">Abrir</a>}
             </div>
           </div>
+
+          {event.status === 'ARQUIVADO' && <p className="evmed-lead" role="status">Evento arquivado: a página pública está indisponível. Os dados estão preservados. Restaure o evento ou transfira o QR impresso para o evento correto.</p>}
+          {linkError && <p role="alert">{linkError} <button type="button" onClick={() => setRefresh((value) => value + 1)}>Tentar novamente</button></p>}
+          {links?.links.length > 1 && <div className="evmed-health"><h3>QR Codes vinculados a este evento</h3>{links.links.map((link) => <code className="evmed-alias" key={link.code}>{emergencyUrl(origin, link.code)}</code>)}</div>}
+          {canManageLinks && <EmergencyLinksManager event={event} events={events} onChanged={() => setRefresh((value) => value + 1)} />}
 
           <div className="evmed-health">
             <h3>Dados de saúde da planilha</h3>

@@ -22,7 +22,7 @@ const serverFile = fileURLToPath(new URL('./server.js', import.meta.url))
 
 async function startServer(dataDir, port, extraEnv = {}) {
   const child = spawn(process.execPath, [serverFile], {
-    env: { ...process.env, DATA_DIR: dataDir, PORT: String(port), ADMIN_PASSWORD: 'test-admin-123456', ...extraEnv },
+    env: { ...process.env, DATA_DIR: dataDir, PORT: String(port), ADMIN_PASSWORD: 'test-admin-123456', ...extraEnv, APPWRITE_ENABLED: 'false', APPWRITE_API_KEY: '' },
     stdio: 'ignore',
   })
   for (let attempt = 0; attempt < 100; attempt += 1) {

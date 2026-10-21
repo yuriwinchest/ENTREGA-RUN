@@ -10,22 +10,24 @@
 
 ## Última atualização
 
+- **Quando / quem:** 2026-10-21 · Codex/Tony · Fase A, QR permanente e recuperação de endereço impresso.
+- **Pedido:** Yuri aprovou vínculo permanente, reaproveitamento administrativo do QR antigo e proteção na exclusão, no Entregas-run.
+- **Arquivos / entrega:** server/emergencyLinks.js, rotas/arquivo/exclusão em server.js, gate dataSnapshot; modal EmergencyLinksManager/EventoMedicoModal, aba Arquivados e restauração, APIs e proteção de página pública antiga. Corrigido isolamento Appwrite dos testes. Detalhes: [docs/qr-permanente.md](docs/qr-permanente.md).
+- **Validação:** [verificado] servidor31/31; cliente45/45; lint sem erros(3avisos antigos); buildVite aprovado; navegador local com dados sintéticos comprovou vínculo e busca pelo endereço antigo; testeHTTP cobre reinício, permissões, revisão, arquivo/restauração, exclusão e ocorrência no destino correto. Não testado QR físico/celular.
+- **Riscos / pendências:** branch local codex/qr-emergencia-permanente, sem push/deploy desta frente. Durante suíte inicial, flag externa desativada era ignorada; corrigido. Leitura posterior confirmou atualização do evento sintético preexistente event-sync-test no Appwrite; sem snapshot prévio, não se afirma reversão nem ausência absoluta de efeitos. Limites/evidências em docs. Reversão futura precisa preservar aliases e a regra de Arquivado. AI Memory sincronizado em decisoes/qr-emergencia-permanente-2026-10-21.md.
+- **Próximo passo:** Yuri homologa recuperação do QR, nome/data/lista do destino, arquivo e exclusão; publicação requer autorização desta frente e plano compatível com os vínculos já utilizados.
+
+## Penúltima atualização
+
 - **Quando / quem:** 2026-10-21 · Codex/Tony · Fase A, integração da proteção de rotas com a emergência médica.
 - **Pedido:** Yuri autorizou integrar o commit f63c339 do branch claude/cool-euler-3b3396 à implementação local da emergência médica e publicar após validação.
 - **Arquivos / entrega:** candidato isolado codex/rotas-emergencia-medica; rotas de eventos/atletas exigem autenticação; server/deployCheck.js permite somente leituras locais do gate com token efêmero; cliente trata 401 encerrando sessão; CI inclui os testes de autenticação e os da emergência médica. Mudanças da emergência médica trazidas do checkout local; detalhes em docs/emergencia-medica.md.
 - **Validação:** [verificado] server 26/26; client 33/33; lint sem erros (3 avisos preexistentes em `OperacaoPage.jsx`); build Vite aprovado; `bash -n scripts/deploy-vps.sh` aprovado; diff sem conflitos e sem erros de whitespace. Leitura GET de `/api/health` em produção respondeu 200 antes e depois do deploy. CI/CD `39528865715` passou: validação, preflight e deploy concluídos; healthcheck pós-deploy respondeu `ok: true`, `diskWriteError: null`. Não testado em celular.
 - **Riscos / pendências:** tokens ausentes/expirados retornam ao login; dados de saúde e ocorrências continuam sujeitos à pendência de retenção LGPD já registrada. O workflow publicado usou snapshot, healthcheck e rollback automático; CI e deploy do commit `2a13ee0` concluídos. Permanecem tokens ausentes/expirados retornando ao login e a pendência de retenção LGPD.
 - **Próximo passo:** criar commit integrado e publicar na main conforme autorização do Yuri; acompanhar validação/healthcheck e rollback do workflow.
-## Penúltima atualização
+## Estado atual
 
-- **Quando / quem:** 2026-10-20 · Claude Code (Opus 5.5), sessão delegada pela sessão orquestradora — Fase A, etapa 1 redefinida pelo Yuri.
-- **Pedido:** dados de saúde vêm da planilha de inscrição (outro sistema), não de formulário: na importação, seção "Saúde" para marcar colunas de saúde e quais aparecem na página pública; escolha salva por evento e mantida ao reimportar; página pública mostra nome, peito, modalidade e as colunas públicas embaixo dos campos da ocorrência; CPF, telefone, e-mail, endereço e nascimento nunca públicos; Médico vê todas.
-- **Arquivos:** removidos o montador de perguntas, `FichaMedicaPage` e as rotas `/api/public/ficha-medica`. `server/medico.js` reescrito (colunas de saúde, regra de identificação, ocorrências); `server/server.js` (`healthFields` em `saveAthletesForEvent`, POST de atletas e chunks, GET de atletas; validação pública do kit e espelho escondem colunas de saúde); `ImportarAtletasModal` (seção Saúde; "contato de emergência" deixa de sobrescrever o telefone); `OperacaoPage` e `eventsApi` (levam e trazem `healthFields`); `EmergenciaPage`, `MedicoPage`, `EventoMedicoModal` (QR + resumo). Detalhes: [`docs/emergencia-medica.md`](docs/emergencia-medica.md).
-- **Validação real:** server 25/25 (fluxo HTTP: escolha salva e mantida no autosave, telefone forçado a privado, kit e espelho sem saúde, página pública sem CPF/telefone/coluna privada, médico com todas, vínculo da ocorrência sobrevive à reimportação); client 33/33; lint sem erro; build ok. Navegador local com planilha fictícia de 10 colunas: marcar 5 colunas (contato de emergência bloqueado como "só no painel"), importar, reimportar com marcações pré-selecionadas, página pública no celular (3 colunas públicas embaixo, Enviar fixo no rodapé), ocorrência nº 1, painel do médico com as 5 colunas.
-- **Riscos / pendências:** sem deploy (aguarda validação do candidato); as rotas de eventos/atletas agora exigem login; retenção LGPD a definir; alerta sonoro não ouvido de fato; QR impresso não lido por celular real.
-- **Próximo passo:** Yuri homologa e autoriza o push; testar com a planilha real do sistema de inscrição.
-
-## Estado atual (verificado em 2026-09-28)
+- **Candidato local:** [verificado 2026-10-21] QR permanente em codex/qr-emergencia-permanente; main remota permanece bcd61e9, sem publicação deste candidato.
 
 - **Produção:** `https://app.entregasrun.com.br` (VPS, Docker `entregas-run-web`, porta local 3050). Deploy = push na `main` → GitHub Actions (`.github/workflows/deploy.yml`): validação, snapshot com hash, healthcheck e rollback automáticos. O Yuri autorizou push na `main` ao fim de cada ajuste validado.
 - **Admin principal:** `agneraraujo@hotmail.com` (definido por `ADMIN_EMAIL` no `.env` da VPS; não pode ser removido/desativado). Trocar: workflow manual `set-admin-email.yml`.
@@ -45,5 +47,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-21 · Codex/Tony · QR permanente, reaproveitamento administrativo e arquivamento; implementação local validada, sem deploy.
 - 2026-10-21 · Codex/Tony · Integração publicada em `2a13ee0`; CI/CD e healthcheck pós-deploy aprovados.
-- 2026-10-20 · Claude Code · Emergência médica: colunas de saúde na importação, página pública via QR do peito, perfil MEDICO com fila (local, sem deploy).

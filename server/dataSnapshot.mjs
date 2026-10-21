@@ -64,7 +64,10 @@ export function captureSnapshot(dataDir) {
       ...proofs,
     }
   }
-  return { version: 1, eventIds: events.map((event) => String(event.id)).sort(), athletesByFile }
+  const linksFile = path.join(dataDir, 'emergency_links.json')
+  const emergencyLinks = fs.existsSync(linksFile) ? readJson(linksFile).links : {}
+  if (!emergencyLinks || typeof emergencyLinks !== 'object') throw new Error('Registro de QR inválido.')
+  return { version: 1, eventIds: events.map((event) => String(event.id)).sort(), athletesByFile, emergencyLinks }
 }
 
 export function verifySnapshot(before, dataDir) {
@@ -72,6 +75,12 @@ export function verifySnapshot(before, dataDir) {
     throw new Error('Manifesto de integridade inválido.')
   }
   const after = captureSnapshot(dataDir)
+  for (const [code, previous] of Object.entries(before.emergencyLinks || {})) {
+    const current = after.emergencyLinks[code]
+    if (!current || current.revision < previous.revision || (current.revision === previous.revision && current.eventId !== previous.eventId)) {
+      throw new Error(`Vínculo de QR perdido ou alterado sem revisão: ${code}`)
+    }
+  }
   const eventIds = new Set(after.eventIds)
   for (const id of before.eventIds) {
     if (!eventIds.has(id)) throw new Error(`Evento desapareceu após o deploy: ${id}`)

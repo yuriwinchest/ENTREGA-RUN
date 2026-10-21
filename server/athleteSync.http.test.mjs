@@ -27,6 +27,7 @@ async function freePort() {
 
 test('two old clients can deliver without erasing each other, including chunk uploads', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'entregas-sync-'))
+  fs.writeFileSync(path.join(dataDir, 'events.json'), '[]')
   const port = await freePort()
   const child = spawn(process.execPath, ['server/server.js'], {
     cwd: path.resolve(import.meta.dirname, '..'),
@@ -35,6 +36,7 @@ test('two old clients can deliver without erasing each other, including chunk up
       PORT: String(port),
       DATA_DIR: dataDir,
       APPWRITE_ENABLED: 'false',
+      APPWRITE_API_KEY: '',
       ADMIN_EMAIL: 'admin@teste.local',
       ADMIN_PASSWORD: 'senha-sync-teste',
     },

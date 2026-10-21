@@ -72,6 +72,11 @@ export default function EmergenciaPage({ eventId }) {
 
   useEffect(() => {
     let alive = true
+    setEvent(null)
+    setLoadError('')
+    setMode('busca')
+    setAthlete(null)
+    setResults(null)
     emergenciaApi.evento(eventId).then((res) => {
       if (!alive) return
       if (res.ok) setEvent(res.data.event)
@@ -84,9 +89,10 @@ export default function EmergenciaPage({ eventId }) {
 
   async function openAthlete(ref) {
     setSearching(true)
-    const res = await emergenciaApi.atleta(eventId, ref)
+    const res = await emergenciaApi.atleta(eventId, ref, event?.id)
     setSearching(false)
     if (!res.ok) {
+      if (res.status === 409) setLoadError(res.data?.message || 'Recarregue para conferir o evento.')
       setSearchMsg(res.data?.message || 'Não foi possível abrir a ficha.')
       return
     }
@@ -102,9 +108,10 @@ export default function EmergenciaPage({ eventId }) {
     setSearching(true)
     setSearchMsg('')
     setResults(null)
-    const res = await emergenciaApi.buscar(eventId, q)
+    const res = await emergenciaApi.buscar(eventId, q, event?.id)
     setSearching(false)
     if (!res.ok) {
+      if (res.status === 409) setLoadError(res.data?.message || 'Recarregue para conferir o evento.')
       setSearchMsg(res.data?.message || 'Falha na busca.')
       return
     }
@@ -157,9 +164,11 @@ export default function EmergenciaPage({ eventId }) {
       ...form,
       athleteRef: athlete?.ref || null,
       geo: geo.coords,
+      expectedEventId: event?.id,
     })
     setSending(false)
     if (!res.ok) {
+      if (res.status === 409) setLoadError(res.data?.message || 'Recarregue para conferir o evento.')
       setFormError(res.data?.message || 'Não foi possível enviar. Ligue para o socorro do evento.')
       return
     }
@@ -180,13 +189,13 @@ export default function EmergenciaPage({ eventId }) {
             <a className="emg-samu" href="tel:192">Risco de vida? Ligue 192</a>
           </div>
           <h1 className="emg-event">{event?.name || (loadError ? 'Evento' : 'Carregando…')}</h1>
-          {event?.location && <p className="emg-event-meta">{event.date} · {event.location}</p>}
+          {event && <p className="emg-event-meta">{event.date || 'Data não informada'}{event.location ? ` · ${event.location}` : ''}</p>}
           <LocationChip geo={geo} onRetry={requestGeo} />
         </header>
 
         {loadError ? (
-          <div className="emg-panel emg-panel-error" role="alert">{loadError} Confira o QR Code ou ligue 192.</div>
-        ) : mode === 'enviado' ? (
+          <div className="emg-panel emg-panel-error" role="alert">{loadError} Confira o QR Code ou ligue 192. <button type="button" className="emg-btn emg-btn-ghost" onClick={() => window.location.reload()}>Recarregar evento</button></div>
+        ) : !event ? <div className="emg-panel" role="status">Conferindo evento…</div> : mode === 'enviado' ? (
           <div className="emg-panel emg-panel-ok" role="status">
             <span className="emg-proto">Ocorrência nº {protocolo}</span>
             <h2 className="emg-h2">A equipe médica foi avisada</h2>
