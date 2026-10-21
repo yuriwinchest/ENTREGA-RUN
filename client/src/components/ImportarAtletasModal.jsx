@@ -101,6 +101,7 @@ export default function ImportarAtletasModal({
   onClose,
   existingAthletes = [],
   existingHealthFields = [],
+  listRevision = 0,
   onImportSuccess,
 }) {
   // Step 1: Upload / Colar, Step 2: Mapear Colunas, Step 3: Resumo
@@ -112,6 +113,10 @@ export default function ImportarAtletasModal({
   const [importStats, setImportStats] = useState({ imported: 0, warnings: [] })
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState('')
+  const [importMode, setImportMode] = useState('')
+  const [replaceConfirmed, setReplaceConfirmed] = useState(false)
+  // O polling pode atualizar a lista; a confirmação continua ligada à geração aberta.
+  const [importRevision, setImportRevision] = useState(listRevision)
   const [fileName, setFileName] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef(null)
@@ -128,6 +133,11 @@ export default function ImportarAtletasModal({
   const [healthSelection, setHealthSelection] = useState({})
 
   if (!isOpen) return null
+
+  const hasDeliveries = existingAthletes.some((a) => String(a.status).toUpperCase() === 'ENTREGUE')
+  const validRowCount = parsedRows.filter((row) => Object.entries(columnMapping)
+    .some(([index, field]) => field === 'nome' && String(row[Number(index)] ?? '').trim())).length
+  const finalCount = (importMode === 'add' ? existingAthletes.length : 0) + validRowCount
 
   // Palpite de colunas + reaplica a escolha de saúde que o evento já tinha
   // (reimportar a planilha não pode apagar o que o organizador marcou).
@@ -392,6 +402,14 @@ export default function ImportarAtletasModal({
   async function handleExecuteImport() {
     if (importing) return
     setImportError('')
+    if (existingAthletes.length > 0 && (!importMode || (importMode === 'replace' && !replaceConfirmed))) {
+      setImportError('Escolha como importar e confirme a substituição da lista atual.')
+      return
+    }
+    if (importMode === 'replace' && hasDeliveries) {
+      setImportError('Este evento já tem kits entregues. Use Adicionar atletas para preservar as retiradas registradas.')
+      return
+    }
     const warnings = []
     const importedAthletes = []
     const existingMap = new Set(existingAthletes.map((a) => String(a.id)))
@@ -491,9 +509,11 @@ export default function ImportarAtletasModal({
     try {
       if (onImportSuccess) {
         saved = Boolean(await onImportSuccess(importedAthletes, {
-          isInitialImport: true,
+          isInitialImport: importMode !== 'add',
+          importMode: existingAthletes.length > 0 ? importMode : 'replace',
+          listRevision: importRevision,
           columns: buildImportColumnSchema(parsedHeaders, columnMapping),
-          kits: extractedKits.length > 0 ? extractedKits : undefined,
+          kits: extractedKits,
           healthFields: buildHealthFields(parsedHeaders, columnMapping, healthSelection),
           originalSheet: {
             fileName: fileName || 'planilha_importada.xlsx',
@@ -508,14 +528,14 @@ export default function ImportarAtletasModal({
         saved = true
       }
     } catch (err) {
-      console.error('Erro ao salvar planilha importada:', err)
+      setImportError(err.message || 'Não foi possível salvar a planilha no servidor.')
       saved = false
     } finally {
       setImporting(false)
     }
 
     if (!saved) {
-      setImportError('Não foi possível salvar a planilha no servidor. Verifique a conexão e tente novamente.')
+      setImportError((previous) => previous || 'Não foi possível salvar a planilha no servidor. Verifique a conexão e tente novamente.')
       return
     }
 
@@ -545,6 +565,9 @@ export default function ImportarAtletasModal({
     setHealthSelection({})
     setImportStats({ imported: 0, warnings: [] })
     setImportError('')
+    setImportMode('')
+    setReplaceConfirmed(false)
+    setImportRevision(listRevision)
   }
 
   return (
@@ -837,10 +860,39 @@ export default function ImportarAtletasModal({
         {/* ETAPA 3: PRÉ-VISUALIZAÇÃO COMPLETA DOS DADOS */}
         {step === 3 && (
           <div className="importar-modal-body">
+            {existingAthletes.length > 0 && (
+              <fieldset className="import-mode-choice" disabled={importing}>
+                <legend>O que fazer com a lista atual?</legend>
+                <p>Lista atual: <strong>{existingAthletes.length} atletas</strong>. Atletas válidos na planilha: <strong>{validRowCount}</strong>. Linhas enviadas: {parsedRows.length}; ignoradas por falta de nome: {parsedRows.length - validRowCount}.</p>
+                <div className="import-mode-options">
+                  <label className={importMode === 'replace' ? 'selected' : ''}>
+                    <input type="radio" name="import-mode" value="replace" checked={importMode === 'replace'}
+                      disabled={hasDeliveries}
+                      onChange={() => { setImportMode('replace'); setReplaceConfirmed(false) }} />
+                    <span><strong>Substituir a lista atual</strong><small>Remove os atletas e as associações de kits atuais e usa somente a nova planilha.</small></span>
+                  </label>
+                  <label className={importMode === 'add' ? 'selected' : ''}>
+                    <input type="radio" name="import-mode" value="add" checked={importMode === 'add'}
+                      onChange={() => { setImportMode('add'); setReplaceConfirmed(false) }} />
+                    <span><strong>Adicionar atletas</strong><small>Mantém a lista atual e acrescenta os atletas desta planilha. Reenviar a mesma planilha pode duplicar atletas.</small></span>
+                  </label>
+                </div>
+                {hasDeliveries && (
+                  <p role="status">A substituição está bloqueada porque já existem kits entregues neste evento. As retiradas serão preservadas.</p>
+                )}
+                {importMode && <p role="status">Total previsto após importar: <strong>{finalCount}</strong>{importMode === 'replace' ? `; ${existingAthletes.length} atletas atuais serão removidos.` : '; a lista atual será preservada.'}</p>}
+                {importMode === 'replace' && (
+                  <label className="import-replace-confirm">
+                    <input type="checkbox" checked={replaceConfirmed} onChange={(e) => setReplaceConfirmed(e.target.checked)} />
+                    Confirmo a remoção da lista atual de {existingAthletes.length} atletas e das associações de kits para importar esta planilha.
+                  </label>
+                )}
+              </fieldset>
+            )}
             <div className="importar-full-preview-header">
               <div className="live-preview-title-row">
                 <span className="live-preview-title" style={{ fontSize: '14px' }}>
-                  PRÉ-VISUALIZAÇÃO COMPLETA DOS DADOS ({parsedRows.length} atletas detectados)
+                  PRÉ-VISUALIZAÇÃO DOS DADOS ({validRowCount} atletas válidos em {parsedRows.length} linhas)
                 </span>
                 <span className="live-preview-sub">
                   Confira como as colunas mapeadas serão importadas no sistema antes de confirmar:
@@ -905,7 +957,7 @@ export default function ImportarAtletasModal({
               <button
                 type="button"
                 className="btn-importar-cancel"
-                onClick={() => setStep(2)}
+                onClick={() => { setReplaceConfirmed(false); setStep(2) }}
                 disabled={importing}
               >
                 ← VOLTAR AO MAPEAMENTO
@@ -914,9 +966,9 @@ export default function ImportarAtletasModal({
                 type="button"
                 className="btn-importar-primary"
                 onClick={handleExecuteImport}
-                disabled={importing}
+                disabled={importing || validRowCount === 0 || (existingAthletes.length > 0 && (!importMode || (importMode === 'replace' && (!replaceConfirmed || hasDeliveries))))}
               >
-                <span>{importing ? 'SALVANDO PLANILHA NO SERVIDOR…' : 'CONFIRMAR E IMPORTAR ATLETAS'}</span>
+                <span>{importing ? 'SALVANDO PLANILHA NO SERVIDOR…' : importMode === 'replace' ? 'SUBSTITUIR LISTA E IMPORTAR' : importMode === 'add' ? 'ADICIONAR ATLETAS À LISTA' : 'CONFIRMAR E IMPORTAR ATLETAS'}</span>
                 <span className="btn-arrow">→</span>
               </button>
             </div>

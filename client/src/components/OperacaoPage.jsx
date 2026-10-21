@@ -29,8 +29,9 @@ import {
   getAthleteColumnWidth,
   getAthleteTableColumns,
   getAthleteTableValue,
+  mergeAthleteColumnSchemas,
 } from '../utils/athleteTable.js'
-import { getEspelhoConfig, publishEspelhoState } from '../utils/espelhoSync.js'
+import { publishEspelhoState } from '../utils/espelhoSync.js'
 import { getRecentDeliveries } from '../utils/deliveryFeed.js'
 import { cacheEventKits } from '../utils/kitCache.js'
 import {
@@ -45,7 +46,7 @@ import { RetiradaCameraButton, RetiradaPhotoThumb } from './RetiradaPhoto.jsx'
 import useRetiradaPhoto from '../hooks/useRetiradaPhoto.js'
 import { deleteRetiradaPhoto } from '../utils/retiradaPhotoApi.js'
 import { projectTable } from '../utils/exportColumns.js'
-import { apiFetchAthletes, apiSaveAthletes } from '../utils/eventsApi.js'
+import { apiFetchAthletes, apiGetAthleteListRevision, apiSaveAthletes } from '../utils/eventsApi.js'
 import { apiFetchEventOperators } from '../utils/usersApi.js'
 import './OperacaoPage.css'
 
@@ -1227,81 +1228,51 @@ export default function OperacaoPage({
   const [selectedComprovante, setSelectedComprovante] = useState(null)
 
   async function handleImportSuccess(newAthletes, options = {}) {
-    let nextKits = kits
-    if (Array.isArray(options.kits)) {
-      setKits(options.kits)
-      nextKits = options.kits
-    } else {
-      // Auto-extração para planilha completa com atletas que já possuem número e chip
-      const autoKits = (newAthletes || [])
-        .filter((a) => a.numero && a.chip)
-        .map((a) => ({
-          numero: String(a.numero).trim(),
-          chip: String(a.chip).trim(),
-          qrCode: String(a.qrCode || a.numero).trim(),
-          status: a.status === 'ENTREGUE' ? 'ENTREGUE' : 'ASSOCIADO',
-        }))
-      if (autoKits.length > 0) {
-        setKits(autoKits)
-        nextKits = autoKits
-      }
-    }
-
-    let nextSchema = athleteColumnSchema
-    if (Array.isArray(options.columns) && options.columns.length > 0) {
-      nextSchema = options.columns
-      setAthleteColumnSchema(nextSchema)
-    }
-    let nextOriginalSheet = originalSheet
-    if (options.originalSheet) {
-      setOriginalSheet(options.originalSheet)
-      nextOriginalSheet = options.originalSheet
-    }
-
-    // Calcula mergedAthletes de forma síncrona para garantir persistência imediata
+    const isAdding = options.importMode === 'add'
+    const isReplacing = options.importMode === 'replace'
+    const incomingKits = Array.isArray(options.kits) ? options.kits : (newAthletes || [])
+      .filter((a) => a.numero && a.chip)
+      .map((a) => ({ numero: String(a.numero).trim(), chip: String(a.chip).trim(),
+        qrCode: String(a.qrCode || a.numero).trim(), status: a.status === 'ENTREGUE' ? 'ENTREGUE' : 'ASSOCIADO' }))
+    const nextKits = isAdding
+      ? Array.from(new Map([...incomingKits, ...(kits || [])].map((kit) => [String(kit.numero), kit])).values())
+      : incomingKits.length || isReplacing || Array.isArray(options.kits) ? incomingKits : kits
+    const incomingSchema = Array.isArray(options.columns) ? options.columns : []
+    const nextSchema = isAdding ? mergeAthleteColumnSchemas(athleteColumnSchema, incomingSchema)
+      : incomingSchema.length || isReplacing ? incomingSchema : athleteColumnSchema
+    const nextHealthFields = isAdding
+      ? Array.from(new Map([...(options.healthFields || []), ...healthFields].map((field) => [field.key, field])).values())
+      : options.healthFields
+    const nextOriginalSheet = options.originalSheet || originalSheet
     const prev = athletes || []
-    let mergedAthletes = []
-    if (options?.isInitialImport || prev.length === 0) {
-      mergedAthletes = [...newAthletes]
-    } else {
-      const existingMap = new Map(prev.map((a) => [String(a.id || a.numero), a]))
-      for (const a of newAthletes) {
-        existingMap.set(String(a.id || a.numero), a)
-      }
-      mergedAthletes = Array.from(existingMap.values())
-    }
-
-    setAthletes(mergedAthletes)
-    try {
-      localStorage.setItem(`entregas_run_athletes_${currentEvent.id}`, JSON.stringify(mergedAthletes))
-    } catch {
-      // ignore
-    }
+    const mergedAthletes = isReplacing || options.isInitialImport || prev.length === 0
+      ? [...newAthletes]
+      : Array.from(new Map([...prev, ...newAthletes].map((a) => [String(a.id || a.numero), a])).values())
 
     cancelAthletesAutosave()
-    let saveResult = true
-    if (currentEvent?.id && mergedAthletes.length > 0) {
-      setAthletesSync({ state: 'saving', at: Date.now() })
-      try {
-        const saved = await saveAthletesInOrder(
-          currentEvent.id,
-          mergedAthletes,
-          nextSchema,
-          Array.isArray(nextKits) ? nextKits : undefined,
-          nextOriginalSheet,
-          Array.isArray(options.healthFields) ? { healthFields: options.healthFields } : undefined
-        )
-        if (saved && Array.isArray(options.healthFields)) setHealthFields(options.healthFields)
-        setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
-        saveResult = Boolean(saved)
-      } catch {
-        setAthletesSync({ state: 'error', at: Date.now() })
-        saveResult = false
+    setAthletesSync({ state: 'saving', at: Date.now() })
+    let errorMessage = ''
+    const saved = currentEvent?.id && mergedAthletes.length > 0 && await saveAthletesInOrder(
+      currentEvent.id, mergedAthletes, nextSchema, Array.isArray(nextKits) ? nextKits : undefined,
+      nextOriginalSheet, {
+        ...(options.importMode ? { importMode: options.importMode } : {}),
+        ...(options.listRevision !== undefined ? { listRevision: options.listRevision } : {}),
+        ...(Array.isArray(nextHealthFields) ? { healthFields: nextHealthFields } : {}),
+        onError: (message) => { errorMessage = message },
       }
+    )
+    setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
+    if (!saved) {
+      if (options.importMode) throw new Error(errorMessage || 'Não foi possível salvar a planilha. Confira a conexão e tente novamente.')
+      return false
     }
-    if (saveResult) {
-      skipNextAthletesAutosaveRef.current = true
-    }
+    // Só troca lista e cache depois da confirmação; uma rejeição não pode virar autosave.
+    skipNextAthletesAutosaveRef.current = true
+    setAthletes(mergedAthletes)
+    setKits(nextKits)
+    setAthleteColumnSchema(nextSchema)
+    setOriginalSheet(nextOriginalSheet)
+    if (Array.isArray(nextHealthFields)) setHealthFields(nextHealthFields)
 
     const importedDelivered = (newAthletes || []).filter((a) => a.status === 'ENTREGUE')
     if (importedDelivered.length > 0) {
@@ -1326,7 +1297,7 @@ export default function OperacaoPage({
         return merged.sort((a, b) => compareAthleteNumbers(a.id, b.id))
       })
     }
-    return saveResult
+    return true
   }
 
   function eventFileSlug() {
@@ -1412,22 +1383,6 @@ export default function OperacaoPage({
     })
   }, [currentEvent?.id, currentEvent?.name])
 
-  // Sincroniza a configuração de aparência e campos do espelho com o servidor ao carregar o evento
-  useEffect(() => {
-    if (!currentEvent?.id) return
-    const cfg = getEspelhoConfig(currentEvent.id)
-    if (cfg && (cfg.bgImage || cfg.logo || cfg.visibleFields || cfg.fundo !== '#071526' || cfg.fontSize !== 100)) {
-      publishEspelhoState(currentEvent.id, {
-        config: cfg,
-        eventName: currentEvent.name,
-        status: 'LIVRE',
-        atleta: null,
-      })
-    }
-  }, [currentEvent?.id, currentEvent?.name])
-
-  // Atleta que acabou de receber o kit: o espelho já foi limpo e não pode voltar
-  // a exibi-lo pela sincronização abaixo enquanto a ficha segue aberta.
   const espelhoClearedForRef = useRef(null)
 
   // Sincronização automática contínua em tempo real com o Espelho (SSE) durante digitação/alteração
@@ -4505,6 +4460,7 @@ export default function OperacaoPage({
             onClose={() => setShowImportModal(false)}
             existingAthletes={athletes}
             existingHealthFields={healthFields}
+            listRevision={apiGetAthleteListRevision(currentEvent.id)}
             onImportSuccess={handleImportSuccess}
           />
         )}

@@ -572,3 +572,46 @@
     gap: 8px;
   }
 }
+
+/* A tela física é irrelevante: proporção, área útil e conteúdo determinam o encaixe. */
+.espelho-screen-container { height: 100dvh; min-height: 0; overflow: hidden; gap: 2vmin; padding: 2.5vmin 3.5vmin; }
+.espelho-screen-header, .espelho-screen-footer { flex-shrink: 0; }
+.espelho-header-brand { min-width: 0; max-width: 75%; }
+.espelho-brand-title { overflow-wrap: anywhere; font-size: clamp(16px, 2.6vmin, 64px); }
+.espelho-brand-logo { height: 7vmin; max-width: 30vw; }
+.espelho-tag-livre { font-size: clamp(12px, 2vmin, 48px); }
+.espelho-screen-main { min-height: 0; min-width: 0; padding: 0; }
+.espelho-fit-content { width: 100%; flex-shrink: 0; transform-origin: center; }
+.espelho-athlete-card { width: 100%; gap: 1.6vmin; padding: 2vmin; animation: none; }
+.espelho-top-highlights-row { gap: 1.5vmin; }
+.espelho-highlight-card { min-width: 0; padding: 1.5vmin; overflow-wrap: anywhere; }
+.espelho-bib-header { flex-wrap: wrap; gap: 6px; font-size: clamp(12px, 1.6vmin, 36px); }
+.espelho-bib-chip, .espelho-shirt-label, .espelho-kit-label { font-size: clamp(11px, 1.5vmin, 32px); }
+.espelho-bib-number { overflow-wrap: anywhere; }
+.espelho-kit-name { font-size: clamp(18px, 3vmin, 70px); }
+.espelho-athlete-details-card { padding: 1.6vmin 2vmin; gap: 1.3vmin; }
+.espelho-details-athlete-name { font-size: clamp(20px, 3vmin, 72px); }
+.espelho-athlete-info-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1vmin; }
+.espelho-athlete-info-item { min-width: 0; padding: 0.8vmin 1vmin; }
+.espelho-athlete-info-label, .espelho-details-header-label { font-size: clamp(10px, 1.25vmin, 28px); }
+.espelho-athlete-info-value { font-size: clamp(14px, 1.8vmin, 42px); overflow-wrap: anywhere; }
+.espelho-third-party-card { flex-wrap: wrap; }
+.espelho-athlete-entregue-banner { animation: none; }
+.espelho-hero-box { max-width: 100%; }
+.espelho-hero-subheadline { font-size: clamp(11px, 1.8vmin, 38px); letter-spacing: 0.25em; }
+@media (max-aspect-ratio: 1/1) {
+  .espelho-top-highlights-row { flex-direction: row; flex-wrap: wrap; }
+  .espelho-bib-card { flex-basis: 100%; }
+  .espelho-shirt-card, .espelho-kit-card { width: auto; flex: 1; }
+  .espelho-athlete-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-aspect-ratio: 21/9) {
+  .espelho-athlete-card { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .espelho-top-highlights-row { flex: 1; width: 40%; order: 1; }
+  .espelho-athlete-details-card { flex: 1.5; width: 55%; order: 2; }
+  .espelho-third-party-card { order: 3; }
+  .espelho-athlete-entregue-banner { order: 4; margin-inline: auto; }
+  .espelho-top-highlights-row { flex-wrap: wrap; }
+  .espelho-bib-card { flex-basis: 100%; }
+
+}

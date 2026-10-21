@@ -46,8 +46,19 @@ export const emergencyLinksApi = {
 }
 
 export const medicoApi = {
+  silenciarAlerta: (eventId, id) =>
+    call(`/api/medico/${enc(eventId)}/ocorrencias/${enc(id)}/silenciar`, { method: 'POST', token: authToken() }),
   ocorrencias: (eventId, version) =>
     call(`/api/medico/${enc(eventId)}/ocorrencias${version === undefined || version === null ? '' : `?v=${version}`}`, { token: authToken() }),
-  mudarStatus: (eventId, id, status) =>
-    call(`/api/medico/${enc(eventId)}/ocorrencias/${enc(id)}`, { method: 'PATCH', body: { status }, token: authToken() }),
+  mudarStatus: (eventId, id, status, reconhecerAlerta = false) =>
+    call(`/api/medico/${enc(eventId)}/ocorrencias/${enc(id)}`, { method: 'PATCH', body: { status, reconhecerAlerta }, token: authToken() }),
+  registrar: (eventId, id, registro) =>
+    call(`/api/medico/${enc(eventId)}/ocorrencias/${enc(id)}/registros`, { method: 'POST', body: registro, token: authToken() }),
+  // Encerra com desfecho; a anotação final (se houver) vai na mesma gravação.
+  encerrar: (eventId, id, desfecho, registro) =>
+    call(`/api/medico/${enc(eventId)}/ocorrencias/${enc(id)}`, {
+      method: 'PATCH',
+      body: { status: 'ENCERRADA', desfecho, ...(registro ? { registro } : {}) },
+      token: authToken(),
+    }),
 }

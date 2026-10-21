@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   DEFAULT_ESPELHO_CONFIG,
   fetchEspelhoState,
   getEspelhoConfig,
+  getEspelhoStorageKey,
   subscribeEspelhoSSE,
   subscribeEspelhoSync,
 } from '../utils/espelhoSync.js'
@@ -34,6 +35,8 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     return ''
   })()
 
+  const mainRef = useRef(null)
+  const contentRef = useRef(null)
   const [config, setConfig] = useState(() => getEspelhoConfig(eventId))
   const [mirrorState, setMirrorState] = useState(null)
   const [remoteName, setRemoteName] = useState('')
@@ -57,10 +60,12 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
   useEffect(() => {
     if (!eventId) return undefined
 
+    let active = true
+    let receivedStream = false
     // Consulta inicial imediata para exibir o estado mesmo antes do stream estabelecer
     fetchEspelhoState(eventId)
       .then((state) => {
-        if (state) {
+        if (active && !receivedStream && state) {
           setMirrorState(state)
           setConnected(true)
           if (state.eventName) setRemoteName(state.eventName)
@@ -74,6 +79,8 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     const unsubscribeSSE = subscribeEspelhoSSE(
       eventId,
       (state) => {
+        if (!active) return
+        receivedStream = true
         setMirrorState(state)
         setConnected(true)
         if (state?.eventName) setRemoteName(state.eventName)
@@ -87,6 +94,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     )
 
     return () => {
+      active = false
       unsubscribeSSE()
     }
   }, [eventId])
@@ -105,7 +113,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
         }
       } else if (msg.type === 'CONFIG_CHANGE' && (!msg.eventId || msg.eventId === eventId)) {
         setConfig((prev) => mergeEspelhoConfig(prev, msg.config || DEFAULT_ESPELHO_CONFIG))
-      } else if (msg.type === 'STORAGE_UPDATE') {
+      } else if (msg.type === 'STORAGE_UPDATE' && msg.key === getEspelhoStorageKey(eventId)) {
         setConfig(getEspelhoConfig(eventId))
       }
     })
@@ -114,6 +122,27 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
       unsubscribeSync()
     }
   }, [eventId])
+
+  // Mede o conteúdo real: campos extras e mensagens longas também precisam caber.
+  useLayoutEffect(() => {
+    const main = mainRef.current
+    const content = contentRef.current
+    if (!main || !content) return undefined
+    let frame
+    function fit() {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const scale = Math.min(1, main.clientWidth / Math.max(1, content.offsetWidth), main.clientHeight / Math.max(1, content.offsetHeight))
+        content.style.transform = `scale(${scale})`
+      })
+    }
+    const observer = new ResizeObserver(fit)
+    observer.observe(main)
+    observer.observe(content)
+    document.fonts?.ready.then(fit)
+    fit()
+    return () => { observer.disconnect(); cancelAnimationFrame(frame) }
+  }, [])
 
   // Suporte a tela cheia (F11 ou duplo clique na tela)
   function handleToggleFullscreen() {
@@ -237,7 +266,8 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
       </header>
 
       {/* Centro: Ficha do atleta rigorosamente espelhada da tela do operador */}
-      <main className="espelho-screen-main">
+      <main className="espelho-screen-main" ref={mainRef}>
+        <div className="espelho-fit-content" ref={contentRef}>
         {atleta ? (
           <div className={`espelho-athlete-card ${statusClass}`}>
             
@@ -260,7 +290,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
                         className="espelho-bib-number"
                         style={{
                           color: config.texto || '#ffffff',
-                          fontSize: `clamp(64px, ${10 * fontScale}vw, ${140 * fontScale}px)`,
+                          fontSize: `clamp(64px, ${10 * fontScale}vw, ${14 * fontScale}vmin)`,
                         }}
                       >
                         {atleta.numero || 'Não associado'}
@@ -281,7 +311,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
                       className="espelho-shirt-size"
                       style={{
                         color: config.texto || '#ffffff',
-                        fontSize: `clamp(56px, ${9 * fontScale}vw, ${120 * fontScale}px)`,
+                        fontSize: `clamp(56px, ${9 * fontScale}vw, ${12 * fontScale}vmin)`,
                       }}
                     >
                       {atleta.camiseta || '—'}
@@ -343,7 +373,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
               className="espelho-hero-headline"
               style={{
                 color: config.texto || '#ffffff',
-                fontSize: `clamp(32px, ${5.5 * fontScale}vw, ${88 * fontScale}px)`,
+                fontSize: `clamp(32px, ${5.5 * fontScale}vw, ${9 * fontScale}vmin)`,
               }}
             >
               {config.mensagem?.toUpperCase() || 'GUICHÊ DISPONÍVEL'}
@@ -354,6 +384,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
             </p>
           </div>
         )}
+        </div>
       </main>
 
       {/* Rodapé: Indicador de Conexão em Tempo Real */}

@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import net from 'node:net'
 import test from 'node:test'
+import { hashPassword } from './passwords.js'
 
 // O servidor grava as sessões ao receber SIGTERM: limpar a pasta antes de ele
 // sair dá ENOTEMPTY no Linux. Espera o processo encerrar de fato.
@@ -28,6 +29,7 @@ async function freePort() {
 test('two old clients can deliver without erasing each other, including chunk uploads', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'entregas-sync-'))
   fs.writeFileSync(path.join(dataDir, 'events.json'), '[]')
+  fs.writeFileSync(path.join(dataDir, 'users.json'), JSON.stringify([{ id: 'admin-test', name: 'TESTE', email: 'admin@teste.local', passwordHash: hashPassword('senha-sync-teste'), role: 'ADMIN', eventId: 'all', status: 'ATIVO' }]))
   const port = await freePort()
   const child = spawn(process.execPath, ['server/server.js'], {
     cwd: path.resolve(import.meta.dirname, '..'),

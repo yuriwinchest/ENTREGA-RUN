@@ -297,7 +297,8 @@
 /* Prévia Frame */
 .espelho-preview-frame {
   width: 100%;
-  height: 220px;
+  aspect-ratio: 16 / 9;
+  min-height: 180px;
   border-radius: 14px;
   padding: 16px 20px;
   display: flex;
@@ -307,6 +308,85 @@
   position: relative;
   overflow: hidden;
   user-select: none;
+}
+
+.espelho-save-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 24px;
+  font-size: 12px;
+  color: #166534;
+  background: #f0fdf4;
+  flex-shrink: 0;
+}
+
+.espelho-save-status.error,
+.espelho-save-status.load-error {
+  color: #9a3412;
+  background: #fff7ed;
+}
+
+.espelho-save-status.loading,
+.espelho-save-status.saving {
+  color: #334155;
+  background: #f1f5f9;
+}
+
+.espelho-save-status button {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.espelho-controls {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.espelho-media-preview,
+.espelho-media-empty {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  text-align: center;
+  color: #475569;
+  font-size: 11px;
+  background: repeating-conic-gradient(#f1f5f9 0% 25%, #fff 0% 50%) 0 / 16px 16px;
+}
+
+.espelho-media-preview img {
+  display: block;
+  width: 100%;
+  height: 80px;
+  object-fit: contain;
+}
+
+.espelho-media-preview figcaption {
+  display: inline-block;
+  background: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.espelho-media-guide {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.espelho-media-error {
+  margin: 0;
+  font-size: 12px;
+  color: #b91c1c;
 }
 
 .preview-top-bar {
@@ -1024,4 +1104,20 @@
   background: #0c142c;
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(19, 39, 79, 0.22);
+}
+
+/* O painel também funciona sem depender do reset CSS da página hospedeira. */
+.espelho-modal-card, .espelho-modal-card * { box-sizing: border-box; }
+.aparencia-columns-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.aparencia-left-col, .aparencia-right-col { min-width: 0; }
+.espelho-preview-frame { min-height: 0; }
+.espelho-save-status { flex-wrap: wrap; }
+@media (max-width: 768px) {
+  .aparencia-columns-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .espelho-modal-header { gap: 6px; padding-inline: 12px; }
+  .espelho-tabs-pill { flex: 1; min-width: 0; }
+  .espelho-tab-btn { padding-inline: 8px; }
+  .espelho-close-btn { flex-shrink: 0; }
 }

@@ -10,23 +10,21 @@
 
 ## Última atualização
 
-- **Quando / quem:** 2026-10-21 · Codex/Tony · Fase B; subagentes Codex Vitor (SRE) e Teclide (QA).
-- **Pedido:** Yuri autorizou “pode subir então” para QR permanente/reaproveitamento e correção de quota do Edge.
-- **Alterações:** Integração de eddb0d3 e 41930c7 sobre main 663fd70, preservando idade, ErrorBoundary e ajustes de deploy. Registro/transferência de QR, arquivar/restaurar, cache opcional e testes integrados. Scripts de deploy e rotas de vínculo/arquivo receberam trava temporária para impedir novos estados durante a verificação inicial da publicação. Detalhes e arquivos: docs/qr-permanente.md e diff do merge.
-- **Validação real:** cliente 51/51; servidor 32/32; integração HTTP do bloqueio503 aprovada (saúde/lista continuam200); lint sem erros (3 avisos antigos), build e bash -n aprovados. Vitor retirou veto após revisão da proteção do rollback inicial.
-- **Riscos / pendências:** publicação pelo pipeline e verificação externa ainda em acompanhamento nesta entrada. QR físico e aceite do evento real dependem de Yuri. Após uso de vínculos/arquivo, rollback exige versão compatível; não apagar registro nem sobrescrever entregas com backup antigo.
-- **Próximo passo:** push autorizado na main, acompanhar CI/preflight/snapshot/healthcheck e registrar o resultado confirmado.
+- **Quando / quem:** 2026-10-21 · Claude Code (Opus 5.5) · Fase A. Continuação da central depois do limite de uso do Codex/Tony.
+- **Pedido:** Yuri pediu para continuar o que o GPT deixou pela metade (`docs/continuidade-central-2026-10-21.md`): fechar o alarme e implementar o registro de atendimento (prescrições, aplicações, condutas e desfecho/destino ao encerrar).
+- **Arquivos / entrega:** pasta de trabalho `D:/Projetos/Clientes/Entregas-run-import-fix`, branch `codex/substituir-planilha` (base = `main` publicada `00017e9`), **sem commit**. Alarme: só conferido, documentado em `docs/saude-alerta-persistente.md`, e testes no CI. Registro: `server/medico.js`, `server/server.js` (`POST …/registros`, desfecho obrigatório ao encerrar), `client/src/components/MedicoPage.*`, `client/src/utils/medico.js` e `medicoApi.js`, testes `server/medicoRegistro.http.test.mjs` e `client/src/utils/medico.test.mjs`. Relatório: `docs/saude-registro-atendimento.md`. `deploy.yml` passa a rodar `medicoAlert`, `espelhoSync`, `medicoAlert.http`, `medicoRegistro.http` e `espelho.http`.
+- **Validação real:** na pasta de trabalho, com as quatro frentes juntas: servidor 39/39, client 65/65, lint sem erro, build ok, `bash -n` do deploy ok. Navegador local isolado: alarme com maior gravidade, assumir e silenciar, registro com autor/hora do servidor, rascunho mantido após atualização de 10 s, encerramento barrado sem hospital, encerrar, reabrir e encerrar de novo, celular 375 px. Um defeito achado e corrigido (mensagem de erro antiga ficava na tela).
+- **Riscos / pendências:** sem commit/push/deploy (as quatro frentes juntas precisam do OK do Yuri). Som real em celular/TV e Espelho em TV física não testados. Retenção LGPD de registros clínicos a definir.
+- **Próximo passo:** Yuri autoriza commit + push da `codex/substituir-planilha` na `main` (deploy pelo CI) e homologa importação, Espelho, alarme e registro.
 
 ## Penúltima atualização
 
-- **Quando / quem:** 2026-10-21 · Codex/Tony (implementação e navegador), Teclide/Codex (testes), Ulisses/Codex (revisão de premissas) · Fase B.
-- **Pedido:** Corrigir erro ao clicar em Entregar kits em um evento; foto do console enviada pelo Yuri confirmou QuotaExceededError na chave de cache de kits.
-- **Causa:** O efeito que gravava kits no localStorage não tratava a exceção de quota; o ErrorBoundary substituía a operação pela tela de erro.
-- **Arquivos:** client/src/components/OperacaoPage.jsx; client/src/utils/kitCache.js; client/src/utils/kitCache.test.mjs; .github/workflows/deploy.yml; HANDOFF.md; docs/handoff/2026-10.md.
-- **Entrega:** Cache de kits passa a ser opcional e protegido contra falha de armazenamento; servidor continua sendo fonte de dados. Nenhum cache, sessão, entrega ou atleta é apagado. Correção isolada em codex/corrigir-entregar-kits, baseada na main 663fd70.
-- **Validação real:** Cliente 49/49; lint sem erros (3 avisos preexistentes); build aprovado; git diff --check aprovado. Navegador local com API sintética e QuotaExceededError simulado reproduziu a mesma tela antes e abriu operação, busca e ficha após a correção. Evidência local: scratch/entrega-quota-corrigida.png.
-- **Riscos / pendências:** Sem push/deploy nesta entrega; publicação e homologação do evento real pendentes. Sem cache novo de kits enquanto o navegador estiver sem espaço; leitura/salvamento no servidor preservados. Falha distinta de avatar investigada foi retirada do escopo após a foto confirmar a causa.
-- **Próximo passo:** Autorizar publicação pelo pipeline com healthcheck e rollback; Yuri homologar o evento afetado.
+- **Quando / quem:** 2026-10-21 · Codex/Tony · Fase A, continuidade entre modelos.
+- **Pedido:** Acrescentar registro de atendimento/prescrições/aplicações e encerramento com desfecho/destino; Yuri pediu memória para outro LLM continuar se limite de uso terminar.
+- **Arquivos / entrega:** `docs/continuidade-central-2026-10-21.md` nesta pasta aponta checkout correto, quatro chats, donos, validações e próximos passos. Chat novo `01a15fd9-4404-77c2-82dd-0621824cccdf`; registro aguarda fim das edições do alarme para evitar colisão. Trabalho em `D:/Projetos/Clientes/Entregas-run-import-fix`, branch `codex/substituir-planilha`.
+- **Validação real:** Chat criado/ativo e monitor atualizado para quatro frentes. Importação/Espelho concluídos localmente conforme relatórios; alarme em testes; registro clínico ainda não implementado. Nenhuma afirmação de testes novos desta frente.
+- **Riscos / pendências:** Não editar painel/store médico simultaneamente nos dois chats. Sem commit/push/deploy/homologação das novas frentes. Dados pessoais das imagens não foram copiados para documentação.
+- **Próximo passo:** Chat do alarme concluir/ceder arquivos; chat registro implementar e testar; central consolidar continuidade, evidências e pendências.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -48,5 +46,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
-- 2026-10-21 · Codex/Tony · QR permanente e quota Edge integrados e validados; publicação autorizada em acompanhamento.
-- 2026-10-21 · Codex/Tony · Corrigida quebra ao abrir Entregar kits por quota de cache esgotada; 49 testes e navegador local aprovados, publicação pendente.
+- 2026-10-21 · Claude Code · Alarme documentado + registro de atendimento e desfecho no painel médico (local, sem commit).
+- 2026-10-21 · Codex/Tony · Continuidade da central documentada para outro LLM; importação/Espelho concluídos localmente.

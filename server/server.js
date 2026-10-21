@@ -21,7 +21,9 @@ import {
   OCORRENCIA_STATUS,
   sanitizeHealthFields,
   searchAthletes,
+  validateDesfecho,
   validateOcorrencia,
+  validateRegistro,
   withoutHealthFields,
 } from './medico.js'
 import {
@@ -243,16 +245,19 @@ try {
   inMemoryEspelhoConfigs = {}
 }
 
-function writeEspelhoConfigsToDisk() {
+function writeEspelhoConfigsToDisk(configs) {
+  let tempFile
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true })
     }
-    const tempFile = `${ESPELHO_CONFIGS_FILE}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`
-    fs.writeFileSync(tempFile, JSON.stringify(inMemoryEspelhoConfigs, null, 2), 'utf-8')
+    tempFile = `${ESPELHO_CONFIGS_FILE}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`
+    fs.writeFileSync(tempFile, JSON.stringify(configs, null, 2), 'utf-8')
     fs.renameSync(tempFile, ESPELHO_CONFIGS_FILE)
   } catch (err) {
-    console.error('[server] Erro ao salvar espelho_configs.json em DATA_DIR:', err)
+    if (tempFile) { try { fs.unlinkSync(tempFile) } catch {} }
+    console.error('[server] Erro ao salvar espelho_configs.json em DATA_DIR:', err.code)
+    throw err
   }
 }
 
@@ -264,7 +269,7 @@ const espelhoLimiter = rateLimit({
   message: { ok: false, message: 'Muitas requisições. Aguarde um instante.' },
 })
 
-const espelhoJsonParser = express.json({ limit: '6mb' })
+const espelhoJsonParser = express.json({ limit: '9mb' })
 
 function espelhoKey(rawId) {
   return String(rawId || 'default').replace(/[^\w-]/g, '').slice(0, 64) || 'default'
@@ -277,7 +282,7 @@ function sanitizeHexColor(value, fallback) {
 
 function sanitizeImageDataUrl(value) {
   const text = String(value ?? '')
-  if (!text.startsWith('data:image/')) return null
+  if (!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(text)) return null
   return text.length <= 4 * 1024 * 1024 ? text : null
 }
 
@@ -400,9 +405,17 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req
   const previous = espelhoStates.get(key)
 
   // Proteção contra sobrescrita por requisições fora de ordem
-  const incomingTime = Number(body.updatedAt) || Date.now()
-  if (previous?.updatedAt && incomingTime < previous.updatedAt) {
+  const hasLiveState = Object.hasOwn(body, 'status') || Object.hasOwn(body, 'atleta')
+  const incomingTime = hasLiveState ? (Number(body.updatedAt) || Date.now()) : (previous?.updatedAt || Date.now())
+  if (hasLiveState && previous?.updatedAt && incomingTime < previous.updatedAt) {
     return res.json({ ok: true, ignored: true })
+  }
+
+  for (const field of ['bgImage', 'logo']) {
+    const value = body.config?.[field]
+    if (value && !sanitizeImageDataUrl(value)) {
+      return res.status(400).json({ ok: false, message: 'Use imagem PNG, JPG ou WebP em base64, até 4 MB.' })
+    }
   }
 
   const hasAtletaField = Object.prototype.hasOwnProperty.call(body, 'atleta')
@@ -448,17 +461,18 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req
                 customFields: withoutHealthFields(atleta.customFields, loadAthletesForEvent(key)?.healthFields),
               }
             : null,
-    config: (() => {
-      const persistedConfig = inMemoryEspelhoConfigs[key] || null
-      const sanitizedConfig = sanitizeEspelhoConfig(body.config, previous?.config || persistedConfig)
-      const effectiveConfig = sanitizedConfig ?? previous?.config ?? persistedConfig ?? null
-      if (sanitizedConfig) {
-        inMemoryEspelhoConfigs[key] = effectiveConfig
-        writeEspelhoConfigsToDisk()
-      }
-      return effectiveConfig
-    })(),
+    config: sanitizeEspelhoConfig(body.config, previous?.config || inMemoryEspelhoConfigs[key])
+      ?? previous?.config ?? inMemoryEspelhoConfigs[key] ?? null,
     updatedAt: incomingTime,
+  }
+  if (body.config && typeof body.config === 'object') {
+    const nextConfigs = { ...inMemoryEspelhoConfigs, [key]: state.config }
+    try {
+      writeEspelhoConfigsToDisk(nextConfigs)
+    } catch {
+      return res.status(503).json({ ok: false, message: 'Não foi possível salvar a aparência. Tente novamente.' })
+    }
+    inMemoryEspelhoConfigs = nextConfigs
   }
   espelhoStates.set(key, state)
 
@@ -1022,7 +1036,7 @@ function loadAthletesForEvent(eventId) {
 
 // healthFields: colunas da planilha marcadas como saúde (e quais são públicas na
 // emergência). Ausente = mantém a escolha anterior, inclusive ao reimportar.
-function saveAthletesForEvent(eventId, athletes, schema = [], kits, originalSheet, healthFields) {
+function saveAthletesForEvent(eventId, athletes, schema = [], kits, originalSheet, healthFields, listRevision) {
   const safeId = String(eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
   if (!safeId) return false
 
@@ -1035,6 +1049,7 @@ function saveAthletesForEvent(eventId, athletes, schema = [], kits, originalShee
     kits: kits === undefined ? (existing?.kits || []) : kits,
     originalSheet: originalSheet !== undefined ? originalSheet : (existing?.originalSheet || null),
     healthFields: healthFields !== undefined ? sanitizeHealthFields(healthFields) : (existing?.healthFields || []),
+    listRevision: listRevision ?? existing?.listRevision ?? 0,
     updatedAt: Date.now(),
   }
 
@@ -1068,6 +1083,33 @@ function validateKits(kits) {
   return null
 }
 
+// A substituição muda a geração: abas antigas não podem restaurar a lista removida.
+function validateAthleteWrite(existing, importMode, listRevision) {
+  if (importMode !== undefined && importMode !== 'replace' && importMode !== 'add') {
+    return { status: 400, message: 'Modo de importação inválido.' }
+  }
+  const revision = listRevision ?? 0
+  if (!Number.isSafeInteger(revision) || revision < 0) {
+    return { status: 400, message: 'Revisão da lista inválida.' }
+  }
+  if (revision !== (existing?.listRevision || 0)) {
+    return { status: 409, message: 'A lista foi substituída em outra sessão. Atualize a página antes de salvar.' }
+  }
+  if (importMode === 'replace' && existing?.athletes?.some((a) => String(a.status || '').toUpperCase() === 'ENTREGUE')) {
+    return { status: 409, message: 'Não é possível substituir a lista: já existem kits entregues. Use Adicionar atletas.' }
+  }
+  return null
+}
+
+function mergeImportMetadata(current, incoming, key) {
+  const merged = new Map()
+  for (const item of [...(Array.isArray(current) ? current : []), ...(Array.isArray(incoming) ? incoming : [])]) {
+    const id = String(item?.[key] || '')
+    if (!merged.has(id)) merged.set(id, item)
+  }
+  return [...merged.values()]
+}
+
 // GET /api/events/:eventId/athletes — Recupera lista de atletas e schema
 // Fallback: disco vazio + Appwrite com dados => devolve Appwrite e
 // reidrata o disco (cura a divergência total x lista zerada).
@@ -1087,6 +1129,7 @@ app.get('/api/events/:eventId/athletes', requireAuthOrDeployCheck, async (req, r
   if (data && Array.isArray(data.athletes) && data.athletes.length > 0) {
     return res.json({
       ok: true,
+      listRevision: data?.listRevision || 0,
       athletes: data.athletes || [],
       schema: data.schema || [],
       kits: data.kits || [],
@@ -1100,6 +1143,7 @@ app.get('/api/events/:eventId/athletes', requireAuthOrDeployCheck, async (req, r
       saveAthletesForEvent(safeEventId, remote.athletes, remote.schema, remote.kits)
       return res.json({
         ok: true,
+        listRevision: data?.listRevision || 0,
         athletes: remote.athletes,
         schema: remote.schema || [],
         kits: remote.kits || [],
@@ -1110,10 +1154,11 @@ app.get('/api/events/:eventId/athletes', requireAuthOrDeployCheck, async (req, r
     }
   } catch {}
   if (!data) {
-    return res.json({ ok: true, athletes: [], schema: [], kits: [], originalSheet: null })
+    return res.json({ ok: true, listRevision: 0, athletes: [], schema: [], kits: [], originalSheet: null })
   }
   res.json({
     ok: true,
+    listRevision: data?.listRevision || 0,
     athletes: data.athletes || [],
     schema: data.schema || [],
     kits: data.kits || [],
@@ -1137,17 +1182,21 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
     }
   }
 
-  const { athletes, schema, kits, originalSheet, undoAthleteId, healthFields } = req.body || {}
+  const { athletes, schema, kits, originalSheet, undoAthleteId, healthFields, importMode, listRevision } = req.body || {}
 
   if (!Array.isArray(athletes)) {
     return res.status(400).json({ ok: false, message: 'Lista de atletas inválida.' })
   }
 
+  const existing = loadAthletesForEvent(safeEventId)
+  const intentError = validateAthleteWrite(existing, importMode, listRevision)
+  if (intentError) return res.status(intentError.status).json({ ok: false, message: intentError.message })
   let kitsWarning = null
-  let kitsToSave
+  let kitsToSave = importMode === 'replace' ? [] : undefined
   if (kits !== undefined) {
     const error = validateKits(kits)
     if (error) {
+      if (importMode === 'replace') return res.status(400).json({ ok: false, message: error })
       kitsWarning = error
       kitsToSave = undefined // preserva kits já salvos; não bloqueia atletas
     } else {
@@ -1156,7 +1205,6 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
   }
 
   const curEv = inMemoryEvents.find((e) => e.id === safeEventId)
-  const existing = loadAthletesForEvent(safeEventId)
   const protectExisting = curEv?.status === 'EM OPERAÇÃO' ||
     existing?.athletes?.some((athlete) => String(athlete.status || '').toUpperCase() === 'ENTREGUE')
   const safeUndoId = String(undoAthleteId || '').slice(0, 64)
@@ -1165,12 +1213,15 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
   if (undoTarget?.status === 'ENTREGUE' && !canUndoDelivery) {
     return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
   }
-  const safeAthletes = protectExisting
+  const safeAthletes = importMode !== 'replace' && (protectExisting || importMode === 'add')
     ? mergeActiveAthletes(existing?.athletes, athletes, { undoAthleteId: safeUndoId, canUndoDelivery })
     : athletes
-  const safeSchema = protectExisting && existing?.schema?.length
-    ? existing.schema : schema
-  const success = saveAthletesForEvent(safeEventId, safeAthletes, safeSchema, kitsToSave, originalSheet, healthFields)
+  const safeSchema = importMode === 'add' ? mergeImportMetadata(existing?.schema, schema, 'key')
+    : importMode !== 'replace' && protectExisting && existing?.schema?.length ? existing.schema : schema
+  if (importMode === 'add') kitsToSave = mergeImportMetadata(existing?.kits, kitsToSave, 'numero')
+  const safeHealthFields = importMode === 'add' ? mergeImportMetadata(existing?.healthFields, healthFields, 'key') : healthFields
+  const nextRevision = (existing?.listRevision || 0) + (importMode === 'replace' ? 1 : 0)
+  const success = saveAthletesForEvent(safeEventId, safeAthletes, safeSchema, kitsToSave, originalSheet, safeHealthFields, nextRevision)
   if (!success) {
     return res.status(500).json({ ok: false, message: 'Erro ao persistir atletas.' })
   }
@@ -1180,7 +1231,7 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
     writeEventsToDisk(inMemoryEvents)
     mirrorEventToAppwrite(curEv)
   }
-  res.json({ ok: true, count: safeAthletes.length, ...(kitsWarning ? { kitsWarning } : {}) })
+  res.json({ ok: true, listRevision: nextRevision, count: safeAthletes.length, ...(kitsWarning ? { kitsWarning } : {}) })
 })
 
 // POST /api/events/:eventId/athletes/chunks — upload fatiado p/ listas grandes
@@ -1199,7 +1250,7 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
     }
   }
 
-  const { uploadId, chunkIndex, totalChunks, athletesChunk, schema, kits, originalSheet, undoAthleteId, healthFields } = req.body || {}
+  const { uploadId, chunkIndex, totalChunks, athletesChunk, schema, kits, originalSheet, undoAthleteId, healthFields, importMode, listRevision } = req.body || {}
   const safeUploadId = String(uploadId || '').replace(/[^\w-]/g, '').slice(0, 64)
   const idx = Number(chunkIndex)
   const total = Number(totalChunks)
@@ -1213,8 +1264,17 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
 
   let upload = athleteChunkUploads.get(`${safeEventId}:${safeUploadId}`)
   if (!upload) {
-    upload = { chunks: new Array(total).fill(null), totalChunks: total, schema: [], kits: undefined, originalSheet: undefined, healthFields: undefined, undoAthleteId: '', received: 0, updatedAt: Date.now() }
+    upload = { chunks: new Array(total).fill(null), totalChunks: total, schema: [], kits: undefined, originalSheet: undefined, healthFields: undefined, undoAthleteId: '', importMode, listRevision: listRevision ?? 0, received: 0, updatedAt: Date.now() }
     athleteChunkUploads.set(`${safeEventId}:${safeUploadId}`, upload)
+  }
+  if ((importMode !== undefined && importMode !== upload.importMode) ||
+      (listRevision !== undefined && listRevision !== upload.listRevision)) {
+    return res.status(400).json({ ok: false, message: 'Intenção divergente no mesmo uploadId.' })
+  }
+  const intentError = validateAthleteWrite(loadAthletesForEvent(safeEventId), upload.importMode, upload.listRevision)
+  if (intentError) {
+    athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
+    return res.status(intentError.status).json({ ok: false, message: intentError.message })
   }
   if (upload.totalChunks !== total) {
     return res.status(400).json({ ok: false, message: 'totalChunks divergente no mesmo uploadId.' })
@@ -1225,6 +1285,10 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
   if (Array.isArray(schema) && schema.length > 0) upload.schema = schema
   if (kits !== undefined) {
     const error = validateKits(kits)
+    if (error && upload.importMode === 'replace') {
+      athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
+      return res.status(400).json({ ok: false, message: error })
+    }
     if (!error) upload.kits = kits
   }
   if (originalSheet !== undefined) {
@@ -1248,12 +1312,16 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
     athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
     return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
   }
-  const safeMerged = protectExistingChunk
+  const safeMerged = upload.importMode !== 'replace' && (protectExistingChunk || upload.importMode === 'add')
     ? mergeActiveAthletes(existingChunk?.athletes, merged, { undoAthleteId: upload.undoAthleteId, canUndoDelivery })
     : merged
-  const safeSchema = protectExistingChunk && existingChunk?.schema?.length
-    ? existingChunk.schema : upload.schema
-  const success = saveAthletesForEvent(safeEventId, safeMerged, safeSchema, upload.kits, upload.originalSheet, upload.healthFields)
+  const safeSchema = upload.importMode === 'add' ? mergeImportMetadata(existingChunk?.schema, upload.schema, 'key')
+    : upload.importMode !== 'replace' && protectExistingChunk && existingChunk?.schema?.length ? existingChunk.schema : upload.schema
+  const safeKits = upload.importMode === 'replace' ? (upload.kits || [])
+    : upload.importMode === 'add' ? mergeImportMetadata(existingChunk?.kits, upload.kits, 'numero') : upload.kits
+  const safeHealthFields = upload.importMode === 'add' ? mergeImportMetadata(existingChunk?.healthFields, upload.healthFields, 'key') : upload.healthFields
+  const nextRevision = (existingChunk?.listRevision || 0) + (upload.importMode === 'replace' ? 1 : 0)
+  const success = saveAthletesForEvent(safeEventId, safeMerged, safeSchema, safeKits, upload.originalSheet, safeHealthFields, nextRevision)
   athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
   if (!success) {
     return res.status(500).json({ ok: false, message: 'Erro ao persistir atletas fatiados.' })
@@ -1264,7 +1332,7 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
     writeEventsToDisk(inMemoryEvents)
     mirrorEventToAppwrite(curEvChunk)
   }
-  res.json({ ok: true, count: safeMerged.length, done: true })
+  res.json({ ok: true, listRevision: nextRevision, count: safeMerged.length, done: true })
 })
 
 setInterval(() => {
@@ -1786,28 +1854,81 @@ app.get('/api/medico/:eventId/ocorrencias', medicoLimiter, requireMedicoAccess, 
     version,
     event: { id: ctx.eventId, name: ctx.event.name, date: ctx.event.date || '', location: ctx.event.location || '' },
     ocorrencias: medicoStore.listOcorrencias(ctx.eventId).map((item) => {
-      const { athleteKey: _key, ...rest } = item
+      const { athleteKey: _key, alertaReconhecidoPor: _ackUser, ...rest } = item
       return { ...rest, atleta: medicoAthleteView(ctx, item) }
     }),
   })
+})
+
+app.post('/api/medico/:eventId/ocorrencias/:ocorrenciaId/silenciar', medicoLimiter, requireMedicoAccess, (req, res) => {
+  const ctx = emergencyContext(req.params.eventId)
+  if (!ctx) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  try {
+    const updated = medicoStore.recognizeAlert(ctx.eventId, String(req.params.ocorrenciaId || '').slice(0, 64), req.session.userId)
+    if (!updated) return res.status(404).json({ ok: false, message: 'Ocorrência não encontrada.' })
+    res.json({ ok: true, id: updated.id, alertaReconhecidoEm: updated.alertaReconhecidoEm, version: medicoStore.version(ctx.eventId) })
+  } catch (err) {
+    console.error('[medico] Falha ao silenciar alerta:', err?.code || err?.name)
+    res.status(500).json({ ok: false, message: 'Não foi possível silenciar o alerta. Tente novamente.' })
+  }
+})
+
+// Registro de atendimento (avaliação, condutas, prescrições/administrações): só
+// acrescenta; hora e autor vêm da sessão no servidor. Nunca sai em rota pública.
+app.post('/api/medico/:eventId/ocorrencias/:ocorrenciaId/registros', medicoLimiter, requireMedicoAccess, (req, res) => {
+  const ctx = emergencyContext(req.params.eventId)
+  if (!ctx) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  const { value, error } = validateRegistro(req.body)
+  if (error) return res.status(400).json({ ok: false, message: error })
+  try {
+    const updated = medicoStore.addRegistro(
+      ctx.eventId,
+      String(req.params.ocorrenciaId || '').slice(0, 64),
+      value,
+      req.session.name || req.session.email,
+    )
+    if (!updated) return res.status(404).json({ ok: false, message: 'Ocorrência não encontrada.' })
+    if (updated.limite) return res.status(409).json({ ok: false, message: 'Limite de registros desta ocorrência atingido.' })
+    res.status(201).json({ ok: true, registro: updated.registros.at(-1), version: medicoStore.version(ctx.eventId) })
+  } catch (err) {
+    console.error('[medico] Falha ao gravar registro de atendimento:', err?.code || err?.name)
+    res.status(500).json({ ok: false, message: 'Não foi possível salvar o registro. O texto continua na tela.' })
+  }
 })
 
 app.patch('/api/medico/:eventId/ocorrencias/:ocorrenciaId', medicoLimiter, requireMedicoAccess, (req, res) => {
   const ctx = emergencyContext(req.params.eventId)
   if (!ctx) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
   const status = req.body?.status
-  if (!OCORRENCIA_STATUS.includes(status)) {
+  if (!OCORRENCIA_STATUS.includes(status) || (req.body?.reconhecerAlerta === true && status !== 'EM_ATENDIMENTO')) {
     return res.status(400).json({ ok: false, message: 'Status inválido.' })
+  }
+  const ocorrenciaId = String(req.params.ocorrenciaId || '').slice(0, 64)
+  const atual = medicoStore.listOcorrencias(ctx.eventId).find((item) => item.id === ocorrenciaId)
+  if (!atual) return res.status(404).json({ ok: false, message: 'Ocorrência não encontrada.' })
+  // Encerrar exige desfecho/destino; a anotação final (opcional) vai na mesma gravação.
+  let desfecho = null
+  let registro = null
+  if (status === 'ENCERRADA' && atual.status !== 'ENCERRADA') {
+    const checked = validateDesfecho(req.body?.desfecho)
+    if (checked.error) return res.status(400).json({ ok: false, message: checked.error })
+    desfecho = checked.value
+  }
+  if (req.body?.registro !== undefined) {
+    const checked = validateRegistro(req.body.registro)
+    if (!checked.error) registro = checked.value
   }
   try {
     const updated = medicoStore.updateStatus(
       ctx.eventId,
-      String(req.params.ocorrenciaId || '').slice(0, 64),
+      ocorrenciaId,
       status,
       req.session.name || req.session.email,
+      req.body?.reconhecerAlerta === true ? req.session.userId : null,
+      { desfecho, registro },
     )
     if (!updated) return res.status(404).json({ ok: false, message: 'Ocorrência não encontrada.' })
-    res.json({ ok: true, status: updated.status, version: medicoStore.version(ctx.eventId) })
+    res.json({ ok: true, status: updated.status, alertaReconhecidoEm: updated.alertaReconhecidoEm || null, version: medicoStore.version(ctx.eventId) })
   } catch (err) {
     console.error('[medico] Falha ao atualizar ocorrência:', err?.code || err?.name)
     res.status(500).json({ ok: false, message: 'Não foi possível atualizar o status.' })

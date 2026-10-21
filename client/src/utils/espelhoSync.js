@@ -17,7 +17,11 @@ export function getEspelhoStorageKey(eventId) {
   return `entregas_run_espelho_${eventId || 'default'}`
 }
 
+const configCache = new Map()
+
 export function getEspelhoConfig(eventId) {
+  const key = getEspelhoStorageKey(eventId)
+  if (configCache.has(key)) return { ...configCache.get(key) }
   try {
     const raw = localStorage.getItem(getEspelhoStorageKey(eventId))
     if (raw) {
@@ -48,7 +52,7 @@ export function broadcastEspelhoChange(payload) {
   }
 }
 
-export function compressImageFile(file, maxWidth = 1920, maxHeight = 1080, quality = 0.82) {
+export function compressImageFile(file, maxWidth = 1920, maxHeight = 1080, quality = 0.82, preserveTransparency = false) {
   return new Promise((resolve, reject) => {
     if (!file) return resolve(null)
     const reader = new FileReader()
@@ -70,7 +74,7 @@ export function compressImageFile(file, maxWidth = 1920, maxHeight = 1080, quali
         ctx.drawImage(img, 0, 0, width, height)
         const isPng = file.type === 'image/png'
         // Preserva PNG para logos com transparência menores que 800KB; banners em JPEG para máxima performance
-        const mimeType = isPng && file.size < 800 * 1024 ? 'image/png' : 'image/jpeg'
+        const mimeType = (preserveTransparency || (isPng && file.size < 800 * 1024)) ? 'image/png' : 'image/jpeg'
         const dataUrl = canvas.toDataURL(mimeType, quality)
         resolve(dataUrl)
       }
@@ -80,27 +84,21 @@ export function compressImageFile(file, maxWidth = 1920, maxHeight = 1080, quali
   })
 }
 
-export function saveEspelhoConfig(eventId, config) {
+export function saveEspelhoConfig(eventId, config, notify = true) {
+  configCache.set(getEspelhoStorageKey(eventId), { ...config })
   try {
     localStorage.setItem(getEspelhoStorageKey(eventId), JSON.stringify(config))
   } catch (err) {
     console.warn('[espelho] Aviso ao salvar config no localStorage:', err?.message)
-    // Se a imagem for muito pesada para o storage local, salva os demais campos sem estourar
-    if (config?.bgImage || config?.logo) {
-      try {
-        const lightweight = { ...config, bgImage: null, logo: null }
-        localStorage.setItem(getEspelhoStorageKey(eventId), JSON.stringify(lightweight))
-      } catch {
-        // ignore
-      }
-    }
+    // O cache em memória mantém a prévia. A cópia persistente é a do servidor.
   }
-  broadcastEspelhoChange({ type: 'CONFIG_CHANGE', eventId, config })
+  if (notify) broadcastEspelhoChange({ type: 'CONFIG_CHANGE', eventId, config })
 }
 
 export function subscribeEspelhoSync(callback) {
   function handleStorage(e) {
     if (e.key && e.key.startsWith('entregas_run_espelho_')) {
+      configCache.delete(e.key)
       callback({ type: 'STORAGE_UPDATE', key: e.key, newValue: e.newValue })
     }
   }
@@ -166,11 +164,11 @@ export function buildEspelhoAthlete(athlete) {
 }
 
 export async function publishEspelhoState(eventId, state) {
-  if (!eventId) return
+  if (!eventId) return false
+  const hasLiveState = state?.status !== undefined || state?.atleta !== undefined
   const payload = {
-    status: state?.status || 'LIVRE',
     eventName: text(state?.eventName),
-    atleta: buildEspelhoAthlete(state?.atleta),
+    ...(hasLiveState ? { status: state?.status || 'LIVRE', atleta: buildEspelhoAthlete(state?.atleta) } : {}),
     updatedAt: Date.now(),
   }
   if (state?.config && typeof state.config === 'object') {
@@ -178,14 +176,10 @@ export async function publishEspelhoState(eventId, state) {
   }
 
   // 1. Sincronização em tempo real instantânea (0ms) no mesmo navegador via BroadcastChannel e localStorage
-  broadcastEspelhoChange({
-    type: 'STATE_CHANGE',
-    eventId,
-    state: payload,
-  })
+  if (hasLiveState) broadcastEspelhoChange({ type: 'STATE_CHANGE', eventId, state: payload })
 
   try {
-    localStorage.setItem(`entregas_run_espelho_live_${eventId}`, JSON.stringify(payload))
+    if (hasLiveState) localStorage.setItem(`entregas_run_espelho_live_${eventId}`, JSON.stringify(payload))
   } catch {
     // ignore
   }
@@ -193,21 +187,27 @@ export async function publishEspelhoState(eventId, state) {
   // 2. Publicação remota para outros dispositivos/segundas telas via backend (transmitida via SSE)
   if (typeof fetch === 'function') {
     try {
-      await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado`, {
+      const response = await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
+      const result = await response.json().catch(() => ({}))
+      const saved = response.ok && result.ok === true && !result.ignored
+      if (saved && !hasLiveState) broadcastEspelhoChange({ type: 'CONFIG_CHANGE', eventId, config: payload.config })
+      return saved
     } catch {
       // rede indisponível: o espelho remoto aguarda o próximo ciclo
     }
   }
+  return false
 }
 
 export async function fetchEspelhoState(eventId) {
   if (!eventId || typeof fetch !== 'function') return null
   const response = await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado`, {
     headers: { Accept: 'application/json' },
+    cache: 'no-store',
   })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const data = await response.json()
@@ -266,4 +266,80 @@ export function subscribeEspelhoSSE(eventId, onStateChange, onStatusChange) {
       eventSource = null
     }
   }
+}
+
+// Uma fila por evento sobrevive ao fechamento do modal e isola callbacks de outros eventos.
+const editors = new Map()
+export function getEspelhoEditor(eventId) {
+  if (editors.has(eventId)) return editors.get(eventId)
+  let config = getEspelhoConfig(eventId)
+  let status = 'loading'
+  let pending = 0
+  let failed = false
+  let dirtyPatch = {}
+  let revision = 0
+  let queue = Promise.resolve()
+  const listeners = new Set()
+  const snapshot = () => ({ config, status })
+  const emit = () => listeners.forEach((listener) => listener(snapshot()))
+  const editor = {
+    snapshot,
+    subscribe(listener) { listeners.add(listener); listener(snapshot()); return () => listeners.delete(listener) },
+    applyRemote(state) {
+      if (pending || failed) return
+      config = { ...DEFAULT_ESPELHO_CONFIG, ...state?.config }
+      revision += 1
+      status = 'saved'
+      saveEspelhoConfig(eventId, config, false)
+      emit()
+    },
+    async load() {
+      if (pending || failed) { emit(); return }
+      const startedRevision = revision
+      status = 'loading'
+      emit()
+      try {
+        const state = await fetchEspelhoState(eventId)
+        if (revision === startedRevision) editor.applyRemote(state)
+      } catch {
+        if (revision === startedRevision && !pending && !failed) { status = 'load-error'; emit() }
+      }
+    },
+    retry(eventName) { return editor.update(dirtyPatch, eventName) },
+    update(patch, eventName) {
+      if (status === 'loading' || status === 'load-error') return Promise.resolve(false)
+      config = { ...config, ...patch }
+      revision += 1
+      const draft = { ...config }
+      dirtyPatch = { ...dirtyPatch, ...patch }
+      const payload = failed ? { ...dirtyPatch } : patch
+      if (!pending) failed = false
+      pending += 1
+      status = 'saving'
+      emit()
+      const save = queue.then(async () => {
+        const saved = await publishEspelhoState(eventId, { config: payload, eventName })
+        pending -= 1
+        if (!saved) failed = true
+        if (!pending) {
+          status = failed ? 'error' : 'saved'
+          if (!failed) { saveEspelhoConfig(eventId, draft, false); dirtyPatch = {} }
+        }
+        emit()
+        // Reconciliar campos editados por outro aparelho durante nossa gravação.
+        if (saved && !pending && !failed) {
+          const savedRevision = revision
+          try {
+            const fresh = await fetchEspelhoState(eventId)
+            if (revision === savedRevision && fresh?.config) editor.applyRemote(fresh)
+          } catch { /* O POST já confirmou persistência; falha de releitura não desfaz o salvo. */ }
+        }
+        return saved
+      })
+      queue = save.catch(() => false)
+      return save
+    },
+  }
+  editors.set(eventId, editor)
+  return editor
 }

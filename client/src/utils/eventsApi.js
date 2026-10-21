@@ -2,6 +2,29 @@
  * API client para gerenciamento e sincronização centralizada de eventos.
  */
 
+const athleteListRevisions = new Map()
+
+export function apiGetAthleteListRevision(eventId) {
+  return athleteListRevisions.get(String(eventId)) ?? 0
+}
+
+function athleteWriteOptions(eventId, options) {
+  return {
+    listRevision: options.listRevision ?? athleteListRevisions.get(String(eventId)) ?? 0,
+    ...(options.importMode ? { importMode: options.importMode } : {}),
+  }
+}
+
+async function readAthleteWriteResponse(res, eventId, options) {
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.ok) {
+    options.onError?.(data.message || 'Não foi possível salvar a planilha. Tente novamente.')
+    return false
+  }
+  if (Number.isInteger(data.listRevision)) athleteListRevisions.set(String(eventId), data.listRevision)
+  return true
+}
+
 function getAuthHeaders(extra = {}) {
   let token = ''
   try {
@@ -137,6 +160,7 @@ export async function apiFetchAthletes(eventId) {
     flagExpiredSession(res)
     if (!res.ok) return null
     const data = await res.json()
+    if (data.ok) athleteListRevisions.set(String(eventId), data.listRevision ?? 0)
     return data.ok
       ? {
           athletes: data.athletes || [],
@@ -166,6 +190,7 @@ export async function apiSaveAthletes(eventId, athletes, schema = [], kits, orig
         'Content-Type': 'application/json',
       }),
       body: JSON.stringify({
+        ...athleteWriteOptions(eventId, options),
         athletes,
         schema,
         ...(kits === undefined ? {} : { kits }),
@@ -175,9 +200,7 @@ export async function apiSaveAthletes(eventId, athletes, schema = [], kits, orig
       }),
     })
     flagExpiredSession(res)
-    if (!res.ok) return false
-    const data = await res.json()
-    return Boolean(data.ok)
+    return readAthleteWriteResponse(res, eventId, options)
   } catch (err) {
     console.error(`[eventsApi] Erro ao salvar atletas do evento ${eventId}:`, err)
     return false
@@ -186,6 +209,7 @@ export async function apiSaveAthletes(eventId, athletes, schema = [], kits, orig
 
 export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kits, chunkSize = 250, originalSheet, options = {}) {
   if (!eventId || !Array.isArray(athletes)) return false
+  const writeOptions = athleteWriteOptions(eventId, options)
   const uploadId = `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
   const totalChunks = Math.max(1, Math.ceil(athletes.length / chunkSize))
   try {
@@ -197,6 +221,7 @@ export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kit
           'Content-Type': 'application/json',
         }),
         body: JSON.stringify({
+          ...writeOptions,
           uploadId,
           chunkIndex: i,
           totalChunks,
@@ -216,12 +241,12 @@ export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kit
       if (!res.ok) {
         // Servidor antigo sem rota de chunks: cai para o POST único
         if (res.status === 404 && totalChunks > 1) {
-          return apiSaveAthletesSingle(eventId, athletes, schema, kits, originalSheet, options)
+          return apiSaveAthletesSingle(eventId, athletes, schema, kits, originalSheet, { ...options, ...writeOptions })
         }
+        await readAthleteWriteResponse(res, eventId, options)
         return false
       }
-      const data = await res.json().catch(() => ({}))
-      if (!data.ok) return false
+      if (!await readAthleteWriteResponse(res, eventId, options)) return false
     }
     return true
   } catch (err) {
@@ -238,6 +263,7 @@ async function apiSaveAthletesSingle(eventId, athletes, schema = [], kits, origi
         'Content-Type': 'application/json',
       }),
       body: JSON.stringify({
+        ...athleteWriteOptions(eventId, options),
         athletes,
         schema,
         ...(kits === undefined ? {} : { kits }),
@@ -247,9 +273,7 @@ async function apiSaveAthletesSingle(eventId, athletes, schema = [], kits, origi
       }),
     })
     flagExpiredSession(res)
-    if (!res.ok) return false
-    const data = await res.json()
-    return Boolean(data.ok)
+    return readAthleteWriteResponse(res, eventId, options)
   } catch {
     return false
   }

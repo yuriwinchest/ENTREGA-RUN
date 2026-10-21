@@ -980,3 +980,22 @@
 .importar-modal-body > .columns-mapping-grid {
   flex-shrink: 0;
 }
+.import-mode-choice {
+  margin: 0 0 20px;
+  padding: 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  min-width: 0;
+}
+.import-mode-choice legend { font-size: 16px; font-weight: 800; padding: 0 6px; }
+.import-mode-choice p { font-size: 13px; line-height: 1.5; color: #475569; margin: 4px 0 12px; }
+.import-mode-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.import-mode-options label { display: flex; gap: 10px; align-items: flex-start; padding: 14px; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; }
+.import-mode-options label.selected { border-color: #ff5200; background: #fff7ed; }
+.import-mode-options strong, .import-mode-options small { display: block; }
+.import-mode-options strong { font-size: 14px; }
+.import-mode-options small { margin-top: 5px; line-height: 1.5; color: #475569; }
+.import-mode-options input, .import-replace-confirm input { accent-color: #e74900; flex-shrink: 0; margin-top: 3px; }
+.import-mode-options label:has(input:disabled) { opacity: .65; cursor: not-allowed; }
+.import-replace-confirm { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.5; margin-top: 14px; font-weight: 600; }
+@media (max-width: 600px) { .import-mode-options { grid-template-columns: 1fr; } }

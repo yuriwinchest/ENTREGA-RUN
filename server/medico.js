@@ -196,6 +196,40 @@ export function validateOcorrencia(raw) {
   }
 }
 
+// ------------------------------------------------------------------
+// Registro de atendimento e desfecho
+// ------------------------------------------------------------------
+// Texto livre digitado pelo profissional: o sistema não sugere medicamento nem
+// dose. Cada registro é acrescentado (nunca editado), com hora e autor do servidor.
+export const DESTINOS = ['LIBERADO_LOCAL', 'RETORNOU_PROVA', 'REMOVIDO_HOSPITAL', 'TRANSFERIDO_EQUIPE', 'RECUSOU', 'OBITO', 'OUTRO']
+const DESTINO_EXIGE_DETALHE = new Set(['REMOVIDO_HOSPITAL', 'TRANSFERIDO_EQUIPE', 'OUTRO'])
+const MAX_REGISTROS_POR_OCORRENCIA = 200
+
+export function validateRegistro(raw) {
+  const body = raw && typeof raw === 'object' ? raw : {}
+  const value = {
+    avaliacao: cleanText(body.avaliacao, 2000),
+    condutas: cleanText(body.condutas, 2000),
+    prescricoes: cleanText(body.prescricoes, 2000),
+  }
+  if (!value.avaliacao && !value.condutas && !value.prescricoes) {
+    return { error: 'Preencha ao menos um campo do registro.' }
+  }
+  return { value }
+}
+
+export function validateDesfecho(raw) {
+  const body = raw && typeof raw === 'object' ? raw : {}
+  const destino = DESTINOS.includes(body.destino) ? body.destino : ''
+  const detalhe = cleanText(body.detalhe, 160)
+  const observacao = cleanText(body.observacao, 1000)
+  if (!destino) return { error: 'Informe o desfecho/destino para encerrar.' }
+  if (DESTINO_EXIGE_DETALHE.has(destino) && detalhe.length < 2) {
+    return { error: destino === 'REMOVIDO_HOSPITAL' ? 'Informe para qual hospital/UPA.' : 'Detalhe o destino.' }
+  }
+  return { value: { destino, detalhe, observacao } }
+}
+
 export function nextProtocol(ocorrencias) {
   const highest = ocorrencias.reduce((max, item) => Math.max(max, Number(item.protocolo) || 0), 0)
   return highest + 1
@@ -263,17 +297,59 @@ export function createMedicoStore(dataDir) {
       persist(id, [...list, item])
       return item
     },
-    updateStatus(eventId, ocorrenciaId, status, por) {
+    recognizeAlert(eventId, ocorrenciaId, userId) {
+      const id = safeEventId(eventId)
+      const list = load(id)
+      const current = list.find((item) => item.id === ocorrenciaId)
+      if (!current) return null
+      if (current.alertaReconhecidoEm) return current
+      const updated = {
+        ...current,
+        alertaReconhecidoEm: new Date().toISOString(),
+        alertaReconhecidoPor: cleanText(userId, 80),
+      }
+      persist(id, list.map((item) => item.id === ocorrenciaId ? updated : item))
+      return updated
+    },
+    addRegistro(eventId, ocorrenciaId, registro, por) {
       const id = safeEventId(eventId)
       const list = load(id)
       const index = list.findIndex((item) => item.id === ocorrenciaId)
       if (index === -1) return null
       const current = list[index]
-      if (current.status === status) return current
+      if ((current.registros || []).length >= MAX_REGISTROS_POR_OCORRENCIA) return { limite: true }
+      const updated = {
+        ...current,
+        registros: [...(current.registros || []), { id: crypto.randomUUID(), em: new Date().toISOString(), por: cleanText(por, 80), ...registro }],
+      }
+      persist(id, list.map((item, i) => (i === index ? updated : item)))
+      return updated
+    },
+    // extras.desfecho: obrigatório ao encerrar (a rota valida). extras.registro:
+    // anotação final gravada junto do encerramento, na mesma escrita.
+    updateStatus(eventId, ocorrenciaId, status, por, recognizeBy = null, extras = {}) {
+      const id = safeEventId(eventId)
+      const list = load(id)
+      const index = list.findIndex((item) => item.id === ocorrenciaId)
+      if (index === -1) return null
+      const current = list[index]
+      const { desfecho = null, registro = null } = extras
+      if (current.status === status && (!recognizeBy || current.alertaReconhecidoEm) && !registro) return current
+      const now = new Date().toISOString()
+      const autor = cleanText(por, 80)
       const updated = {
         ...current,
         status,
-        historico: [...(current.historico || []), { status, em: new Date().toISOString(), por: cleanText(por, 80) }],
+        historico: current.status === status ? current.historico : [...(current.historico || []), { status, em: now, por: autor }],
+        ...(recognizeBy && !current.alertaReconhecidoEm ? { alertaReconhecidoEm: now, alertaReconhecidoPor: cleanText(recognizeBy, 80) } : {}),
+        ...(registro ? { registros: [...(current.registros || []), { id: crypto.randomUUID(), em: now, por: autor, ...registro }] } : {}),
+      }
+      if (status === 'ENCERRADA' && desfecho) {
+        updated.desfecho = { ...desfecho, em: now, por: autor }
+      } else if (status !== 'ENCERRADA' && current.desfecho) {
+        // Reabrir não apaga o desfecho anterior: ele vai para o histórico da ocorrência.
+        updated.desfechosAnteriores = [...(current.desfechosAnteriores || []), current.desfecho]
+        updated.desfecho = null
       }
       persist(id, list.map((item, i) => (i === index ? updated : item)))
       return updated

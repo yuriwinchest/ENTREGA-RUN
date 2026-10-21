@@ -3,15 +3,20 @@ import { medicoApi } from '../utils/medicoApi.js'
 import {
   calculateAge,
   countByStatus,
+  DESTINOS,
+  destinoExigeDetalhe,
+  destinoLabel,
   elapsedLabel,
   formatAge,
   formatPhone,
   gravidadeLabel,
   mapsUrl,
-  newArrivals,
+  REGISTRO_VAZIO,
+  registroPreenchido,
   sortQueue,
   statusLabel,
 } from '../utils/medico.js'
+import { createAlertRepeater, highestAlert, pendingAlerts } from '../utils/medicoAlert.js'
 import './MedicoPage.css'
 
 const POLL_MS = 10000
@@ -25,31 +30,16 @@ function readSoundPref() {
   }
 }
 
-// Sirene curta em duas notas, gerada na hora (sem arquivo de áudio).
-function playAlert(ctx) {
-  if (!ctx) return
-  const start = ctx.currentTime
-  for (let i = 0; i < 3; i += 1) {
-    for (const [offset, freq] of [[0, 880], [0.18, 660]]) {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'square'
-      osc.frequency.value = freq
-      const t = start + i * 0.42 + offset
-      gain.gain.setValueAtTime(0.0001, t)
-      gain.gain.exponentialRampToValueAtTime(0.18, t + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16)
-      osc.connect(gain).connect(ctx.destination)
-      osc.start(t)
-      osc.stop(t + 0.17)
-    }
-  }
-}
-
 function formatTime(iso) {
   const date = new Date(iso)
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
+
+const REGISTRO_CAMPOS = [
+  ['avaliacao', 'Evolução / avaliação', 'Estado, sinais vitais, queixa, exame'],
+  ['condutas', 'Condutas e procedimentos', 'O que foi feito: curativo, imobilização, acesso, hidratação...'],
+  ['prescricoes', 'Prescrições e administrações', 'Medicamento, dose, via e horário (digitado pelo profissional)'],
+]
 
 function Info({ label, children }) {
   if (!children) return null
@@ -67,24 +57,44 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
   const [filter, setFilter] = useState('fila')
   const [selectedId, setSelectedId] = useState(null)
   const [soundOn, setSoundOn] = useState(readSoundPref)
-  const [flash, setFlash] = useState([])
+  const [audioState, setAudioState] = useState('locked')
+  const [acknowledging, setAcknowledging] = useState('')
   const [updating, setUpdating] = useState('')
   const [now, setNow] = useState(() => Date.now())
+  // Rascunhos por ocorrência ficam só em memória: sobrevivem à atualização a cada
+  // 10 s e a erro de rede, e não deixam dado de saúde no navegador.
+  const [drafts, setDrafts] = useState({})
+  const [closing, setClosing] = useState(null) // { id, destino, detalhe, observacao }
+  const [savingRecord, setSavingRecord] = useState(false)
+  const [recordError, setRecordError] = useState('')
   const audioRef = useRef(null)
-  const knownIds = useRef(null)
+  const repeaterRef = useRef(null)
+  const requestSeq = useRef(0)
+  const currentEvent = useRef(eventId)
+  currentEvent.current = eventId
   const versionRef = useRef(null)
 
-  const ensureAudio = useCallback(() => {
-    if (!audioRef.current) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext
-      if (AudioCtx) audioRef.current = new AudioCtx()
+  const ensureAudio = useCallback(async () => {
+    try {
+      if (!audioRef.current) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext
+        if (!AudioCtx) { setAudioState('unsupported'); return }
+        const ctx = new AudioCtx()
+        audioRef.current = ctx
+        repeaterRef.current = createAlertRepeater(ctx)
+        ctx.onstatechange = () => setAudioState(ctx.state)
+      }
+      await audioRef.current.resume()
+      setAudioState(audioRef.current.state)
+    } catch {
+      setAudioState('locked')
     }
-    audioRef.current?.resume?.()
-    return audioRef.current
   }, [])
 
   const load = useCallback(async () => {
+    const seq = ++requestSeq.current
     const res = await medicoApi.ocorrencias(eventId, versionRef.current)
+    if (seq !== requestSeq.current || eventId !== currentEvent.current) return
     if (!res.ok) {
       setLoadError(res.status === 401 ? 'Sessão expirada. Entre novamente.' : (res.data?.message || 'Sem conexão com o servidor.'))
       return
@@ -92,21 +102,18 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
     setLoadError('')
     if (res.data.unchanged) return
     const list = res.data.ocorrencias || []
-    const arrived = newArrivals(knownIds.current, list)
-    knownIds.current = new Set(list.map((item) => item.id))
     versionRef.current = res.data.version
     setData({ event: res.data.event, ocorrencias: list, version: res.data.version })
-    if (arrived.length > 0) {
-      setFlash(arrived)
-      if (readSoundPref()) playAlert(audioRef.current)
-      navigator.vibrate?.([300, 120, 300])
-    }
   }, [eventId])
 
   useEffect(() => {
+    versionRef.current = null
+    requestSeq.current += 1
+    setData({ event: null, ocorrencias: [], version: null })
+    setSelectedId(null)
     void load()
     const timer = window.setInterval(() => {
-      if (document.visibilityState !== 'hidden') void load()
+      void load()
     }, POLL_MS)
     const clock = window.setInterval(() => setNow(Date.now()), 30000)
     function onVisible() {
@@ -114,20 +121,31 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
+      requestSeq.current += 1
       window.clearInterval(timer)
       window.clearInterval(clock)
       document.removeEventListener('visibilitychange', onVisible)
     }
   }, [load])
 
-  // O navegador só libera áudio depois de um toque na página: após recarregar,
-  // o primeiro toque em qualquer lugar rearma o alerta sonoro.
+  useEffect(() => () => {
+    repeaterRef.current?.stop()
+    if (audioRef.current) {
+      audioRef.current.onstatechange = null
+      void audioRef.current.close().catch(() => {})
+      audioRef.current = null
+      repeaterRef.current = null
+    }
+  }, [])
+
+  const alerts = pendingAlerts(data.ocorrencias)
+  const highest = highestAlert(data.ocorrencias)
+  const hasAlerts = alerts.length > 0
   useEffect(() => {
-    if (!soundOn) return undefined
-    const arm = () => ensureAudio()
-    document.addEventListener('pointerdown', arm, { once: true })
-    return () => document.removeEventListener('pointerdown', arm)
-  }, [soundOn, ensureAudio])
+    if (hasAlerts && soundOn && audioState === 'running') repeaterRef.current?.start()
+    else repeaterRef.current?.stop()
+    return () => repeaterRef.current?.stop()
+  }, [hasAlerts, soundOn, audioState])
 
   const counts = countByStatus(data.ocorrencias)
   const sorted = sortQueue(data.ocorrencias)
@@ -155,13 +173,33 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
     } catch {
       // preferência só vale nesta aba
     }
-    if (next) playAlert(ensureAudio())
+    if (next) void ensureAudio()
+    else repeaterRef.current?.stop()
   }
 
   function select(id) {
-    if (soundOn) ensureAudio()
+    if (soundOn) void ensureAudio()
     setSelectedId(id)
-    setFlash((prev) => prev.filter((item) => item !== id))
+  }
+
+  async function acknowledge(item) {
+    if (!item || acknowledging || updating) return
+    setAcknowledging(item.id)
+    const res = item.status === 'ABERTA'
+      ? await medicoApi.mudarStatus(eventId, item.id, 'EM_ATENDIMENTO', true)
+      : await medicoApi.silenciarAlerta(eventId, item.id)
+    setAcknowledging('')
+    if (eventId !== currentEvent.current) return
+    if (!res.ok) {
+      setLoadError(res.data?.message || 'Não foi possível silenciar. O alerta continua ativo.')
+      return
+    }
+    // Invalida consultas anteriores ao ACK, sem reconhecer IDs que chegaram depois.
+    requestSeq.current += 1
+    setData((prev) => ({ ...prev, ocorrencias: prev.ocorrencias.map((entry) => entry.id === item.id
+      ? { ...entry, status: res.data.status || entry.status, alertaReconhecidoEm: res.data.alertaReconhecidoEm } : entry) }))
+    versionRef.current = null
+    await load()
   }
 
   async function changeStatus(status) {
@@ -177,6 +215,67 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
     await load()
   }
 
+  function updateDraft(id, field, value) {
+    setDrafts((prev) => ({ ...prev, [id]: { ...REGISTRO_VAZIO, ...prev[id], [field]: value } }))
+    setRecordError('')
+  }
+
+  async function saveRecord() {
+    if (!selected || savingRecord) return
+    const draft = drafts[selected.id]
+    if (!registroPreenchido(draft)) {
+      setRecordError('Preencha ao menos um campo do registro.')
+      return
+    }
+    setRecordError('')
+    setSavingRecord(true)
+    const res = await medicoApi.registrar(eventId, selected.id, draft)
+    setSavingRecord(false)
+    if (!res.ok) {
+      setRecordError(res.data?.message || 'Não foi possível salvar. O texto continua na tela.')
+      return
+    }
+    setDrafts((prev) => ({ ...prev, [selected.id]: REGISTRO_VAZIO }))
+    versionRef.current = null
+    await load()
+  }
+
+  function openClosing() {
+    if (!selected) return
+    setClosing({ id: selected.id, destino: '', detalhe: '', observacao: '' })
+    setRecordError('')
+  }
+
+  async function confirmClosing() {
+    if (!selected || !closing || savingRecord) return
+    if (!closing.destino) {
+      setRecordError('Escolha o desfecho/destino.')
+      return
+    }
+    if (destinoExigeDetalhe(closing.destino) && closing.detalhe.trim().length < 2) {
+      setRecordError('Detalhe o destino antes de encerrar.')
+      return
+    }
+    const draft = drafts[selected.id]
+    setRecordError('')
+    setSavingRecord(true)
+    const res = await medicoApi.encerrar(
+      eventId,
+      selected.id,
+      { destino: closing.destino, detalhe: closing.detalhe, observacao: closing.observacao },
+      registroPreenchido(draft) ? draft : undefined,
+    )
+    setSavingRecord(false)
+    if (!res.ok) {
+      setRecordError(res.data?.message || 'Não foi possível encerrar. Nada foi perdido; tente de novo.')
+      return
+    }
+    setDrafts((prev) => ({ ...prev, [selected.id]: REGISTRO_VAZIO }))
+    setClosing(null)
+    versionRef.current = null
+    await load()
+  }
+
   const atleta = selected?.atleta
   const atletaIdade = atleta ? (atleta.idadeTexto || (atleta.idade ? `${atleta.idade} anos` : '') || formatAge(calculateAge(atleta))) : ''
   const saude = atleta?.saude || []
@@ -184,7 +283,7 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
   const outras = saude.filter((item) => !item.alerta)
 
   return (
-    <div className="med-page">
+    <div className={`med-page ${hasAlerts ? `med-alerting g-${highest.gravidade.toLowerCase()}` : ''}`}>
       <header className="med-top">
         <div className="med-top-id">
           <span className="med-top-mark" aria-hidden="true" />
@@ -195,12 +294,40 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
         </div>
         <div className="med-top-actions">
           <button type="button" className={`med-sound ${soundOn ? 'on' : ''}`} onClick={toggleSound} aria-pressed={soundOn}>
-            {soundOn ? 'Alerta sonoro ligado' : 'Ligar alerta sonoro'}
+            {soundOn ? 'Desligar som neste dispositivo' : 'Ligar som neste dispositivo'}
           </button>
           {onBack && <button type="button" className="med-ghost" onClick={onBack}>Voltar</button>}
           <button type="button" className="med-ghost" onClick={onLogout}>Sair</button>
         </div>
       </header>
+
+      <div className="med-audio-state" role="status">
+        {!soundOn ? 'Som deste dispositivo desligado. Os avisos visuais continuam ativos.'
+          : audioState === 'running' ? 'Som deste dispositivo ativo.'
+            : audioState === 'unsupported' ? 'Áudio indisponível neste navegador. Os avisos visuais continuam ativos.'
+              : 'Som aguardando liberação pelo navegador.'}
+        {soundOn && audioState !== 'running' && audioState !== 'unsupported' && (
+          <button type="button" onClick={() => void ensureAudio()}>Ativar som neste dispositivo</button>
+        )}
+      </div>
+      {hasAlerts && (
+        <section className={`med-alert-band g-${highest.gravidade.toLowerCase()}`} aria-label="Alertas não reconhecidos">
+          <div role="status">
+            <strong>{alerts.length} alerta{alerts.length === 1 ? '' : 's'} aguardando reconhecimento</strong>
+            <p>Maior gravidade pendente: {gravidadeLabel(highest.gravidade)}. O reconhecimento interrompe o aviso em todas as telas médicas deste evento; não encerra atendimento.</p>
+          </div>
+          <ul>
+            {alerts.map((item) => (
+              <li key={item.id}>
+                <span>#{item.protocolo} · {gravidadeLabel(item.gravidade)}</span>
+                <button type="button" disabled={Boolean(acknowledging || updating)} onClick={() => void acknowledge(item)}>
+                  {acknowledging === item.id ? 'Salvando…' : item.status === 'ABERTA' ? 'Assumir e silenciar' : 'Silenciar alerta'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {loadError && <p className="med-banner" role="alert">{loadError}</p>}
 
@@ -231,7 +358,7 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
               <button
                 key={item.id}
                 type="button"
-                className={`med-card g-${String(item.gravidade).toLowerCase()} st-${item.status.toLowerCase()} ${selectedId === item.id ? 'sel' : ''} ${flash.includes(item.id) ? 'new' : ''}`}
+                className={`med-card g-${String(item.gravidade).toLowerCase()} st-${item.status.toLowerCase()} ${selectedId === item.id ? 'sel' : ''} ${!item.alertaReconhecidoEm ? 'new' : ''}`}
                 onClick={() => select(item.id)}
               >
                 <span className="med-card-top">
@@ -254,6 +381,7 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
                 <span className="med-card-desc">{item.descricao}</span>
                 <span className="med-card-foot">
                   <span className={`med-status s-${item.status.toLowerCase()}`}>{statusLabel(item.status)}</span>
+                  {item.status === 'ENCERRADA' && item.desfecho && <span className="med-card-loc">{destinoLabel(item.desfecho.destino)}</span>}
                   {item.localTexto && <span className="med-card-loc">{item.localTexto}</span>}
                   {item.geo && !item.localTexto && <span className="med-card-loc">GPS</span>}
                 </span>
@@ -279,17 +407,25 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
 
               <div className="med-steps">
                 {selected.status !== 'EM_ATENDIMENTO' && selected.status !== 'ENCERRADA' && (
-                  <button type="button" className="med-step go" disabled={Boolean(updating)} onClick={() => changeStatus('EM_ATENDIMENTO')}>
-                    {updating === 'EM_ATENDIMENTO' ? 'Atualizando…' : 'Iniciar atendimento'}
+                  <button type="button" className="med-step go" disabled={Boolean(updating || acknowledging)} onClick={() => void acknowledge(selected)}>
+                    {acknowledging === selected.id ? 'Salvando…' : 'Assumir e silenciar'}
                   </button>
                 )}
                 {selected.status !== 'ENCERRADA' && (
-                  <button type="button" className="med-step done" disabled={Boolean(updating)} onClick={() => changeStatus('ENCERRADA')}>
-                    {updating === 'ENCERRADA' ? 'Atualizando…' : 'Encerrar'}
+                  <button
+                    type="button"
+                    className="med-step done"
+                    disabled={Boolean(updating || acknowledging || savingRecord)}
+                    onClick={() => {
+                      openClosing()
+                      setTimeout(() => document.getElementById('med-registro')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+                    }}
+                  >
+                    Encerrar…
                   </button>
                 )}
                 {selected.status === 'ENCERRADA' && (
-                  <button type="button" className="med-step" disabled={Boolean(updating)} onClick={() => changeStatus('ABERTA')}>
+                  <button type="button" className="med-step" disabled={Boolean(updating || acknowledging)} onClick={() => changeStatus('ABERTA')}>
                     Reabrir
                   </button>
                 )}
@@ -371,6 +507,111 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
                   )}
                 </section>
               )}
+
+              <section className="med-block" id="med-registro" aria-labelledby="med-registro-title">
+                <h3 id="med-registro-title">Registro de atendimento</h3>
+
+                {selected.desfecho && (
+                  <div className="med-outcome">
+                    <span>Desfecho</span>
+                    <strong>{destinoLabel(selected.desfecho.destino)}{selected.desfecho.detalhe ? ` — ${selected.desfecho.detalhe}` : ''}</strong>
+                    {selected.desfecho.observacao && <p>{selected.desfecho.observacao}</p>}
+                    <small>{formatTime(selected.desfecho.em)} · {selected.desfecho.por}</small>
+                  </div>
+                )}
+
+                {(selected.registros || []).length === 0 ? (
+                  <p className="med-muted">Nenhum registro ainda.</p>
+                ) : (
+                  <ol className="med-records">
+                    {selected.registros.map((entry) => (
+                      <li key={entry.id}>
+                        <header><time>{formatTime(entry.em)}</time> · {entry.por}</header>
+                        {REGISTRO_CAMPOS.map(([field, label]) => entry[field] && (
+                          <div key={field}>
+                            <span>{label}</span>
+                            <p>{entry[field]}</p>
+                          </div>
+                        ))}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                <div className="med-record-form">
+                  {REGISTRO_CAMPOS.map(([field, label, hint]) => (
+                    <label key={field}>
+                      <span>{label}</span>
+                      <textarea
+                        rows={2}
+                        maxLength={2000}
+                        placeholder={hint}
+                        value={drafts[selected.id]?.[field] || ''}
+                        onChange={(e) => updateDraft(selected.id, field, e.target.value)}
+                      />
+                    </label>
+                  ))}
+                  {closing?.id !== selected.id && (
+                    <button type="button" className="med-step" disabled={savingRecord || !registroPreenchido(drafts[selected.id])} onClick={() => void saveRecord()}>
+                      {savingRecord ? 'Salvando…' : 'Salvar registro'}
+                    </button>
+                  )}
+                </div>
+
+                {closing?.id === selected.id && (
+                  <div className="med-closing" role="group" aria-labelledby="med-closing-title">
+                    <h4 id="med-closing-title">Encerrar atendimento</h4>
+                    <div className="med-destinos" role="radiogroup" aria-label="Desfecho ou destino">
+                      {DESTINOS.map((item) => (
+                        <label key={item.value} className={closing.destino === item.value ? 'on' : ''}>
+                          <input
+                            type="radio"
+                            name="med-destino"
+                            value={item.value}
+                            checked={closing.destino === item.value}
+                            onChange={() => { setClosing((prev) => ({ ...prev, destino: item.value })); setRecordError('') }}
+                          />
+                          <span>{item.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {destinoExigeDetalhe(closing.destino) && (
+                      <label className="med-closing-field">
+                        <span>{DESTINOS.find((item) => item.value === closing.destino)?.detalhe}</span>
+                        <input value={closing.detalhe} maxLength={160} onChange={(e) => setClosing((prev) => ({ ...prev, detalhe: e.target.value }))} />
+                      </label>
+                    )}
+                    <label className="med-closing-field">
+                      <span>Observação do encerramento (opcional)</span>
+                      <textarea rows={2} maxLength={1000} value={closing.observacao} onChange={(e) => setClosing((prev) => ({ ...prev, observacao: e.target.value }))} />
+                    </label>
+                    {registroPreenchido(drafts[selected.id]) && (
+                      <p className="med-muted">O registro escrito acima será salvo junto com o encerramento.</p>
+                    )}
+                    <div className="med-steps">
+                      <button type="button" className="med-step" disabled={savingRecord} onClick={() => { setClosing(null); setRecordError('') }}>Cancelar</button>
+                      <button type="button" className="med-step done" disabled={savingRecord} onClick={() => void confirmClosing()}>
+                        {savingRecord ? 'Encerrando…' : 'Confirmar encerramento'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {recordError && <p className="med-banner" role="alert">{recordError}</p>}
+
+                {(selected.desfechosAnteriores || []).length > 0 && (
+                  <details className="med-prev-outcomes">
+                    <summary>Desfechos anteriores ({selected.desfechosAnteriores.length})</summary>
+                    <ul>
+                      {selected.desfechosAnteriores.map((item, index) => (
+                        <li key={`${item.em}-${index}`}>
+                          {formatTime(item.em)} · {destinoLabel(item.destino)}{item.detalhe ? ` — ${item.detalhe}` : ''} · {item.por}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </section>
 
               <section className="med-block">
                 <h3>Histórico</h3>

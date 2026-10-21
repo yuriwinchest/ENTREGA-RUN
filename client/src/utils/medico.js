@@ -25,6 +25,31 @@ export function statusLabel(value) {
   return STATUS_OCORRENCIA.find((item) => item.value === value)?.label || value || ''
 }
 
+// Desfecho ao encerrar: mesma lista do servidor (server/medico.js, DESTINOS).
+export const DESTINOS = [
+  { value: 'LIBERADO_LOCAL', label: 'Liberado no local' },
+  { value: 'RETORNOU_PROVA', label: 'Retornou à prova' },
+  { value: 'REMOVIDO_HOSPITAL', label: 'Removido para hospital/UPA', detalhe: 'Qual hospital/UPA' },
+  { value: 'TRANSFERIDO_EQUIPE', label: 'Transferido ao SAMU/outra equipe', detalhe: 'Qual equipe/viatura' },
+  { value: 'RECUSOU', label: 'Recusou atendimento ou remoção' },
+  { value: 'OBITO', label: 'Óbito' },
+  { value: 'OUTRO', label: 'Outro', detalhe: 'Descreva o destino' },
+]
+
+export function destinoLabel(value) {
+  return DESTINOS.find((item) => item.value === value)?.label || value || ''
+}
+
+export function destinoExigeDetalhe(value) {
+  return Boolean(DESTINOS.find((item) => item.value === value)?.detalhe)
+}
+
+export const REGISTRO_VAZIO = { avaliacao: '', condutas: '', prescricoes: '' }
+
+export function registroPreenchido(draft) {
+  return Boolean(draft && (String(draft.avaliacao || '').trim() || String(draft.condutas || '').trim() || String(draft.prescricoes || '').trim()))
+}
+
 // ------------------------------------------------------------------
 // Colunas de saúde na importação da planilha
 // ------------------------------------------------------------------

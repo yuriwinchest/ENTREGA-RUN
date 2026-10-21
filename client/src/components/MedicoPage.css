@@ -198,9 +198,9 @@
   cursor: pointer;
 }
 
-.med-card.g-moderada, .med-sheet.g-moderada { --g: #e67700; }
-.med-card.g-grave, .med-sheet.g-grave { --g: #d9480f; }
-.med-card.g-critica, .med-sheet.g-critica { --g: #a51d2d; }
+.g-moderada { --g: #e67700; }
+.g-grave { --g: #d9480f; }
+.g-critica { --g: #a51d2d; }
 .med-sheet { --g: #2b8a3e; }
 
 .med-card.sel {
@@ -213,11 +213,44 @@
 }
 
 .med-card.new {
-  animation: medBlink 1s ease-in-out 6;
+  outline: 2px solid var(--g);
+  outline-offset: 1px;
 }
 
-@keyframes medBlink {
-  50% { background: #fff1c2; }
+@keyframes medAlertPulse {
+  50% { box-shadow: inset 0 0 0 6px var(--g); }
+}
+.med-alerting { --g: #2b8a3e; }
+.med-alerting.g-moderada { --g: #e67700; }
+.med-alerting.g-grave { --g: #d9480f; }
+.med-alerting.g-critica { --g: #a51d2d; }
+.med-audio-state { padding: 8px 20px; font-size: 13px; }
+.med-audio-state button { margin-left: 8px; min-height: 36px; }
+.med-alert-band {
+  margin: 8px 20px;
+  padding: 16px;
+  border: 3px solid var(--g);
+  border-radius: 10px;
+  background: #fff;
+  animation: medAlertPulse 3s ease-in-out infinite;
+}
+.med-alert-band strong { font-size: 19px; }
+.med-alert-band p { margin: 6px 0; }
+.med-alert-band ul { display: flex; flex-wrap: wrap; gap: 12px; padding: 4px; list-style: none; max-height: 180px; overflow: auto; }
+.med-alert-band li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.med-alert-band button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 2px solid var(--g);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--med-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .med-alert-band { animation: none; box-shadow: inset 0 0 0 3px var(--g); }
 }
 
 .med-card-top {
@@ -561,4 +594,178 @@
   font-style: normal;
   font-weight: 600;
   color: #94a3b8;
+}
+
+/* Registro de atendimento: acréscimos com hora e autor; encerramento com desfecho */
+.med-records {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.med-records li {
+  padding: 10px 12px;
+  border-left: 4px solid #1f5fd6;
+  border-radius: 4px 8px 8px 4px;
+  background: #f4f7fd;
+}
+
+.med-records header {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--med-muted);
+}
+
+.med-records time {
+  color: var(--med-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.med-records span {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--med-muted);
+}
+
+.med-records p {
+  margin: 1px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.med-record-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.med-record-form label,
+.med-closing-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.med-record-form label span,
+.med-closing-field span {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--med-ink);
+}
+
+.med-record-form textarea,
+.med-closing-field textarea,
+.med-closing-field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--med-line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.med-record-form textarea:focus,
+.med-closing-field textarea:focus,
+.med-closing-field input:focus {
+  outline: 2px solid #1f5fd6;
+  outline-offset: 1px;
+}
+
+.med-record-form > .med-step {
+  align-self: flex-end;
+}
+
+.med-closing {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 2px solid var(--med-ink);
+  border-radius: 10px;
+  background: #fbfbfc;
+}
+
+.med-closing h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.med-destinos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+}
+
+.med-destinos label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--med-line);
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.med-destinos label.on {
+  border-color: var(--med-ink);
+  box-shadow: inset 0 0 0 1px var(--med-ink);
+}
+
+.med-destinos input {
+  accent-color: var(--med-ink);
+}
+
+.med-outcome {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #edf0f3;
+}
+
+.med-outcome span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--med-muted);
+}
+
+.med-outcome strong {
+  font-size: 15px;
+}
+
+.med-outcome p {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  white-space: pre-wrap;
+}
+
+.med-outcome small,
+.med-prev-outcomes {
+  font-size: 12px;
+  color: var(--med-muted);
+}
+
+.med-prev-outcomes ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
 }

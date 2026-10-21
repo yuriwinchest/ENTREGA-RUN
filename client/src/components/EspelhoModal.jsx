@@ -4,8 +4,9 @@ import {
   DEFAULT_ESPELHO_CONFIG,
   compressImageFile,
   getEspelhoConfig,
-  publishEspelhoState,
-  saveEspelhoConfig,
+  getEspelhoEditor,
+  subscribeEspelhoSSE,
+  subscribeEspelhoSync,
 } from '../utils/espelhoSync.js'
 import './EspelhoModal.css'
 
@@ -64,6 +65,17 @@ function UndoIcon() {
   )
 }
 
+function MediaPreview({ src, label }) {
+  const [size, setSize] = useState(null)
+  if (!src) return <div className="espelho-media-empty">Nenhuma imagem anexada</div>
+  return (
+    <figure className="espelho-media-preview">
+      <img src={src} alt={label} onLoad={(e) => setSize({ src, width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })} />
+      <figcaption>{size?.src === src ? `${size.width} × ${size.height} px` : 'Carregando imagem…'}</figcaption>
+    </figure>
+  )
+}
+
 const STANDARD_FIELD_DEFS = [
   { key: 'nome', label: 'Nome Completo', category: 'Identificação' },
   { key: 'numero', label: 'Número de Peito', category: 'Identificação' },
@@ -89,11 +101,28 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
   const [config, setConfig] = useState(() => getEspelhoConfig(event?.id))
   const [copied, setCopied] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState('')
+  const [syncStatus, setSyncStatus] = useState('loading')
+  const [mediaError, setMediaError] = useState('')
+  const [uploading, setUploading] = useState(false)
   const bgInputRef = useRef(null)
   const logoInputRef = useRef(null)
 
   const eventId = event?.id || ''
   const eventName = event?.name || 'EVENTO'
+
+  const editor = useMemo(() => getEspelhoEditor(eventId), [eventId])
+  useEffect(() => {
+    if (!isOpen || !eventId) return undefined
+    const stopEditor = editor.subscribe((snapshot) => { setConfig(snapshot.config); setSyncStatus(snapshot.status) })
+    editor.load()
+    const stopSSE = subscribeEspelhoSSE(eventId, (state) => { if (state?.config) editor.applyRemote(state) })
+    const stopLocal = subscribeEspelhoSync((message) => {
+      if (message.eventId !== eventId) return
+      if (message.type === 'CONFIG_CHANGE') editor.applyRemote({ config: { ...editor.snapshot().config, ...message.config } })
+      if (message.type === 'STATE_CHANGE' && message.state?.config) editor.applyRemote(message.state)
+    })
+    return () => { stopEditor(); stopSSE(); stopLocal() }
+  }, [isOpen, eventId, editor])
 
   // URL do espelho (compatível com localhost ou produção)
   const getEspelhoUrl = () => {
@@ -169,11 +198,7 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
   }
 
   function updateConfig(newPartial) {
-    const updated = { ...config, ...newPartial }
-    setConfig(updated)
-    saveEspelhoConfig(eventId, updated)
-    // Espelho remoto (celular/TV via QR) herda a aparência pelo servidor
-    publishEspelhoState(eventId, { config: updated, eventName })
+    return editor.update(newPartial, eventName)
   }
 
   function handleOpenSecondScreen() {
@@ -200,54 +225,32 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
     }
   }
 
-  function handleImageUpload(e, field) {
+  async function handleImageUpload(e, field) {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
-
-    // Crowley (Segurança): apenas imagens até 5MB
-    if (!file.type.startsWith('image/')) {
-      alert('Por favor, selecione um arquivo de imagem válido (PNG, JPG, WEBP).')
+    setMediaError('')
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setMediaError('Selecione uma imagem PNG, JPG ou WebP.')
       return
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert('A imagem deve ter no máximo 5 MB.')
+      setMediaError('A imagem deve ter no máximo 5 MB.')
       return
     }
-
-    // Se for SVG e menor que 500KB, lê direto como dataUrl
-    if (file.type === 'image/svg+xml' && file.size < 500 * 1024) {
-      const reader = new FileReader()
-      reader.onload = (loadEvt) => {
-        const dataUrl = loadEvt.target?.result
-        if (typeof dataUrl === 'string') {
-          updateConfig({ [field]: dataUrl })
-        }
-      }
-      reader.readAsDataURL(file)
-      return
-    }
-
-    // Otimização automática: redimensionar client-side para carregar instantaneamente no espelho
     const maxWidth = field === 'bgImage' ? 1920 : 600
     const maxHeight = field === 'bgImage' ? 1080 : 300
     const quality = field === 'bgImage' ? 0.82 : 0.88
-
-    compressImageFile(file, maxWidth, maxHeight, quality)
-      .then((dataUrl) => {
-        if (dataUrl) {
-          updateConfig({ [field]: dataUrl })
-        }
-      })
-      .catch(() => {
-        const reader = new FileReader()
-        reader.onload = (loadEvt) => {
-          const dataUrl = loadEvt.target?.result
-          if (typeof dataUrl === 'string') {
-            updateConfig({ [field]: dataUrl })
-          }
-        }
-        reader.readAsDataURL(file)
-      })
+    setUploading(true)
+    try {
+      const dataUrl = await compressImageFile(file, maxWidth, maxHeight, quality, field === 'logo')
+      if (!dataUrl || dataUrl.length > 4 * 1024 * 1024) throw new Error('Imagem muito pesada após otimização. Use uma imagem menor.')
+      await updateConfig({ [field]: dataUrl })
+    } catch (error) {
+      setMediaError(error.message || 'Não foi possível abrir a imagem. Tente PNG, JPG ou WebP.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   function toggleField(fieldKey) {
@@ -297,9 +300,7 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
   }
 
   function handleRestoreDefault() {
-    setConfig(DEFAULT_ESPELHO_CONFIG)
-    saveEspelhoConfig(eventId, DEFAULT_ESPELHO_CONFIG)
-    publishEspelhoState(eventId, { config: DEFAULT_ESPELHO_CONFIG, eventName })
+    updateConfig(DEFAULT_ESPELHO_CONFIG)
   }
 
   return (
@@ -344,6 +345,11 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
           </button>
         </div>
 
+        <div className={`espelho-save-status ${syncStatus}`} role="status" aria-live="polite">
+          <span>{syncStatus === 'loading' ? 'Carregando a aparência salva no servidor…' : syncStatus === 'saving' ? 'Salvando no servidor…' : syncStatus === 'error' ? 'A alteração ainda não foi salva. Verifique a conexão.' : syncStatus === 'load-error' ? 'Não foi possível carregar a aparência do servidor. Feche e reabra o painel para tentar novamente.' : 'Aparência sincronizada com o servidor.'}</span>
+          {syncStatus === 'error' && <button type="button" onClick={() => editor.retry(eventName)}>Tentar salvar novamente</button>}
+        </div>
+
         {/* CORPO DO MODAL — ABA ACESSO */}
         {activeTab === 'acesso' && (
           <div className="espelho-modal-body acesso-body">
@@ -353,7 +359,7 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
               </div>
               <h3 className="espelho-access-title">ESPELHO DA SEGUNDA TELA</h3>
               <p className="espelho-helper-text">
-                A segunda tela espelha em tempo real a busca e a ficha aberta aqui.
+                A segunda tela espelha em tempo real a busca e a ficha aberta aqui. O layout se ajusta automaticamente à TV, ao computador ou ao telão, sem informar polegadas.
               </p>
             </div>
 
@@ -409,7 +415,7 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
                   className="espelho-preview-frame"
                   style={{
                     backgroundColor: config.fundo,
-                    backgroundImage: config.bgImage ? `url(${config.bgImage})` : 'none',
+                    backgroundImage: config.bgImage ? `url("${config.bgImage}")` : 'none',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                   }}
@@ -462,7 +468,7 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
               </div>
 
               {/* Coluna Direita: CONTROLES */}
-              <div className="aparencia-right-col">
+              <fieldset className="aparencia-right-col espelho-controls" disabled={syncStatus === 'loading' || syncStatus === 'load-error' || uploading}>
                 {/* Linha das 3 Cores */}
                 <div className="colors-picker-grid">
                   {/* FUNDO */}
@@ -566,6 +572,8 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
                         </button>
                       )}
                     </div>
+                    <MediaPreview src={config.bgImage} label="Imagem de fundo do telão" />
+                    <p className="espelho-media-guide">O layout se adapta automaticamente à proporção da tela. Para o fundo, recomendado <strong>1920 × 1080 px (16:9)</strong>. O fundo preenche a tela; formatos diferentes podem cortar as bordas. Mantenha textos e marcas importantes no centro.</p>
                     <button
                       type="button"
                       className="btn-upload-media"
@@ -598,6 +606,8 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
                         </button>
                       )}
                     </div>
+                    <MediaPreview src={config.logo} label="Logo do evento" />
+                    <p className="espelho-media-guide">Logo: recomendado <strong>600 × 300 px</strong>, PNG com fundo transparente. A proporção original é preservada.</p>
                     <button
                       type="button"
                       className="btn-upload-media"
@@ -609,12 +619,15 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
                     <input
                       ref={logoInputRef}
                       type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      accept="image/png,image/jpeg,image/webp"
                       style={{ display: 'none' }}
                       onChange={(e) => handleImageUpload(e, 'logo')}
                     />
                   </div>
                 </div>
+                <p className="espelho-media-guide">PNG, JPG ou WebP, até 5 MB por arquivo. As imagens são otimizadas para exibição.</p>
+                {uploading && <p role="status" className="espelho-media-guide">Preparando e salvando a imagem…</p>}
+                {mediaError && <p className="espelho-media-error" role="alert">{mediaError}</p>}
 
                 {/* Botão Restaurar Padrão */}
                 <button
@@ -631,7 +644,7 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
                   <span className="note-palette-icon">🎨</span>
                   <span>As alterações são aplicadas na hora na segunda tela.</span>
                 </div>
-              </div>
+              </fieldset>
             </div>
           </div>
         )}

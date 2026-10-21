@@ -114,3 +114,13 @@ test('cálculo e formatação de idade: explícita, nascimento e fallbacks', () 
   assert.equal(formatAge(null), '')
   assert.equal(formatAge(''), '')
 })
+
+test('registro de atendimento: rascunho preenchido e destinos com detalhe', async () => {
+  const { destinoExigeDetalhe, destinoLabel, registroPreenchido } = await import('./medico.js')
+  assert.equal(registroPreenchido({ avaliacao: '  ', condutas: '', prescricoes: '' }), false)
+  assert.equal(registroPreenchido({ prescricoes: 'Dipirona' }), true)
+  assert.equal(registroPreenchido(null), false)
+  assert.equal(destinoExigeDetalhe('REMOVIDO_HOSPITAL'), true)
+  assert.equal(destinoExigeDetalhe('LIBERADO_LOCAL'), false)
+  assert.equal(destinoLabel('OBITO'), 'Óbito')
+})
