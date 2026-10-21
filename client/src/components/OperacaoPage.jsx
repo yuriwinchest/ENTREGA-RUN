@@ -32,6 +32,7 @@ import {
 } from '../utils/athleteTable.js'
 import { getEspelhoConfig, publishEspelhoState } from '../utils/espelhoSync.js'
 import { getRecentDeliveries } from '../utils/deliveryFeed.js'
+import { cacheEventKits } from '../utils/kitCache.js'
 import {
   clearKitDecision,
   findPendingKitDecisionAthlete,
@@ -504,7 +505,7 @@ export default function OperacaoPage({
   }, [entregaNotice])
 
   useEffect(() => {
-    if (currentEvent.id && Array.isArray(kits)) localStorage.setItem(`entregas_run_kits_${currentEvent.id}`, JSON.stringify(kits))
+    cacheEventKits(currentEvent.id, kits)
   }, [kits, currentEvent.id])
 
   const [athleteColumnSchema, setAthleteColumnSchema] = useState(() => {

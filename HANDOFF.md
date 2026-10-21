@@ -10,6 +10,17 @@
 
 ## Última atualização
 
+- **Quando / quem:** 2026-10-21 · Codex/Tony (implementação e navegador), Teclide/Codex (testes), Ulisses/Codex (revisão de premissas) · Fase B.
+- **Pedido:** Corrigir erro ao clicar em Entregar kits em um evento; foto do console enviada pelo Yuri confirmou QuotaExceededError na chave de cache de kits.
+- **Causa:** O efeito que gravava kits no localStorage não tratava a exceção de quota; o ErrorBoundary substituía a operação pela tela de erro.
+- **Arquivos:** client/src/components/OperacaoPage.jsx; client/src/utils/kitCache.js; client/src/utils/kitCache.test.mjs; .github/workflows/deploy.yml; HANDOFF.md; docs/handoff/2026-10.md.
+- **Entrega:** Cache de kits passa a ser opcional e protegido contra falha de armazenamento; servidor continua sendo fonte de dados. Nenhum cache, sessão, entrega ou atleta é apagado. Correção isolada em codex/corrigir-entregar-kits, baseada na main 663fd70.
+- **Validação real:** Cliente 49/49; lint sem erros (3 avisos preexistentes); build aprovado; git diff --check aprovado. Navegador local com API sintética e QuotaExceededError simulado reproduziu a mesma tela antes e abriu operação, busca e ficha após a correção. Evidência local: scratch/entrega-quota-corrigida.png.
+- **Riscos / pendências:** Sem push/deploy nesta entrega; publicação e homologação do evento real pendentes. Sem cache novo de kits enquanto o navegador estiver sem espaço; leitura/salvamento no servidor preservados. Falha distinta de avatar investigada foi retirada do escopo após a foto confirmar a causa.
+- **Próximo passo:** Autorizar publicação pelo pipeline com healthcheck e rollback; Yuri homologar o evento afetado.
+
+## Penúltima atualização
+
 - **Quando / quem:** 2026-10-21 · Antigravity (TONE) · Fase A (Construção).
 - **Pedido:** Correção de tela branca ("fundo branco") ao clicar em "ENTREGAR KITS" em eventos com atletas na página `/operacao/:eventId`.
 - **Diagnóstico e Causa Raiz:** No carregamento de eventos com atletas cujos dados continham campos numéricos (como tamanho de camiseta `14` ou modalidade `5`, comuns em planilhas Excel reais), o hook `useMemo` de `camisetaStats` e `modalidadeStats` em `OperacaoPage.jsx` tentava chamar `.trim()` diretamente em valores numéricos (`(14).trim()`), disparando `TypeError: ...trim is not a function`. Como a árvore de componentes não possuía um React `ErrorBoundary`, o erro não tratado forçava o desmonte total do `#root`, resultando em tela totalmente branca. Adicionalmente, quando o ID do evento era acessado antes do término do sync da lista no `App.jsx`, a página não dispunha de fallback resiliente.
@@ -17,15 +28,6 @@
 - **Validação:** [verificado] Reprodução com Chrome Headless CDP (`test_local_repro.mjs`): comprovada a falha inicial (`ROOT HTML LENGTH: 0`) e confirmada a renderização completa após a correção (`ROOT HTML LENGTH: 10591`). Suite de testes do client: 41/41 aprovados; suite do server: 27/27 aprovados; linter `oxlint` 0 erros; build Vite concluído com sucesso.
 - **Riscos / pendências:** Nenhum. A renderização agora é defensiva contra qualquer tipo primitivo vindo de planilhas importadas ou APIs.
 - **Próximo passo:** Subir para produção e Yuri homologar a navegação em `/operacao/:eventId`.
-
-## Penúltima atualização
-
-- **Quando / quem:** 2026-10-21 · Antigravity (TONE) · Fase A (Construção).
-- **Pedido:** Cálculo automático e exibição da idade do atleta no módulo de emergência médica (busca por nome/peito/CPF, card da ficha e painel do médico). Se houver coluna de idade na planilha, utilizá-la; caso contrário, calcular automaticamente a partir da data de nascimento (`nascimento`), cobrindo formatos variados, anos bissextos e datas futuras. Preservar isolamento multi-agente e subir para produção.
-- **Arquivos / entrega:** `server/medico.js` e `client/src/utils/medico.js` (helpers `calculateAge` e `formatAge`), `server/server.js` (`idade` e `idadeTexto` em `/busca`, `/atleta/:ref` e `/ocorrencias`), `client/src/components/EmergenciaPage.jsx` (busca pública e cabeçalho da ficha com idade), `client/src/components/MedicoPage.jsx` e `MedicoPage.css` (card da fila, subtítulo e lista de informações médicas com idade explícita e data de nascimento), `client/src/components/ImportarAtletasModal.jsx` (reconhecimento do campo `idade`), testes unitários e de integração `client/src/utils/medico.test.mjs`, `server/medico.test.mjs`, `server/medico.http.test.mjs`. Trabalho executado em git worktree isolado (`Entregas-run-idade`) para evitar colisões com Codex.
-- **Validação:** [verificado] client 34/34 (`node --test client/src/utils/*.test.mjs`); server 27/27 (`node --test server/*.test.mjs`); lint 0 erros (`npx oxlint`); build Vite aprovado (`npm run build`); `bash -n scripts/deploy-vps.sh` aprovado. Testes cobrem cálculo de idade, anos bissextos, datas futuras, fallbacks e contratos HTTP.
-- **Riscos / pendências:** Nenhum risco de colisão com o branch ativo do Codex. Data de nascimento exata permanece protegida fora da API pública.
-- **Próximo passo:** Yuri homologar visual e cálculo da idade em produção.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -47,5 +49,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-21 · Codex/Tony · Corrigida quebra ao abrir Entregar kits por quota de cache esgotada; 49 testes e navegador local aprovados, publicação pendente.
 - 2026-10-21 · Antigravity (TONE) · Correção de tela branca na Operação ao abrir evento (coerção segura de tipos numéricos e ErrorBoundary).
-- 2026-10-21 · Antigravity (TONE) · Cálculo automático e exibição da idade do corredor na busca, ficha e painel médico.
