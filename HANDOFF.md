@@ -10,6 +10,15 @@
 
 ## Última atualização
 
+- **Quando / quem:** 2026-10-21 · Claude Code (Opus 5.5) · Fase B (homologação do Yuri).
+- **Pedido:** (1) foto anexada pelo celular no Espelho não aparecia no navegador; (2) opção para tirar o nome da corrida do topo do Espelho quando o banner já traz os dados da prova.
+- **Causa / entrega:** o painel recusava a foto **antes** de otimizar: limite de 5 MB no arquivo bruto (foto de câmera passa disso) e tipos só PNG/JPG/WebP (HEIC do iPhone e tipo vazio de alguns Android). Agora aceita até 25 MB, `accept="image/*"`, deixa o navegador decodificar e reduz antes de enviar; mensagem clara se o aparelho não abrir o formato. Nova chave "Mostrar nome da corrida" (Aparência), salva no servidor (`showEventName`, padrão ligado) e respeitada na prévia e na segunda tela. Também corrigido: aparelho logado como MEDICO tinha `/espelho`, `/validar` e `/emergencia` reescritos para `/medico`. Arquivos: `client/src/components/EspelhoModal.jsx`, `EspelhoPage.jsx`, `client/src/utils/espelhoSync.js` (+teste), `client/src/App.jsx`, `server/server.js` (sanitização do Espelho), `server/espelho.http.test.mjs`.
+- **Validação real:** servidor 39/39, client 66/66, lint sem erro, build ok. Navegador local: "celular" (375 px) envia foto de 11,8 MB sem tipo → otimizada para 555 KB, gravada em `espelho_configs.json` e exibida na segunda tela já aberta (SSE); desligar o nome some da prévia e da segunda tela na hora e persiste no servidor; aparelho de médico abre `/espelho` sem redirecionar.
+- **Riscos / pendências:** HEIC só abre onde o navegador decodifica (Safari sim; Chrome no computador não). Nesse caso a mensagem pede JPG/print. Homologação em celular e TV reais.
+- **Próximo passo:** Yuri, no evento: Espelho → Aparência → desligar "Mostrar nome da corrida" e reenviar a foto pelo celular.
+
+## Penúltima atualização
+
 - **Quando / quem:** 2026-10-21 · Claude Code (Opus 5.5) · Fase A → publicação autorizada pelo Yuri ("pode fazer commit e push… para publicar as quatro frentes"). Continuação da central depois do limite de uso do Codex/Tony.
 - **Pedido:** Yuri pediu para continuar o que o GPT deixou pela metade (`docs/continuidade-central-2026-10-21.md`): fechar o alarme e implementar o registro de atendimento (prescrições, aplicações, condutas e desfecho/destino ao encerrar).
 - **Arquivos / entrega:** pasta de trabalho `D:/Projetos/Clientes/Entregas-run-import-fix`, branch `codex/substituir-planilha` (base = `main` publicada `00017e9`), commit `db3ecd1` publicado na `main` (`00017e9..db3ecd1`, fast-forward). Alarme: só conferido, documentado em `docs/saude-alerta-persistente.md`, e testes no CI. Registro: `server/medico.js`, `server/server.js` (`POST …/registros`, desfecho obrigatório ao encerrar), `client/src/components/MedicoPage.*`, `client/src/utils/medico.js` e `medicoApi.js`, testes `server/medicoRegistro.http.test.mjs` e `client/src/utils/medico.test.mjs`. Relatório: `docs/saude-registro-atendimento.md`. `deploy.yml` passa a rodar `medicoAlert`, `espelhoSync`, `medicoAlert.http`, `medicoRegistro.http` e `espelho.http`.
@@ -17,15 +26,6 @@
 - **Produção:** GitHub Actions 39659988490 com sucesso em validate/preflight/deploy; "Deploy db3ecd1f7e35 saudável", "Integridade preservada: 3 eventos, 16211 atletas, 703 entregas". Os dois domínios com `/api/health` ok servem `index-BFMFq0Ls.js`, que contém as quatro frentes; `POST …/registros` sem login = 401.
 - **Riscos / pendências:** homologação do Yuri das quatro frentes em produção. Som real em celular/TV e Espelho em TV física não testados. Retenção LGPD de registros clínicos a definir.
 - **Próximo passo:** Yuri homologa em produção: importação (substituir/adicionar), Espelho, alarme (ativar som no aparelho) e registro/encerramento com desfecho.
-
-## Penúltima atualização
-
-- **Quando / quem:** 2026-10-21 · Codex/Tony · Fase A, continuidade entre modelos.
-- **Pedido:** Acrescentar registro de atendimento/prescrições/aplicações e encerramento com desfecho/destino; Yuri pediu memória para outro LLM continuar se limite de uso terminar.
-- **Arquivos / entrega:** `docs/continuidade-central-2026-10-21.md` nesta pasta aponta checkout correto, quatro chats, donos, validações e próximos passos. Chat novo `01a15fd9-4404-77c2-82dd-0621824cccdf`; registro aguarda fim das edições do alarme para evitar colisão. Trabalho em `D:/Projetos/Clientes/Entregas-run-import-fix`, branch `codex/substituir-planilha`.
-- **Validação real:** Chat criado/ativo e monitor atualizado para quatro frentes. Importação/Espelho concluídos localmente conforme relatórios; alarme em testes; registro clínico ainda não implementado. Nenhuma afirmação de testes novos desta frente.
-- **Riscos / pendências:** Não editar painel/store médico simultaneamente nos dois chats. Sem commit/push/deploy/homologação das novas frentes. Dados pessoais das imagens não foram copiados para documentação.
-- **Próximo passo:** Chat do alarme concluir/ceder arquivos; chat registro implementar e testar; central consolidar continuidade, evidências e pendências.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -47,5 +47,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-21 · Claude Code · Espelho: foto de celular (até 25 MB/HEIC) e chave para ocultar o nome da corrida.
 - 2026-10-21 · Claude Code · Publicadas as quatro frentes (importação, Espelho, alarme, registro de atendimento) em `db3ecd1`.
-- 2026-10-21 · Codex/Tony · Continuidade da central documentada para outro LLM; importação/Espelho concluídos localmente.

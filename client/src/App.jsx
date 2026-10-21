@@ -244,7 +244,9 @@ export default function App() {
   useEffect(() => {
     if (!user) return
     if (user.role === 'MEDICO') {
-      if (!window.location.pathname.startsWith('/medico')) {
+      // Telas públicas (espelho, validação, emergência) abrem normalmente no aparelho do médico.
+      const publicPath = /^\/(espelho|validar|emergencia)/.test(window.location.pathname)
+      if (!publicPath && !window.location.pathname.startsWith('/medico')) {
         window.history.replaceState(null, '', `/medico/${user.eventId}`)
       }
       return

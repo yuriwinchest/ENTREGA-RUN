@@ -316,6 +316,9 @@ function sanitizeEspelhoConfig(raw, previousConfig) {
     showThirdParty: raw.showThirdParty !== undefined
       ? raw.showThirdParty !== false
       : (previousConfig?.showThirdParty ?? true),
+    showEventName: raw.showEventName !== undefined
+      ? raw.showEventName !== false
+      : (previousConfig?.showEventName ?? true),
     visibleFields: raw.visibleFields !== undefined
       ? (Array.isArray(raw.visibleFields)
           ? raw.visibleFields

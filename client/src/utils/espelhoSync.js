@@ -10,6 +10,7 @@ export const DEFAULT_ESPELHO_CONFIG = {
   showShirtCard: true,
   showKitCard: true,
   showThirdParty: true,
+  showEventName: true,
   visibleFields: null, // null indica que todos os campos preenchidos são visíveis por padrão
 }
 
@@ -52,14 +53,28 @@ export function broadcastEspelhoChange(payload) {
   }
 }
 
+// Limite do arquivo bruto escolhido no aparelho. A imagem é reduzida antes de
+// subir (fundo até 1920×1080, logo até 600×300), então o servidor recebe bem menos.
+export const MAX_RAW_IMAGE_BYTES = 25 * 1024 * 1024
+
+// Celular manda HEIC (iPhone) ou tipo vazio (alguns Android): não recusa pelo tipo,
+// deixa a decodificação do próprio navegador decidir. Retorna mensagem de erro ou ''.
+export function checkImageFile(file) {
+  if (!file) return 'Nenhuma imagem selecionada.'
+  if (file.type && !file.type.startsWith('image/')) return 'Selecione um arquivo de imagem.'
+  if (file.size > MAX_RAW_IMAGE_BYTES) return 'A imagem deve ter no máximo 25 MB.'
+  return ''
+}
+
 export function compressImageFile(file, maxWidth = 1920, maxHeight = 1080, quality = 0.82, preserveTransparency = false) {
   return new Promise((resolve, reject) => {
     if (!file) return resolve(null)
+    const unreadable = () => reject(new Error('Este aparelho não conseguiu abrir a imagem. Tente JPG ou PNG (no iPhone, um print da foto funciona).'))
     const reader = new FileReader()
-    reader.onerror = reject
+    reader.onerror = unreadable
     reader.onload = (e) => {
       const img = new Image()
-      img.onerror = reject
+      img.onerror = unreadable
       img.onload = () => {
         let { width, height } = img
         if (width > maxWidth || height > maxHeight) {

@@ -250,9 +250,9 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
               alt="Logo do Evento"
               className="espelho-brand-logo"
             />
-          ) : (
+          ) : config.showEventName !== false ? (
             <h1 className="espelho-brand-title">{eventName}</h1>
-          )}
+          ) : null}
         </div>
 
         <div className="espelho-header-status">

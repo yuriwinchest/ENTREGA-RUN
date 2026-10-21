@@ -108,3 +108,13 @@ test('settled save reconciles remote fields changed concurrently on another devi
   assert.equal(editor.snapshot().config.bgImage, 'new-background-remote')
   assert.equal(editor.snapshot().config.mensagem, 'Local message')
 })
+
+test('foto de celular: limite do arquivo bruto e tipos HEIC/vazio deixados para a decodificação', async () => {
+  const { checkImageFile, MAX_RAW_IMAGE_BYTES } = await import('./espelhoSync.js')
+  assert.equal(checkImageFile({ type: 'image/jpeg', size: 8 * 1024 * 1024 }), '', 'foto de 8 MB passa')
+  assert.equal(checkImageFile({ type: 'image/heic', size: 3 * 1024 * 1024 }), '', 'HEIC tenta decodificar')
+  assert.equal(checkImageFile({ type: '', size: 3 * 1024 * 1024 }), '', 'tipo vazio tenta decodificar')
+  assert.ok(checkImageFile({ type: 'application/pdf', size: 1000 }))
+  assert.ok(checkImageFile({ type: 'image/jpeg', size: MAX_RAW_IMAGE_BYTES + 1 }))
+  assert.ok(checkImageFile(null))
+})

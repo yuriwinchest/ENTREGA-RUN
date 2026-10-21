@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import {
   DEFAULT_ESPELHO_CONFIG,
+  checkImageFile,
   compressImageFile,
   getEspelhoConfig,
   getEspelhoEditor,
@@ -230,12 +231,11 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
     e.target.value = ''
     if (!file) return
     setMediaError('')
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      setMediaError('Selecione uma imagem PNG, JPG ou WebP.')
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setMediaError('A imagem deve ter no máximo 5 MB.')
+    // Foto de câmera de celular passa fácil de 5 MB e às vezes chega como HEIC ou
+    // sem tipo: o limite vale para o arquivo bruto e a decodificação decide o formato.
+    const check = checkImageFile(file)
+    if (check) {
+      setMediaError(check)
       return
     }
     const maxWidth = field === 'bgImage' ? 1920 : 600
@@ -247,7 +247,7 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
       if (!dataUrl || dataUrl.length > 4 * 1024 * 1024) throw new Error('Imagem muito pesada após otimização. Use uma imagem menor.')
       await updateConfig({ [field]: dataUrl })
     } catch (error) {
-      setMediaError(error.message || 'Não foi possível abrir a imagem. Tente PNG, JPG ou WebP.')
+      setMediaError(error?.message || 'Este aparelho não conseguiu abrir a imagem. Tente JPG ou PNG (no iPhone, um print da foto funciona).')
     } finally {
       setUploading(false)
     }
@@ -428,9 +428,9 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
                         alt="Logo"
                         className="preview-logo-img"
                       />
-                    ) : (
+                    ) : config.showEventName !== false ? (
                       <span className="preview-event-name">{eventName}</span>
-                    )}
+                    ) : <span />}
 
                     <span
                       className="preview-badge-livre"
@@ -585,7 +585,7 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
                     <input
                       ref={bgInputRef}
                       type="file"
-                      accept="image/png,image/jpeg,image/webp"
+                      accept="image/*"
                       style={{ display: 'none' }}
                       onChange={(e) => handleImageUpload(e, 'bgImage')}
                     />
@@ -619,15 +619,41 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
                     <input
                       ref={logoInputRef}
                       type="file"
-                      accept="image/png,image/jpeg,image/webp"
+                      accept="image/*"
                       style={{ display: 'none' }}
                       onChange={(e) => handleImageUpload(e, 'logo')}
                     />
                   </div>
                 </div>
-                <p className="espelho-media-guide">PNG, JPG ou WebP, até 5 MB por arquivo. As imagens são otimizadas para exibição.</p>
+                <p className="espelho-media-guide">Foto do celular, PNG, JPG ou WebP, até 25 MB. A imagem é reduzida antes de enviar.</p>
                 {uploading && <p role="status" className="espelho-media-guide">Preparando e salvando a imagem…</p>}
                 {mediaError && <p className="espelho-media-error" role="alert">{mediaError}</p>}
+
+                {/* Banner já traz os dados da corrida: o nome no topo pode sair. */}
+                <div
+                  className={`campo-toggle-card ${config.showEventName !== false ? 'checked' : ''}`}
+                  role="switch"
+                  aria-checked={config.showEventName !== false}
+                  tabIndex={0}
+                  onClick={() => updateConfig({ showEventName: config.showEventName === false })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      updateConfig({ showEventName: config.showEventName === false })
+                    }
+                  }}
+                >
+                  <div className="campo-toggle-left">
+                    <span className="campo-custom-checkbox">
+                      {config.showEventName !== false && <CheckIcon />}
+                    </span>
+                    <div className="campo-toggle-meta">
+                      <strong className="campo-toggle-label">Mostrar nome da corrida</strong>
+                      <span className="campo-toggle-desc">Desligue quando o banner de fundo já trouxer o nome da prova</span>
+                    </div>
+                  </div>
+                  <span className="campo-badge-tag">TOPO</span>
+                </div>
 
                 {/* Botão Restaurar Padrão */}
                 <button
