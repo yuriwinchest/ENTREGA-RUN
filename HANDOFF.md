@@ -11,20 +11,20 @@
 ## Última atualização
 
 - **Quando / quem:** 2026-10-21 · Claude Code (Opus 5.5) · Fase B (homologação do Yuri).
+- **Pedido:** Espelho → Campos do Telão: os nomes dos campos apareciam cortados com "…"; ver o nome inteiro, mesmo que a tela cresça e precise rolar.
+- **Entrega:** `client/src/components/EspelhoModal.css`: nome e descrição dos cartões e itens quebram linha em vez de cortar; cartões um pouco mais largos (230 px / 210 px mínimos); caixa de seleção e etiqueta alinhadas ao topo quando o texto ocupa duas linhas. Só CSS.
+- **Validação real:** navegador local, aba Campos do Telão: 22 nomes, 0 cortados no computador e no celular (375 px), sem rolagem lateral, lista rola na vertical; teste de integridade do CSS ok; build ok.
+- **Riscos / pendências:** nenhum novo; continua valendo conferir em Eventos se algum evento ficou "CARREGANDO..." (registro anterior).
+- **Próximo passo:** Yuri conferir a aba Campos do Telão.
+
+## Penúltima atualização
+
+- **Quando / quem:** 2026-10-21 · Claude Code (Opus 5.5) · Fase B (homologação do Yuri).
 - **Pedido:** painel médico sem o cartão grande de alerta: só o cartão da ocorrência piscando na cor da gravidade até tocarem nele para atender; som no volume máximo.
 - **Entrega:** cartão sem reconhecimento pisca (1,6 s por ciclo, cor da gravidade, sem animação para quem pede movimento reduzido), com etiqueta "Toque para atender"; tocar no cartão assume (se aberta), silencia em todas as telas do evento e abre a ficha. Faixa grande removida. Sirene com onda quadrada e ganho 1 (era seno a 0,10). **Defeito grave achado e corrigido:** desde `663fd70` (hoje cedo), abrir `/operacao/<evento>` antes da lista de eventos carregar mandava o evento provisório "CARREGANDO..." inteiro ao servidor e **renomeava o evento real** (e podia trocar o status para EM OPERAÇÃO). Agora o client envia só contagens e o servidor ignora nome/status/data/local de um corpo "CARREGANDO...". Também: título da ficha médica ficava verde para qualquer gravidade (ordem do CSS). Arquivos: `client/src/components/MedicoPage.*`, `client/src/utils/medicoAlert.js`, `client/src/App.jsx`, `server/server.js` (PUT de evento), `server/medicoRegistro.http.test.mjs`.
 - **Validação real:** servidor 39/39 (teste novo: corpo "CARREGANDO..." mantém nome e status, renomear de propósito continua funcionando), client 66/66, lint sem erro, build ok. Navegador local: reproduzido o nome "CARREGANDO..." gravado; com a correção, abrir a operação direto pelo endereço mantém nome e status; cartões piscam; tocar na #3 tirou o pisca só dela, virou Em atendimento e abriu a ficha; título Crítica vermelho.
 - **Riscos / pendências:** eventos de produção podem ter sido renomeados para "CARREGANDO..." (ou ido para EM OPERAÇÃO) entre `663fd70` e este deploy: **Yuri conferir os nomes e status em Eventos e corrigir em Editar evento**. Volume final depende do volume do aparelho.
 - **Próximo passo:** Yuri conferir nomes/status dos eventos e homologar o cartão piscando + som no celular/computador da equipe médica.
-
-## Penúltima atualização
-
-- **Quando / quem:** 2026-10-21 · Claude Code (Opus 5.5) · Fase B (homologação do Yuri).
-- **Pedido:** (1) foto anexada pelo celular no Espelho não aparecia no navegador; (2) opção para tirar o nome da corrida do topo do Espelho quando o banner já traz os dados da prova.
-- **Causa / entrega:** o painel recusava a foto **antes** de otimizar: limite de 5 MB no arquivo bruto (foto de câmera passa disso) e tipos só PNG/JPG/WebP (HEIC do iPhone e tipo vazio de alguns Android). Agora aceita até 25 MB, `accept="image/*"`, deixa o navegador decodificar e reduz antes de enviar; mensagem clara se o aparelho não abrir o formato. Nova chave "Mostrar nome da corrida" (Aparência), salva no servidor (`showEventName`, padrão ligado) e respeitada na prévia e na segunda tela. Também corrigido: aparelho logado como MEDICO tinha `/espelho`, `/validar` e `/emergencia` reescritos para `/medico`. Arquivos: `client/src/components/EspelhoModal.jsx`, `EspelhoPage.jsx`, `client/src/utils/espelhoSync.js` (+teste), `client/src/App.jsx`, `server/server.js` (sanitização do Espelho), `server/espelho.http.test.mjs`.
-- **Validação real:** servidor 39/39, client 66/66, lint sem erro, build ok. Navegador local: "celular" (375 px) envia foto de 11,8 MB sem tipo → otimizada para 555 KB, gravada em `espelho_configs.json` e exibida na segunda tela já aberta (SSE); desligar o nome some da prévia e da segunda tela na hora e persiste no servidor; aparelho de médico abre `/espelho` sem redirecionar.
-- **Riscos / pendências:** HEIC só abre onde o navegador decodifica (Safari sim; Chrome no computador não). Nesse caso a mensagem pede JPG/print. Homologação em celular e TV reais.
-- **Próximo passo:** Yuri, no evento: Espelho → Aparência → desligar "Mostrar nome da corrida" e reenviar a foto pelo celular.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -46,5 +46,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-21 · Claude Code · Espelho: nomes dos campos do telão inteiros (sem corte).
 - 2026-10-21 · Claude Code · Painel médico: cartão piscando até atender, som no máximo; corrigido evento renomeado para "CARREGANDO...".
-- 2026-10-21 · Claude Code · Espelho: foto de celular (até 25 MB/HEIC) e chave para ocultar o nome da corrida.
