@@ -13,8 +13,8 @@
 - **Quando / quem:** 2026-10-21 · Codex/Tony · Fase A, integração da proteção de rotas com a emergência médica.
 - **Pedido:** Yuri autorizou integrar o commit f63c339 do branch claude/cool-euler-3b3396 à implementação local da emergência médica e publicar após validação.
 - **Arquivos / entrega:** candidato isolado codex/rotas-emergencia-medica; rotas de eventos/atletas exigem autenticação; server/deployCheck.js permite somente leituras locais do gate com token efêmero; cliente trata 401 encerrando sessão; CI inclui os testes de autenticação e os da emergência médica. Mudanças da emergência médica trazidas do checkout local; detalhes em docs/emergencia-medica.md.
-- **Validação:** [verificado] server 26/26; client 33/33; lint sem erros (3 avisos preexistentes em `OperacaoPage.jsx`); build Vite aprovado; `bash -n scripts/deploy-vps.sh` aprovado; diff sem conflitos e sem erros de whitespace. Leitura GET de `/api/health` em produção respondeu 200. Não testado em celular.
-- **Riscos / pendências:** tokens ausentes/expirados retornam ao login; dados de saúde e ocorrências continuam sujeitos à pendência de retenção LGPD já registrada. Push para main aciona deploy; o script confere saúde, disco, snapshots e rollback automático. CI e deploy ainda pendentes.
+- **Validação:** [verificado] server 26/26; client 33/33; lint sem erros (3 avisos preexistentes em `OperacaoPage.jsx`); build Vite aprovado; `bash -n scripts/deploy-vps.sh` aprovado; diff sem conflitos e sem erros de whitespace. Leitura GET de `/api/health` em produção respondeu 200 antes e depois do deploy. CI/CD `39528865715` passou: validação, preflight e deploy concluídos; healthcheck pós-deploy respondeu `ok: true`, `diskWriteError: null`. Não testado em celular.
+- **Riscos / pendências:** tokens ausentes/expirados retornam ao login; dados de saúde e ocorrências continuam sujeitos à pendência de retenção LGPD já registrada. O workflow publicado usou snapshot, healthcheck e rollback automático; CI e deploy do commit `2a13ee0` concluídos. Permanecem tokens ausentes/expirados retornando ao login e a pendência de retenção LGPD.
 - **Próximo passo:** criar commit integrado e publicar na main conforme autorização do Yuri; acompanhar validação/healthcheck e rollback do workflow.
 ## Penúltima atualização
 
@@ -45,5 +45,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
-- 2026-10-21 · Codex/Tony · Integração da proteção de rotas com a emergência médica; validação pendente.
+- 2026-10-21 · Codex/Tony · Integração publicada em `2a13ee0`; CI/CD e healthcheck pós-deploy aprovados.
 - 2026-10-20 · Claude Code · Emergência médica: colunas de saúde na importação, página pública via QR do peito, perfil MEDICO com fila (local, sem deploy).
