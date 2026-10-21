@@ -11,6 +11,17 @@ import { eventMetrics, mergeActiveAthletes } from './athleteSync.js'
 import { createSessionStore } from './sessionStore.js'
 import { deployCheckTokenFile } from './deployCheck.js'
 import {
+  athleteKey,
+  athleteRef,
+  createMedicoStore,
+  healthView,
+  OCORRENCIA_STATUS,
+  sanitizeHealthFields,
+  searchAthletes,
+  validateOcorrencia,
+  withoutHealthFields,
+} from './medico.js'
+import {
   decodeJpegDataUrl,
   deletePhoto,
   photoRoot,
@@ -196,6 +207,17 @@ app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || true }))
 app.use('/api', (_req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
   res.set('Pragma', 'no-cache')
+  next()
+})
+
+// Perfil MEDICO só enxerga a fila de ocorrências do próprio evento: qualquer
+// outra rota da API é recusada aqui, antes de chegar à regra de cada tela.
+const MEDICO_ALLOWED_API = /^\/api\/(medico\/|session$|logout$|health$)/
+app.use('/api', (req, res, next) => {
+  const session = getSessionFromReq(req)
+  if (session?.role === 'MEDICO' && !MEDICO_ALLOWED_API.test(req.originalUrl.split('?')[0])) {
+    return res.status(403).json({ ok: false, message: 'Perfil médico acessa apenas o painel de ocorrências.' })
+  }
   next()
 })
 
@@ -420,7 +442,7 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req
                 entregueEm: String(atleta.entregueEm ?? '').slice(0, 60),
                 entreguePor: String(atleta.entreguePor ?? '').slice(0, 80),
                 status: String(atleta.status ?? '').slice(0, 20),
-                customFields: atleta.customFields && typeof atleta.customFields === 'object' ? atleta.customFields : {},
+                customFields: withoutHealthFields(atleta.customFields, loadAthletesForEvent(key)?.healthFields),
               }
             : null,
     config: (() => {
@@ -819,8 +841,9 @@ app.delete('/api/events/:eventId', requireAuth, (req, res) => {
   inMemoryEvents = inMemoryEvents.filter((e) => e.id !== eventId)
 
   markEventDeleted(eventId)
-  // Evento excluído não mantém foto de atleta guardada.
+  // Evento excluído não mantém foto de atleta nem dado de saúde guardado.
   runPhotoSweep()
+  medicoStore.deleteEvent(eventId)
 
   if (inMemoryEvents.length === initialLength) {
     return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
@@ -924,7 +947,9 @@ function loadAthletesForEvent(eventId) {
   return null
 }
 
-function saveAthletesForEvent(eventId, athletes, schema = [], kits, originalSheet) {
+// healthFields: colunas da planilha marcadas como saúde (e quais são públicas na
+// emergência). Ausente = mantém a escolha anterior, inclusive ao reimportar.
+function saveAthletesForEvent(eventId, athletes, schema = [], kits, originalSheet, healthFields) {
   const safeId = String(eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
   if (!safeId) return false
 
@@ -936,6 +961,7 @@ function saveAthletesForEvent(eventId, athletes, schema = [], kits, originalShee
     schema: Array.isArray(schema) ? schema : [],
     kits: kits === undefined ? (existing?.kits || []) : kits,
     originalSheet: originalSheet !== undefined ? originalSheet : (existing?.originalSheet || null),
+    healthFields: healthFields !== undefined ? sanitizeHealthFields(healthFields) : (existing?.healthFields || []),
     updatedAt: Date.now(),
   }
 
@@ -992,6 +1018,7 @@ app.get('/api/events/:eventId/athletes', requireAuthOrDeployCheck, async (req, r
       schema: data.schema || [],
       kits: data.kits || [],
       originalSheet: data.originalSheet || null,
+      healthFields: data.healthFields || [],
     })
   }
   try {
@@ -1004,6 +1031,7 @@ app.get('/api/events/:eventId/athletes', requireAuthOrDeployCheck, async (req, r
         schema: remote.schema || [],
         kits: remote.kits || [],
         originalSheet: data?.originalSheet || null,
+        healthFields: data?.healthFields || [],
         source: 'appwrite',
       })
     }
@@ -1017,6 +1045,7 @@ app.get('/api/events/:eventId/athletes', requireAuthOrDeployCheck, async (req, r
     schema: data.schema || [],
     kits: data.kits || [],
     originalSheet: data.originalSheet || null,
+    healthFields: data.healthFields || [],
   })
 })
 
@@ -1035,7 +1064,7 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
     }
   }
 
-  const { athletes, schema, kits, originalSheet, undoAthleteId } = req.body || {}
+  const { athletes, schema, kits, originalSheet, undoAthleteId, healthFields } = req.body || {}
 
   if (!Array.isArray(athletes)) {
     return res.status(400).json({ ok: false, message: 'Lista de atletas inválida.' })
@@ -1068,7 +1097,7 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
     : athletes
   const safeSchema = protectExisting && existing?.schema?.length
     ? existing.schema : schema
-  const success = saveAthletesForEvent(safeEventId, safeAthletes, safeSchema, kitsToSave, originalSheet)
+  const success = saveAthletesForEvent(safeEventId, safeAthletes, safeSchema, kitsToSave, originalSheet, healthFields)
   if (!success) {
     return res.status(500).json({ ok: false, message: 'Erro ao persistir atletas.' })
   }
@@ -1097,7 +1126,7 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
     }
   }
 
-  const { uploadId, chunkIndex, totalChunks, athletesChunk, schema, kits, originalSheet, undoAthleteId } = req.body || {}
+  const { uploadId, chunkIndex, totalChunks, athletesChunk, schema, kits, originalSheet, undoAthleteId, healthFields } = req.body || {}
   const safeUploadId = String(uploadId || '').replace(/[^\w-]/g, '').slice(0, 64)
   const idx = Number(chunkIndex)
   const total = Number(totalChunks)
@@ -1111,7 +1140,7 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
 
   let upload = athleteChunkUploads.get(`${safeEventId}:${safeUploadId}`)
   if (!upload) {
-    upload = { chunks: new Array(total).fill(null), totalChunks: total, schema: [], kits: undefined, originalSheet: undefined, undoAthleteId: '', received: 0, updatedAt: Date.now() }
+    upload = { chunks: new Array(total).fill(null), totalChunks: total, schema: [], kits: undefined, originalSheet: undefined, healthFields: undefined, undoAthleteId: '', received: 0, updatedAt: Date.now() }
     athleteChunkUploads.set(`${safeEventId}:${safeUploadId}`, upload)
   }
   if (upload.totalChunks !== total) {
@@ -1128,6 +1157,7 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
   if (originalSheet !== undefined) {
     upload.originalSheet = originalSheet
   }
+  if (healthFields !== undefined) upload.healthFields = healthFields
   if (undoAthleteId !== undefined) upload.undoAthleteId = String(undoAthleteId || '').slice(0, 64)
 
   if (upload.received < upload.totalChunks) {
@@ -1150,7 +1180,7 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
     : merged
   const safeSchema = protectExistingChunk && existingChunk?.schema?.length
     ? existingChunk.schema : upload.schema
-  const success = saveAthletesForEvent(safeEventId, safeMerged, safeSchema, upload.kits, upload.originalSheet)
+  const success = saveAthletesForEvent(safeEventId, safeMerged, safeSchema, upload.kits, upload.originalSheet, upload.healthFields)
   athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
   if (!success) {
     return res.status(500).json({ ok: false, message: 'Erro ao persistir atletas fatiados.' })
@@ -1460,9 +1490,216 @@ app.get('/api/public/events/:eventId/athletes/:numero', publicValidateLimiter, (
       entregueEm: athlete.entregueEm || null,
       entreguePor: athlete.entreguePor || null,
       entreguePara: athlete.entreguePara || null,
-      customFields: athlete.customFields || {},
+      // Coluna de saúde só aparece na página de emergência, nunca na validação do kit.
+      customFields: withoutHealthFields(athlete.customFields, data.healthFields),
     },
   })
+})
+
+// ============================================================
+// EMERGÊNCIA MÉDICA (Crowley + Teclide)
+// Página pública aberta pelo QR Code do número de peito: mostra só o que o
+// socorro precisa (nome, peito, modalidade e as colunas de saúde que o
+// organizador marcou como públicas), nunca CPF, telefone ou endereço. Todas as
+// colunas de saúde e o cadastro ficam no painel do perfil MEDICO.
+// ============================================================
+const medicoStore = createMedicoStore(DATA_DIR)
+
+const emergenciaReadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { ok: false, message: 'Muitas consultas. Aguarde um instante.' },
+})
+const emergenciaWriteLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { ok: false, message: 'Muitas ocorrências enviadas deste aparelho. Ligue para o socorro do evento.' },
+})
+const medicoLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { ok: false, message: 'Muitas requisições. Aguarde um instante.' },
+})
+
+// Índice ref/chave -> atleta, refeito só quando a lista de atletas muda.
+const emergencyIndexes = new WeakMap()
+function emergencyContext(rawEventId) {
+  const eventId = String(rawEventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const event = inMemoryEvents.find((e) => e.id === eventId)
+  if (!event) return null
+  const data = loadAthletesForEvent(eventId)
+  const athletes = Array.isArray(data?.athletes) ? data.athletes : []
+  let index = data ? emergencyIndexes.get(data) : null
+  if (!index) {
+    index = { byRef: new Map(), byKey: new Map() }
+    for (const athlete of athletes) {
+      index.byRef.set(athleteRef(eventId, athlete), athlete)
+      index.byKey.set(athleteKey(eventId, athlete), athlete)
+    }
+    if (data) emergencyIndexes.set(data, index)
+  }
+  return { eventId, event, athletes, index, healthFields: data?.healthFields || [] }
+}
+
+function publicAthleteSummary(ctx, athlete) {
+  return {
+    ref: athleteRef(ctx.eventId, athlete),
+    nome: athlete.nome || athlete.nome_peito || 'ATLETA',
+    numero: String(athlete.numero ?? ''),
+    modalidade: athlete.modalidade || '',
+  }
+}
+
+app.get('/api/public/emergencia/:eventId', emergenciaReadLimiter, (req, res) => {
+  const ctx = emergencyContext(req.params.eventId)
+  if (!ctx) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  res.json({
+    ok: true,
+    event: {
+      id: ctx.eventId,
+      name: ctx.event.name,
+      date: ctx.event.date || '',
+      location: ctx.event.location || '',
+      atletas: ctx.athletes.length,
+    },
+  })
+})
+
+app.get('/api/public/emergencia/:eventId/busca', emergenciaReadLimiter, (req, res) => {
+  const ctx = emergencyContext(req.params.eventId)
+  if (!ctx) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  const result = searchAthletes(ctx.athletes, req.query.q)
+  res.json({
+    ok: true,
+    kind: result.kind,
+    truncated: Boolean(result.truncated),
+    results: result.matches.map((athlete) => publicAthleteSummary(ctx, athlete)),
+  })
+})
+
+app.get('/api/public/emergencia/:eventId/atleta/:ref', emergenciaReadLimiter, (req, res) => {
+  const ctx = emergencyContext(req.params.eventId)
+  const athlete = ctx?.index.byRef.get(String(req.params.ref || ''))
+  if (!athlete) return res.status(404).json({ ok: false, message: 'Atleta não encontrado neste evento.' })
+  res.json({
+    ok: true,
+    athlete: {
+      ...publicAthleteSummary(ctx, athlete),
+      saude: healthView(athlete, ctx.healthFields, { publicOnly: true }),
+      saudeConfigurada: ctx.healthFields.some((field) => field.publico),
+    },
+  })
+})
+
+app.post('/api/public/emergencia/:eventId/ocorrencias', emergenciaWriteLimiter, (req, res) => {
+  const ctx = emergencyContext(req.params.eventId)
+  if (!ctx) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  const { value, error } = validateOcorrencia(req.body)
+  if (error) return res.status(400).json({ ok: false, message: error })
+
+  const athlete = value.athleteRef ? ctx.index.byRef.get(value.athleteRef) : null
+  if (value.athleteRef && !athlete) {
+    return res.status(400).json({ ok: false, message: 'Atleta não encontrado. Busque de novo ou use "Pessoa não identificada".' })
+  }
+  const { athleteRef: _ref, ...fields } = value
+  try {
+    const ocorrencia = medicoStore.addOcorrencia(ctx.eventId, {
+      ...fields,
+      athleteKey: athlete ? athleteKey(ctx.eventId, athlete) : null,
+      atleta: athlete
+        ? { nome: athlete.nome || '', numero: String(athlete.numero ?? ''), modalidade: athlete.modalidade || '' }
+        : null,
+    })
+    if (!ocorrencia) {
+      return res.status(429).json({ ok: false, message: 'Limite de ocorrências do evento atingido. Ligue para o socorro do evento.' })
+    }
+    res.status(201).json({ ok: true, protocolo: ocorrencia.protocolo })
+  } catch (err) {
+    console.error('[medico] Falha ao gravar ocorrência:', err?.code || err?.name)
+    res.status(500).json({ ok: false, message: 'Não foi possível registrar. Ligue para o socorro do evento.' })
+  }
+})
+
+// Painel do médico: MEDICO preso ao evento; ADMIN e SUB_ADMIN no seu escopo.
+function requireMedicoAccess(req, res, next) {
+  const session = getSessionFromReq(req)
+  if (!session) return res.status(401).json({ ok: false, message: 'Sessão inválida ou expirada. Entre novamente.' })
+  const eventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const allowedRole = ['MEDICO', 'ADMIN', 'SUB_ADMIN'].includes(session.role)
+  const inScope = session.role === 'ADMIN' || (session.eventId && session.eventId !== 'all'
+    ? session.eventId === eventId
+    : session.role === 'SUB_ADMIN')
+  if (!allowedRole || !inScope) {
+    return res.status(403).json({ ok: false, message: 'Sem acesso às ocorrências deste evento.' })
+  }
+  req.session = session
+  next()
+}
+
+function medicoAthleteView(ctx, ocorrencia) {
+  const athlete = ocorrencia.athleteKey ? ctx.index.byKey.get(ocorrencia.athleteKey) : null
+  if (!athlete) return ocorrencia.atleta ? { ...ocorrencia.atleta, saude: [] } : null
+  return {
+    nome: athlete.nome || '',
+    nome_peito: athlete.nome_peito || '',
+    numero: String(athlete.numero ?? ''),
+    doc: athlete.doc || '',
+    nascimento: athlete.nascimento || '',
+    sexo: athlete.sexo || '',
+    contato: athlete.contato || '',
+    cidade: athlete.cidade || '',
+    equipe: athlete.equipe || '',
+    modalidade: athlete.modalidade || '',
+    categoria: athlete.categoria || '',
+    nacionalidade: athlete.nacionalidade || '',
+    saude: healthView(athlete, ctx.healthFields),
+  }
+}
+
+app.get('/api/medico/:eventId/ocorrencias', medicoLimiter, requireMedicoAccess, (req, res) => {
+  const ctx = emergencyContext(req.params.eventId)
+  if (!ctx) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  const version = medicoStore.version(ctx.eventId)
+  if (req.query.v !== undefined && Number(req.query.v) === version) {
+    return res.json({ ok: true, unchanged: true, version })
+  }
+  res.json({
+    ok: true,
+    version,
+    event: { id: ctx.eventId, name: ctx.event.name, date: ctx.event.date || '', location: ctx.event.location || '' },
+    ocorrencias: medicoStore.listOcorrencias(ctx.eventId).map((item) => {
+      const { athleteKey: _key, ...rest } = item
+      return { ...rest, atleta: medicoAthleteView(ctx, item) }
+    }),
+  })
+})
+
+app.patch('/api/medico/:eventId/ocorrencias/:ocorrenciaId', medicoLimiter, requireMedicoAccess, (req, res) => {
+  const ctx = emergencyContext(req.params.eventId)
+  if (!ctx) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  const status = req.body?.status
+  if (!OCORRENCIA_STATUS.includes(status)) {
+    return res.status(400).json({ ok: false, message: 'Status inválido.' })
+  }
+  try {
+    const updated = medicoStore.updateStatus(
+      ctx.eventId,
+      String(req.params.ocorrenciaId || '').slice(0, 64),
+      status,
+      req.session.name || req.session.email,
+    )
+    if (!updated) return res.status(404).json({ ok: false, message: 'Ocorrência não encontrada.' })
+    res.json({ ok: true, status: updated.status, version: medicoStore.version(ctx.eventId) })
+  } catch (err) {
+    console.error('[medico] Falha ao atualizar ocorrência:', err?.code || err?.name)
+    res.status(500).json({ ok: false, message: 'Não foi possível atualizar o status.' })
+  }
 })
 
 // ============================================================
@@ -1510,6 +1747,9 @@ function readUsersFromDisk() {
 
 let inMemoryUsers = readUsersFromDisk()
 
+const USER_ROLES = ['ADMIN', 'SUB_ADMIN', 'SUPERVISOR', 'OPERADOR', 'MEDICO']
+const EVENT_BOUND_ROLES = ['OPERADOR', 'SUPERVISOR', 'MEDICO']
+
 function writeUsersToDisk(users) {
   try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -1556,7 +1796,7 @@ app.post('/api/users', requireAdminOrSubAdmin, (req, res) => {
   const name = String(body.name || '').trim().toUpperCase()
   const email = String(body.email || '').trim().toLowerCase()
   const password = typeof body.password === 'string' ? body.password : ''
-  const role = ['ADMIN', 'SUB_ADMIN', 'SUPERVISOR', 'OPERADOR'].includes(body.role) ? body.role : 'OPERADOR'
+  const role = USER_ROLES.includes(body.role) ? body.role : 'OPERADOR'
   const eventId = String(body.eventId || 'all').trim()
   const eventName = String(body.eventName || 'TODOS OS PROJETOS').trim()
 
@@ -1567,11 +1807,11 @@ app.post('/api/users', requireAdminOrSubAdmin, (req, res) => {
     return res.status(403).json({ ok: false, message: 'O usuário deve pertencer ao evento do Sub-Admin.' })
   }
 
-  if (role === 'OPERADOR' || role === 'SUPERVISOR') {
+  if (EVENT_BOUND_ROLES.includes(role)) {
     if (!eventId || eventId === 'all') {
       return res.status(400).json({
         ok: false,
-        message: 'Operadores e Supervisores devem ser vinculados obrigatoriamente a um projeto específico.',
+        message: 'Operadores, Supervisores e Médicos devem ser vinculados obrigatoriamente a um projeto específico.',
       })
     }
   }
@@ -1618,14 +1858,14 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   const current = inMemoryUsers[idx]
   const body = req.body || {}
 
-  const targetRole = body.role && ['ADMIN', 'SUB_ADMIN', 'SUPERVISOR', 'OPERADOR'].includes(body.role) ? body.role : current.role
+  const targetRole = body.role && USER_ROLES.includes(body.role) ? body.role : current.role
   const targetEventId = body.eventId !== undefined ? String(body.eventId).trim() : current.eventId
 
-  if (targetRole === 'OPERADOR' || targetRole === 'SUPERVISOR') {
+  if (EVENT_BOUND_ROLES.includes(targetRole)) {
     if (!targetEventId || targetEventId === 'all') {
       return res.status(400).json({
         ok: false,
-        message: 'Operadores e Supervisores devem ser vinculados obrigatoriamente a um projeto específico.',
+        message: 'Operadores, Supervisores e Médicos devem ser vinculados obrigatoriamente a um projeto específico.',
       })
     }
   }
@@ -1721,6 +1961,10 @@ app.post('/api/login', loginLimiter, (req, res) => {
 
     let finalEventId = foundUser.eventId || 'all'
     let finalEventName = foundUser.eventName || 'TODOS OS PROJETOS'
+
+    if (foundUser.role === 'MEDICO' && (!finalEventId || finalEventId === 'all')) {
+      return res.status(403).json({ ok: false, message: 'Médico sem evento vinculado. Fale com o administrador.' })
+    }
 
     if ((foundUser.role === 'OPERADOR' || foundUser.role === 'SUPERVISOR') && (!finalEventId || finalEventId === 'all')) {
       const firstEvent = inMemoryEvents[0]

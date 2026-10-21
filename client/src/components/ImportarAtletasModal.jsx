@@ -7,6 +7,12 @@ import {
   isReservedAthleteCustomField,
 } from '../utils/athleteTable.js'
 import { normalizeSexo } from '../utils/athleteDetail.js'
+import {
+  buildHealthFields,
+  canBeHealthColumn,
+  isIdentifyingColumn,
+  prefillHealthSelection,
+} from '../utils/medico.js'
 import './ImportarAtletasModal.css'
 
 function CloseIcon() {
@@ -93,6 +99,7 @@ export default function ImportarAtletasModal({
   isOpen,
   onClose,
   existingAthletes = [],
+  existingHealthFields = [],
   onImportSuccess,
 }) {
   // Step 1: Upload / Colar, Step 2: Mapear Colunas, Step 3: Resumo
@@ -116,7 +123,40 @@ export default function ImportarAtletasModal({
     inputValue: '',
   })
 
+  // Saúde: { [índice da coluna]: { saude, publico } } — o que vai para a emergência médica
+  const [healthSelection, setHealthSelection] = useState({})
+
   if (!isOpen) return null
+
+  // Palpite de colunas + reaplica a escolha de saúde que o evento já tinha
+  // (reimportar a planilha não pode apagar o que o organizador marcou).
+  function guessWithHealth(headers, detected) {
+    const mapping = autoGuessMapping(headers, detected)
+    const selection = prefillHealthSelection(headers, existingHealthFields)
+    for (const idx of Object.keys(selection)) {
+      if (!canBeHealthColumn(mapping[idx])) {
+        delete selection[idx]
+      } else if (!mapping[idx] || mapping[idx] === 'ignore') {
+        mapping[idx] = `custom:${String(headers[idx] || '').trim()}`
+      }
+    }
+    setHealthSelection(selection)
+    return mapping
+  }
+
+  function toggleHealth(idx, field, checked) {
+    setHealthSelection((prev) => {
+      const current = prev[idx] || { saude: false, publico: false }
+      const next = field === 'saude'
+        ? { saude: checked, publico: checked ? current.publico : false }
+        : { ...current, publico: checked }
+      return { ...prev, [idx]: next }
+    })
+    // Coluna de saúde precisa ser importada: "não importar" vira campo personalizado.
+    if (field === 'saude' && checked && (!columnMapping[idx] || columnMapping[idx] === 'ignore')) {
+      setColumnMapping((prev) => ({ ...prev, [idx]: `custom:${String(parsedHeaders[idx] || '').trim()}` }))
+    }
+  }
 
   // Auto detect delimitador (ponto e vírgula ou vírgula)
   function parseCsvContent(content) {
@@ -198,6 +238,9 @@ export default function ImportarAtletasModal({
         mapping[idx] = 'categoria'
       } else if (lower.includes('morador') || lower.includes('visitante')) {
         mapping[idx] = 'morador'
+      } else if (lower.includes('emerg')) {
+        // "Contato de emergência" não é o telefone do atleta: vira campo próprio.
+        mapping[idx] = `custom:${colClean}`
       } else if (lower.includes('contato') || lower.includes('tel') || lower.includes('cel') || lower.includes('fone')) {
         mapping[idx] = 'contato'
       } else if (lower.includes('pais') || lower.includes('nacionalidade')) {
@@ -286,7 +329,7 @@ export default function ImportarAtletasModal({
             setParsedRows(dataRows)
             const detected = extractDetectedCustomFields(headers)
             setCustomFields((prev) => Array.from(new Set([...prev, ...detected])))
-            setColumnMapping(autoGuessMapping(headers, detected))
+            setColumnMapping(guessWithHealth(headers, detected))
             setStep(2)
           } else {
             alert('A planilha selecionada está vazia.')
@@ -309,7 +352,7 @@ export default function ImportarAtletasModal({
         setParsedRows(rows)
         const detected = extractDetectedCustomFields(headers)
         setCustomFields((prev) => Array.from(new Set([...prev, ...detected])))
-        setColumnMapping(autoGuessMapping(headers, detected))
+        setColumnMapping(guessWithHealth(headers, detected))
         if (rows.length > 0) {
           setStep(2)
         }
@@ -331,7 +374,7 @@ export default function ImportarAtletasModal({
       setParsedRows(rows)
       const detected = extractDetectedCustomFields(headers)
       setCustomFields((prev) => Array.from(new Set([...prev, ...detected])))
-      setColumnMapping(autoGuessMapping(headers, detected))
+      setColumnMapping(guessWithHealth(headers, detected))
     }
 
     if (headers.length === 0) {
@@ -447,6 +490,7 @@ export default function ImportarAtletasModal({
           isInitialImport: true,
           columns: buildImportColumnSchema(parsedHeaders, columnMapping),
           kits: extractedKits.length > 0 ? extractedKits : undefined,
+          healthFields: buildHealthFields(parsedHeaders, columnMapping, healthSelection),
           originalSheet: {
             fileName: fileName || 'planilha_importada.xlsx',
             headers: parsedHeaders,
@@ -494,6 +538,7 @@ export default function ImportarAtletasModal({
     setParsedHeaders([])
     setParsedRows([])
     setColumnMapping({})
+    setHealthSelection({})
     setImportStats({ imported: 0, warnings: [] })
     setImportError('')
   }
@@ -590,7 +635,7 @@ export default function ImportarAtletasModal({
                   const parsed = parseCsvContent(e.target.value)
                   setParsedHeaders(parsed.headers)
                   setParsedRows(parsed.rows)
-                  setColumnMapping(autoGuessMapping(parsed.headers))
+                  setColumnMapping(guessWithHealth(parsed.headers))
                 }}
               />
             </div>
@@ -673,6 +718,9 @@ export default function ImportarAtletasModal({
                           ...columnMapping,
                           [idx]: val,
                         })
+                        if (!canBeHealthColumn(val) || val === 'ignore') {
+                          setHealthSelection((prev) => ({ ...prev, [idx]: { saude: false, publico: false } }))
+                        }
                       }}
                       groups={[
                         {
@@ -712,6 +760,54 @@ export default function ImportarAtletasModal({
                 )
               })}
             </div>
+
+            {/* SAÚDE: colunas usadas na emergência médica do evento */}
+            <section className="imp-saude" aria-labelledby="imp-saude-title">
+              <header className="imp-saude-head">
+                <span className="imp-saude-mark" aria-hidden="true" />
+                <div>
+                  <h3 id="imp-saude-title">Saúde</h3>
+                  <p>
+                    Marque as colunas com dados de saúde (alergia, remédio, doença...). O painel médico vê todas.
+                    Na página pública de emergência, aberta pelo QR do peito, aparecem só as que você marcar como públicas.
+                  </p>
+                </div>
+              </header>
+              <ul className="imp-saude-list">
+                {parsedHeaders.map((headerName, idx) => {
+                  const mapping = columnMapping[idx] || 'ignore'
+                  if (!canBeHealthColumn(mapping) || !String(headerName || '').trim()) return null
+                  const selected = healthSelection[idx] || { saude: false, publico: false }
+                  const identifying = isIdentifyingColumn(headerName) || isIdentifyingColumn(mapping.replace(/^custom:/, ''))
+                  const sampleVal = parsedRows[0]?.[idx] || parsedRows[1]?.[idx] || '—'
+                  return (
+                    <li key={idx} className={selected.saude ? 'on' : ''}>
+                      <div className="imp-saude-col">
+                        <strong>{headerName}</strong>
+                        <span>Ex.: {sampleVal}</span>
+                      </div>
+                      <label className="imp-saude-check">
+                        <input
+                          type="checkbox"
+                          checked={selected.saude}
+                          onChange={(e) => toggleHealth(idx, 'saude', e.target.checked)}
+                        />
+                        <span>Dado de saúde</span>
+                      </label>
+                      <label className={`imp-saude-check public ${identifying ? 'blocked' : ''}`} title={identifying ? 'Dado que identifica a pessoa fica só no painel médico.' : undefined}>
+                        <input
+                          type="checkbox"
+                          checked={selected.saude && selected.publico && !identifying}
+                          disabled={!selected.saude || identifying}
+                          onChange={(e) => toggleHealth(idx, 'publico', e.target.checked)}
+                        />
+                        <span>{identifying ? 'Só no painel médico' : 'Mostrar na emergência pública'}</span>
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
 
             {/* Rodapé da Etapa 2 */}
             <div className="importar-modal-actions">

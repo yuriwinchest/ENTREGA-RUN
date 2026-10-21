@@ -1,0 +1,334 @@
+/* Emergência médica do evento (organizador): perguntas da ficha + QR do peito. */
+.evmed-backdrop {
+  position: fixed;
+  inset: 0;
+  /* Acima da barra inferior do celular (990), abaixo do menu lateral aberto. */
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(12, 20, 44, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.evmed-card {
+  width: 100%;
+  max-width: 720px;
+  max-height: calc(100svh - 40px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 24px 56px rgba(12, 20, 44, 0.2);
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
+  color: #0c142c;
+}
+
+.evmed-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 26px 14px;
+  border-top: 5px solid #c62a3a;
+}
+
+.evmed-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #c62a3a;
+}
+
+.evmed-kicker::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  background:
+    linear-gradient(#c62a3a, #c62a3a) center / 10px 3px no-repeat,
+    linear-gradient(#c62a3a, #c62a3a) center / 3px 10px no-repeat;
+}
+
+.evmed-title {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.evmed-close {
+  flex-shrink: 0;
+  display: flex;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.evmed-close:hover {
+  background: #f1f5f9;
+  color: #0c142c;
+}
+
+.evmed-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 26px 24px;
+  overflow-y: auto;
+}
+
+.evmed-lead {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #475569;
+}
+
+.evmed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+
+.evmed-btn {
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1.5px solid transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.evmed-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.evmed-btn.primary {
+  background: #c62a3a;
+  color: #ffffff;
+}
+
+.evmed-btn.primary:not(:disabled):hover {
+  background: #a51f2e;
+}
+
+.evmed-btn.ghost {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #0c142c;
+}
+
+.evmed-btn.ghost:hover {
+  border-color: #c62a3a;
+  color: #c62a3a;
+}
+
+.evmed-btn.dark {
+  background: #0c142c;
+  color: #ffffff;
+}
+
+.evmed-btn.wide {
+  width: 100%;
+}
+
+.evmed-qr-wrap {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 22px;
+  align-items: center;
+}
+
+.evmed-qr {
+  margin: 0;
+  padding: 12px 12px 8px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  text-align: center;
+}
+
+.evmed-qr img,
+.evmed-qr-ph {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 6px;
+}
+
+.evmed-qr-ph {
+  background: #f1f5f9;
+}
+
+.evmed-qr figcaption {
+  margin-top: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.evmed-qr-info h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.evmed-qr-info p {
+  margin: 0 0 14px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #475569;
+}
+
+.evmed-link-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.evmed-link-label {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.evmed-link-row code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: #0c142c;
+}
+
+.evmed-link-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.evmed-link-actions button,
+.evmed-link-actions a {
+  padding: 6px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #0c142c;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .evmed-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .evmed-card {
+    max-height: 92svh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .evmed-head,
+  .evmed-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+
+
+  .evmed-qr-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .evmed-qr {
+    max-width: 220px;
+    margin: 0 auto;
+  }
+
+  .evmed-link-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.evmed-health {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.evmed-health h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.evmed-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.evmed-chip {
+  display: inline-block;
+  padding: 3px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #334155;
+}
+
+.evmed-chip.pub {
+  border-color: rgba(198, 42, 58, 0.35);
+  background: rgba(198, 42, 58, 0.08);
+  color: #a51f2e;
+}
+
+.evmed-legend {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.evmed-legend .evmed-chip {
+  padding: 1px 6px;
+  font-size: 10.5px;
+}

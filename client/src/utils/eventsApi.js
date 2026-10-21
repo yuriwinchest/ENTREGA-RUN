@@ -142,6 +142,7 @@ export async function apiFetchAthletes(eventId) {
           schema: data.schema || [],
           kits: data.kits || [],
           originalSheet: data.originalSheet || null,
+          healthFields: Array.isArray(data.healthFields) ? data.healthFields : [],
         }
       : null
   } catch (err) {
@@ -169,6 +170,7 @@ export async function apiSaveAthletes(eventId, athletes, schema = [], kits, orig
         ...(kits === undefined ? {} : { kits }),
         ...(originalSheet === undefined ? {} : { originalSheet }),
         ...(options.undoAthleteId ? { undoAthleteId: options.undoAthleteId } : {}),
+        ...(options.healthFields === undefined ? {} : { healthFields: options.healthFields }),
       }),
     })
     flagExpiredSession(res)
@@ -204,6 +206,7 @@ export async function apiSaveAthletesChunked(eventId, athletes, schema = [], kit
                 ...(kits === undefined ? {} : { kits }),
                 ...(originalSheet === undefined ? {} : { originalSheet }),
                 ...(options.undoAthleteId ? { undoAthleteId: options.undoAthleteId } : {}),
+                ...(options.healthFields === undefined ? {} : { healthFields: options.healthFields }),
               }
             : {}),
         }),
@@ -239,6 +242,7 @@ async function apiSaveAthletesSingle(eventId, athletes, schema = [], kits, origi
         ...(kits === undefined ? {} : { kits }),
         ...(originalSheet === undefined ? {} : { originalSheet }),
         ...(options.undoAthleteId ? { undoAthleteId: options.undoAthleteId } : {}),
+        ...(options.healthFields === undefined ? {} : { healthFields: options.healthFields }),
       }),
     })
     flagExpiredSession(res)

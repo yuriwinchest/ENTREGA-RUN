@@ -978,3 +978,27 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Emergência médica: atalho do organizador para ficha médica e QR do peito */
+.card-action-btn.card-action-medico {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+  padding: 0 14px;
+  border-color: rgba(198, 42, 58, 0.28);
+  color: #c62a3a;
+}
+
+.card-action-btn.card-action-medico:hover {
+  border-color: #c62a3a;
+  background: rgba(198, 42, 58, 0.05);
+  color: #a51f2e;
+}
+
+.card-action-medico-meta {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-transform: none;
+  color: #94a3b8;
+}

@@ -5,6 +5,8 @@ import EventosPage from './components/EventosPage.jsx'
 import LoginPage from './components/LoginPage.jsx'
 import OperacaoPage from './components/OperacaoPage.jsx'
 import EspelhoPage from './components/EspelhoPage.jsx'
+import EmergenciaPage from './components/EmergenciaPage.jsx'
+import MedicoPage from './components/MedicoPage.jsx'
 import ValidarAtletaPage from './components/ValidarAtletaPage.jsx'
 import TutorialModal from './components/TutorialModal.jsx'
 import UsuariosPage from './components/UsuariosPage.jsx'
@@ -126,6 +128,9 @@ export default function App() {
     if (!user) return undefined
     let isMounted = true
 
+    // Médico não usa a lista de eventos (e o servidor a recusa para ele).
+    if (user?.role === 'MEDICO') return undefined
+
     async function syncEventsWithServer() {
       const serverEvents = await apiFetchEvents()
       if (!isMounted || !Array.isArray(serverEvents)) return
@@ -227,6 +232,7 @@ export default function App() {
     if (path.startsWith('/operacao')) return 'operacao'
     if (path.startsWith('/eventos')) return 'eventos'
     if (path.startsWith('/usuarios')) return 'usuarios'
+    if (path.startsWith('/medico')) return 'medico'
     if (path.startsWith('/dashboard/')) return 'event-dashboard'
     if (path.startsWith('/dashboard')) return 'dashboard'
     return 'eventos'
@@ -238,6 +244,18 @@ export default function App() {
   // Guard de rota para isolamento estrito de eventos por usuário
   useEffect(() => {
     if (!user) return
+    if (user.role === 'MEDICO') {
+      if (!window.location.pathname.startsWith('/medico')) {
+        window.history.replaceState(null, '', `/medico/${user.eventId}`)
+      }
+      return
+    }
+    if (currentPage === 'medico' && user.role !== 'ADMIN' && user.role !== 'SUB_ADMIN') {
+      const fallback = isRestrictedUser && user.eventId ? 'operacao' : 'eventos'
+      setCurrentPage(fallback)
+      window.history.replaceState(null, '', fallback === 'operacao' ? `/operacao/${user.eventId}` : '/eventos')
+      return
+    }
     if (isRestrictedUser && user.eventId && user.eventId !== 'all') {
       const path = window.location.pathname
       const parts = path.split('/')
@@ -287,6 +305,10 @@ export default function App() {
         } else {
           setCurrentPage('usuarios')
         }
+      } else if (path.startsWith('/medico')) {
+        const parts = path.split('/')
+        if (parts[2]) setSelectedEventId(isRestrictedUser && user?.eventId ? user.eventId : parts[2])
+        setCurrentPage('medico')
       } else if (path.startsWith('/dashboard/')) {
         const parts = path.split('/')
         if (parts[2]) setSelectedEventId(isRestrictedUser && user?.eventId ? user.eventId : parts[2])
@@ -325,6 +347,8 @@ export default function App() {
       path = targetId ? `/dashboard/${targetId}` : '/dashboard'
     } else if (targetPage === 'usuarios') {
       path = '/usuarios'
+    } else if (targetPage === 'medico') {
+      path = targetId ? `/medico/${targetId}` : '/eventos'
     } else if (targetPage === 'login') {
       path = '/'
     }
@@ -347,7 +371,11 @@ export default function App() {
     } catch {
       // ignore
     }
-    if (loggedUser.role === 'OPERADOR' && loggedUser.eventId && loggedUser.eventId !== 'all') {
+    if (loggedUser.role === 'MEDICO') {
+      setSelectedEventId(loggedUser.eventId)
+      setCurrentPage('medico')
+      window.history.pushState(null, '', `/medico/${loggedUser.eventId}`)
+    } else if (loggedUser.role === 'OPERADOR' && loggedUser.eventId && loggedUser.eventId !== 'all') {
       setSelectedEventId(loggedUser.eventId)
       navigateTo('operacao', loggedUser.eventId)
     } else {
@@ -423,9 +451,32 @@ export default function App() {
     )
   }
 
+  // Emergência médica (pública, aberta pelo QR Code do número de peito): não
+  // depende de login, nem do usuário logado no aparelho.
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/emergencia')) {
+    return <EmergenciaPage eventId={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
+  }
+
   // Se não estiver autenticado, exibe a tela de login
   if (!user) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />
+  }
+
+  // Perfil médico enxerga só o painel de ocorrências do evento dele.
+  if (user.role === 'MEDICO') {
+    return <MedicoPage user={user} eventId={user.eventId} onLogout={handleLogout} />
+  }
+
+  if (currentPage === 'medico' && (user.role === 'ADMIN' || user.role === 'SUB_ADMIN') && effectiveEventId) {
+    return (
+      <MedicoPage
+        key={effectiveEventId}
+        user={user}
+        eventId={effectiveEventId}
+        onLogout={handleLogout}
+        onBack={() => navigateTo('eventos')}
+      />
+    )
   }
 
   const assignedEventFallback = isRestrictedUser && user?.eventId

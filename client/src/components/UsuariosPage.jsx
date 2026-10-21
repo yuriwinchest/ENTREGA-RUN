@@ -139,6 +139,12 @@ const ROLE_OPTIONS = [
     detail: 'Entrega kits e pode alterar dados do atleta'
   },
   {
+    value: 'MEDICO',
+    label: 'MÉDICO',
+    description: 'Socorro do evento',
+    detail: 'Vê só o painel de ocorrências médicas do evento vinculado'
+  },
+  {
     value: 'SUB_ADMIN',
     label: 'SUB-ADMIN',
     description: 'Gestão da operação',
@@ -297,8 +303,8 @@ export default function UsuariosPage({
       return
     }
 
-    if ((newUserForm.role === 'OPERADOR' || newUserForm.role === 'SUPERVISOR') && (!newUserForm.eventId || newUserForm.eventId === 'all')) {
-      setFormError('Operadores e Supervisores devem ser vinculados obrigatoriamente a um projeto específico.')
+    if (['OPERADOR', 'SUPERVISOR', 'MEDICO'].includes(newUserForm.role) && (!newUserForm.eventId || newUserForm.eventId === 'all')) {
+      setFormError('Operadores, Supervisores e Médicos devem ser vinculados obrigatoriamente a um projeto específico.')
       return
     }
 
@@ -354,8 +360,8 @@ export default function UsuariosPage({
       setEditFormError('O nome do usuário é obrigatório.')
       return
     }
-    if ((editUserForm.role === 'OPERADOR' || editUserForm.role === 'SUPERVISOR') && (!editUserForm.eventId || editUserForm.eventId === 'all')) {
-      setEditFormError('Operadores e Supervisores devem ser vinculados obrigatoriamente a um projeto específico.')
+    if (['OPERADOR', 'SUPERVISOR', 'MEDICO'].includes(editUserForm.role) && (!editUserForm.eventId || editUserForm.eventId === 'all')) {
+      setEditFormError('Operadores, Supervisores e Médicos devem ser vinculados obrigatoriamente a um projeto específico.')
       return
     }
 
@@ -527,7 +533,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   <div className="user-badges-row">
                     <span className={`role-pill ${item.role.toLowerCase()}`}>
                       {item.role === 'ADMIN' || item.role === 'SUB_ADMIN' ? <ShieldIcon /> : <UserIcon />}
-                      <span>{item.role === 'SUB_ADMIN' ? 'SUB-ADMIN' : item.role === 'ADMIN' ? 'SUPER ADMIN' : item.role}</span>
+                      <span>{item.role === 'SUB_ADMIN' ? 'SUB-ADMIN' : item.role === 'ADMIN' ? 'SUPER ADMIN' : item.role === 'MEDICO' ? 'MÉDICO' : item.role}</span>
                     </span>
 
                     <span className={`status-pill-user ${item.status === 'INATIVO' ? 'inactive' : ''}`}>
@@ -897,7 +903,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   <div className="cred-field-row">
                     <span className="cred-field-label">FUNÇÃO & PROJETO</span>
                     <strong className="cred-field-value role-badge-val">
-                      {createdUserCredentials.role} ({createdUserCredentials.eventName})
+                      {ROLE_OPTIONS.find((r) => r.value === createdUserCredentials.role)?.label || createdUserCredentials.role} ({createdUserCredentials.eventName})
                     </strong>
                   </div>
 

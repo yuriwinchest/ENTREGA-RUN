@@ -126,3 +126,14 @@ body {
     justify-content: space-between !important;
   }
 }
+
+/* Emergência médica: fundo do documento acompanha a página pública e o painel. */
+html:has(.emg-page),
+html:has(.emg-page) body {
+  background: #f4f2ec;
+}
+
+html:has(.med-page),
+html:has(.med-page) body {
+  background: #eef0f4;
+}

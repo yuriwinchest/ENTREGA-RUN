@@ -852,3 +852,131 @@
   border-bottom: none;
 }
 
+
+/* Saúde: colunas da planilha usadas na emergência médica */
+.imp-saude {
+  /* O corpo do modal rola; a seção não pode ser espremida a uma linha. */
+  flex-shrink: 0;
+  border: 1.5px solid rgba(198, 42, 58, 0.25);
+  border-radius: 14px;
+  background: #fffafa;
+  overflow: hidden;
+}
+
+.imp-saude-head {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(198, 42, 58, 0.15);
+}
+
+.imp-saude-mark {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background:
+    linear-gradient(#ffffff, #ffffff) center / 13px 4px no-repeat,
+    linear-gradient(#ffffff, #ffffff) center / 4px 13px no-repeat,
+    #c62a3a;
+}
+
+.imp-saude-head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #c62a3a;
+}
+
+.imp-saude-head p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.imp-saude-list {
+  max-height: 260px;
+  margin: 0;
+  padding: 6px 8px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.imp-saude-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 9px 8px;
+  border-radius: 10px;
+}
+
+.imp-saude-list li + li {
+  border-top: 1px solid #f3e8e9;
+}
+
+.imp-saude-list li.on {
+  background: rgba(198, 42, 58, 0.05);
+}
+
+.imp-saude-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.imp-saude-col strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #0c142c;
+}
+
+.imp-saude-col span {
+  overflow: hidden;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #64748b;
+}
+
+.imp-saude-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.imp-saude-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #c62a3a;
+}
+
+.imp-saude-check input:disabled + span {
+  color: #94a3b8;
+}
+
+.imp-saude-check.blocked span {
+  font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .imp-saude-list li {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
+.importar-modal-body > .columns-mapping-grid {
+  flex-shrink: 0;
+}

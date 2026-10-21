@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Sidebar from './Sidebar.jsx'
 import CidadeAutocomplete from './CidadeAutocomplete.jsx'
 import DataPickerInput from './DataPickerInput.jsx'
+import EventoMedicoModal from './EventoMedicoModal.jsx'
 import { apiCreateEvent, apiUpdateEvent, apiDeleteEvent } from '../utils/eventsApi.js'
 import { filterEvents, getEventStatusCounts } from '../utils/eventFilter.js'
 import './EventosPage.css'
@@ -136,6 +137,14 @@ function ChevronDownIcon() {
   )
 }
 
+function MedicalCrossIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" />
+    </svg>
+  )
+}
+
 function CloseIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -166,6 +175,7 @@ export default function EventosPage({
   const [editingEvent, setEditingEvent] = useState(null)
   const [deletingEvent, setDeletingEvent] = useState(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [medicoEventId, setMedicoEventId] = useState(null)
   const [newEventForm, setNewEventForm] = useState({
     name: '',
     date: '',
@@ -648,6 +658,18 @@ export default function EventosPage({
                     <BarChartIcon />
                     <span>DASHBOARD</span>
                   </button>
+
+                  {canCreate && (
+                    <button
+                      type="button"
+                      className="card-action-btn card-action-medico"
+                      onClick={() => setMedicoEventId(event.id)}
+                    >
+                      <MedicalCrossIcon />
+                      <span>EMERGÊNCIA MÉDICA</span>
+                      <span className="card-action-medico-meta">QR Code e painel</span>
+                    </button>
+                  )}
                 </div>
               </article>
             )
@@ -830,6 +852,21 @@ export default function EventosPage({
               </form>
             </div>
           </div>
+        )}
+
+        {medicoEventId && events.some((ev) => ev.id === medicoEventId) && (
+          <EventoMedicoModal
+            event={events.find((ev) => ev.id === medicoEventId)}
+            onClose={() => setMedicoEventId(null)}
+            onOpenOperacao={() => {
+              setMedicoEventId(null)
+              onNavigate('operacao', medicoEventId)
+            }}
+            onOpenPainel={() => {
+              setMedicoEventId(null)
+              onNavigate('medico', medicoEventId)
+            }}
+          />
         )}
 
         {/* MODAL: EXCLUIR EVENTO */}

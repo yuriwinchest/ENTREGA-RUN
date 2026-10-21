@@ -544,6 +544,9 @@ export default function OperacaoPage({
 
   // Estado do sync com o servidor (visível no console + cura divergência)
   const [athletesSync, setAthletesSync] = useState({ state: 'idle', at: null })
+  // Colunas da planilha marcadas como saúde (emergência médica); vêm do servidor
+  // e voltam pré-marcadas ao reimportar.
+  const [healthFields, setHealthFields] = useState([])
 
   const associationLockRef = useRef(false)
   const [associationSaving, setAssociationSaving] = useState(false)
@@ -656,6 +659,7 @@ export default function OperacaoPage({
       if (Array.isArray(result.kits)) setKits(result.kits)
       if (Array.isArray(result.schema)) setAthleteColumnSchema(result.schema)
       setOriginalSheet(result.originalSheet || null)
+      setHealthFields(Array.isArray(result.healthFields) ? result.healthFields : [])
       setAthletesSync({ state: 'ok', at: Date.now() })
     }
     refreshAthletesRef.current = refresh
@@ -1283,8 +1287,10 @@ export default function OperacaoPage({
           mergedAthletes,
           nextSchema,
           Array.isArray(nextKits) ? nextKits : undefined,
-          nextOriginalSheet
+          nextOriginalSheet,
+          Array.isArray(options.healthFields) ? { healthFields: options.healthFields } : undefined
         )
+        if (saved && Array.isArray(options.healthFields)) setHealthFields(options.healthFields)
         setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() })
         saveResult = Boolean(saved)
       } catch {
@@ -4497,6 +4503,7 @@ export default function OperacaoPage({
             isOpen={showImportModal}
             onClose={() => setShowImportModal(false)}
             existingAthletes={athletes}
+            existingHealthFields={healthFields}
             onImportSuccess={handleImportSuccess}
           />
         )}
