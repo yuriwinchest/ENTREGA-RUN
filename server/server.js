@@ -13,7 +13,9 @@ import { deployCheckTokenFile } from './deployCheck.js'
 import {
   athleteKey,
   athleteRef,
+  calculateAge,
   createMedicoStore,
+  formatAge,
   healthView,
   OCORRENCIA_STATUS,
   sanitizeHealthFields,
@@ -1548,11 +1550,14 @@ function emergencyContext(rawEventId) {
 }
 
 function publicAthleteSummary(ctx, athlete) {
+  const age = calculateAge(athlete)
   return {
     ref: athleteRef(ctx.eventId, athlete),
     nome: athlete.nome || athlete.nome_peito || 'ATLETA',
     numero: String(athlete.numero ?? ''),
     modalidade: athlete.modalidade || '',
+    idade: age,
+    idadeTexto: formatAge(age),
   }
 }
 
@@ -1609,11 +1614,18 @@ app.post('/api/public/emergencia/:eventId/ocorrencias', emergenciaWriteLimiter, 
   }
   const { athleteRef: _ref, ...fields } = value
   try {
+    const age = athlete ? calculateAge(athlete) : null
     const ocorrencia = medicoStore.addOcorrencia(ctx.eventId, {
       ...fields,
       athleteKey: athlete ? athleteKey(ctx.eventId, athlete) : null,
       atleta: athlete
-        ? { nome: athlete.nome || '', numero: String(athlete.numero ?? ''), modalidade: athlete.modalidade || '' }
+        ? {
+            nome: athlete.nome || '',
+            numero: String(athlete.numero ?? ''),
+            modalidade: athlete.modalidade || '',
+            idade: age,
+            idadeTexto: formatAge(age),
+          }
         : null,
     })
     if (!ocorrencia) {
@@ -1644,13 +1656,25 @@ function requireMedicoAccess(req, res, next) {
 
 function medicoAthleteView(ctx, ocorrencia) {
   const athlete = ocorrencia.athleteKey ? ctx.index.byKey.get(ocorrencia.athleteKey) : null
-  if (!athlete) return ocorrencia.atleta ? { ...ocorrencia.atleta, saude: [] } : null
+  if (!athlete) {
+    if (!ocorrencia.atleta) return null
+    const age = ocorrencia.atleta.idade ?? calculateAge(ocorrencia.atleta)
+    return {
+      ...ocorrencia.atleta,
+      idade: age,
+      idadeTexto: formatAge(age),
+      saude: [],
+    }
+  }
+  const age = calculateAge(athlete)
   return {
     nome: athlete.nome || '',
     nome_peito: athlete.nome_peito || '',
     numero: String(athlete.numero ?? ''),
     doc: athlete.doc || '',
     nascimento: athlete.nascimento || '',
+    idade: age,
+    idadeTexto: formatAge(age),
     sexo: athlete.sexo || '',
     contato: athlete.contato || '',
     cidade: athlete.cidade || '',

@@ -256,6 +256,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.med-card-age {
+  color: var(--med-muted);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
 .med-card-desc {
   display: -webkit-box;
   overflow: hidden;

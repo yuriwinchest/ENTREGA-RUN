@@ -142,3 +142,94 @@ export function mapsUrl(geo) {
 export function emergencyUrl(origin, eventId) {
   return `${String(origin || '').replace(/\/+$/, '')}/emergencia/${encodeURIComponent(eventId || '')}`
 }
+
+// ------------------------------------------------------------------
+// Cálculo e formatação de idade
+// ------------------------------------------------------------------
+export function calculateAge(athlete, reference = new Date()) {
+  if (!athlete || typeof athlete !== 'object') return null
+
+  // 1. Idade explícita (coluna IDADE da planilha ou propriedade direta)
+  const direct = athlete.idade ?? athlete.age ?? athlete.customFields?.idade ?? athlete.customFields?.Idade ?? athlete.customFields?.IDADE
+  if (typeof direct === 'number' && Number.isFinite(direct) && direct >= 0 && direct <= 125) {
+    return Math.floor(direct)
+  }
+  if (typeof direct === 'string' && direct.trim()) {
+    const parsed = Number(direct.trim().replace(/\D/g, ''))
+    if (!Number.isNaN(parsed) && parsed > 0 && parsed <= 125) {
+      return parsed
+    }
+  }
+
+  // 2. Extração da data de nascimento (padrão ou campos customizados)
+  const raw = String(
+    athlete.nascimento ||
+    athlete.dataNascimento ||
+    athlete.data_nascimento ||
+    athlete.birth_date ||
+    athlete.customFields?.nascimento ||
+    athlete.customFields?.['data de nascimento'] ||
+    athlete.customFields?.['Data de nascimento'] ||
+    athlete.customFields?.['DATA DE NASCIMENTO'] ||
+    athlete.customFields?.['data de nasc'] ||
+    athlete.customFields?.['dt nasc'] ||
+    athlete.customFields?.dataNascimento ||
+    ''
+  ).trim()
+
+  if (!raw) return null
+
+  let day = null
+  let month = null
+  let year = null
+
+  const matchSlash = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+  const matchIso = raw.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/)
+
+  if (matchSlash) {
+    day = Number(matchSlash[1])
+    month = Number(matchSlash[2])
+    year = Number(matchSlash[3])
+  } else if (matchIso) {
+    year = Number(matchIso[1])
+    month = Number(matchIso[2])
+    day = Number(matchIso[3])
+  } else {
+    const parsed = new Date(raw)
+    if (!Number.isNaN(parsed.getTime())) {
+      day = parsed.getUTCDate()
+      month = parsed.getUTCMonth() + 1
+      year = parsed.getUTCFullYear()
+    }
+  }
+
+  if (!day || !month || !year || year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) {
+    return null
+  }
+
+  const birth = new Date(year, month - 1, day)
+  if (birth.getFullYear() !== year || birth.getMonth() !== month - 1 || birth.getDate() !== day) {
+    return null
+  }
+
+  const ref = reference instanceof Date ? reference : new Date(reference)
+  if (Number.isNaN(ref.getTime())) return null
+
+  const refYear = ref.getFullYear()
+  const refMonth = ref.getMonth()
+  const refDay = ref.getDate()
+
+  let age = refYear - year
+  if (refMonth < month - 1 || (refMonth === month - 1 && refDay < day)) {
+    age -= 1
+  }
+
+  return (age >= 0 && age <= 125) ? age : null
+}
+
+export function formatAge(age) {
+  if (age === null || age === undefined || age === '') return ''
+  const num = Number(age)
+  if (Number.isNaN(num) || num < 0) return ''
+  return num === 1 ? '1 ano' : `${num} anos`
+}

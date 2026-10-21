@@ -7,6 +7,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hashPassword } from './passwords.js'
+import { calculateAge, formatAge } from './medico.js'
 
 const serverFile = fileURLToPath(new URL('./server.js', import.meta.url))
 const ADMIN_EMAIL = 'admin-medico@entregas.com'
@@ -77,9 +78,10 @@ test('fluxo completo: colunas de saúde da planilha, busca pública, ocorrência
     const athletes = [
       {
         id: 'imp-1', numero: '1', nome: 'ELIUD KIPCHOGE', doc: '123.456.789-09', contato: '(51) 98888-7777', modalidade: '42K', status: 'PENDENTE',
+        nascimento: '05/11/1984',
         customFields: { ALERGIA: 'Sim, dipirona', 'REMÉDIO CONTROLADO': 'Não', 'OBS MÉDICA': 'Marcapasso', 'TELEFONE EMERGÊNCIA': '51977776666', EQUIPE2: 'Pace' },
       },
-      { id: 'imp-2', numero: '2', nome: 'ATLETA ESTRANGEIRA', doc: '', modalidade: '10K', status: 'PENDENTE', customFields: { ALERGIA: '' } },
+      { id: 'imp-2', numero: '2', nome: 'ATLETA ESTRANGEIRA', doc: '', modalidade: '10K', status: 'PENDENTE', idade: 25, customFields: { ALERGIA: '' } },
     ]
     const healthFields = [
       { key: 'ALERGIA', label: 'Alergia', publico: true },
@@ -112,10 +114,14 @@ test('fluxo completo: colunas de saúde da planilha, busca pública, ocorrência
     assert.equal(info.data.event.atletas, 2)
     const byBib = await request('/api/public/emergencia/ev-poa/busca?q=1')
     assert.equal(byBib.data.results.length, 1)
+    assert.equal(byBib.data.results[0].idade, calculateAge(athletes[0]))
+    assert.equal(byBib.data.results[0].idadeTexto, formatAge(calculateAge(athletes[0])))
     const ref = byBib.data.results[0].ref
     assert.equal((await request('/api/public/emergencia/ev-poa/busca?q=12345678909')).data.results[0].ref, ref)
     assert.equal((await request('/api/public/emergencia/ev-poa/busca?q=kipchoge')).data.results[0].ref, ref)
     const card = await request(`/api/public/emergencia/ev-poa/atleta/${ref}`)
+    assert.equal(card.data.athlete.idade, calculateAge(athletes[0]))
+    assert.equal(card.data.athlete.idadeTexto, formatAge(calculateAge(athletes[0])))
     assert.deepEqual(card.data.athlete.saude.map((r) => [r.label, r.value, r.alerta]), [
       ['Alergia', 'Sim, dipirona', true],
       ['Remédio controlado', 'Não', false],
@@ -166,6 +172,8 @@ test('fluxo completo: colunas de saúde da planilha, busca pública, ocorrência
     const grave = queue.data.ocorrencias.find((item) => item.protocolo === 1)
     assert.equal(grave.atleta.contato, '(51) 98888-7777')
     assert.equal(grave.atleta.doc, '123.456.789-09')
+    assert.equal(grave.atleta.idade, calculateAge(athletes[0]))
+    assert.equal(grave.atleta.idadeTexto, formatAge(calculateAge(athletes[0])))
     assert.deepEqual(grave.atleta.saude.map((r) => r.key), ['ALERGIA', 'REMÉDIO CONTROLADO', 'OBS MÉDICA', 'TELEFONE EMERGÊNCIA'])
     assert.equal(grave.atleta.saude[2].value, 'Marcapasso')
     assert.equal(grave.geo.lat, -30.03)

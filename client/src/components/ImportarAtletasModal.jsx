@@ -87,6 +87,7 @@ const AVAILABLE_FIELDS = [
   { value: 'equipe', label: 'EQUIPE' },
   { value: 'cidade', label: 'CIDADE' },
   { value: 'nascimento', label: 'DATA NASCIMENTO' },
+  { value: 'idade', label: 'IDADE' },
   { value: 'modalidade', label: 'MODALIDADE' },
   { value: 'categoria', label: 'CATEGORIA' },
   { value: 'morador', label: 'MORADOR/VISITANTE' },
@@ -230,6 +231,8 @@ export default function ImportarAtletasModal({
         mapping[idx] = 'cidade'
       } else if (lower.includes('nasc') || lower.includes('data')) {
         mapping[idx] = 'nascimento'
+      } else if (lower === 'idade' || (lower.includes('idade') && !lower.includes('modalidade'))) {
+        mapping[idx] = 'idade'
       } else if (lower.includes('kit')) {
         mapping[idx] = 'kit'
       } else if (lower.includes('mod') || lower.includes('dist') || lower.includes('percurso') || lower.includes('prova') || lower.includes('corrida') || lower.includes('circuito')) {
@@ -408,6 +411,7 @@ export default function ImportarAtletasModal({
         equipe: '',
         cidade: '',
         nascimento: '',
+        idade: '',
         modalidade: '',
         categoria: '',
         morador: '',

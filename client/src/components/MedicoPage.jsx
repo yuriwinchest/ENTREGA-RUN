@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { medicoApi } from '../utils/medicoApi.js'
 import {
+  calculateAge,
   countByStatus,
   elapsedLabel,
+  formatAge,
   formatPhone,
   gravidadeLabel,
   mapsUrl,
@@ -176,6 +178,7 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
   }
 
   const atleta = selected?.atleta
+  const atletaIdade = atleta ? (atleta.idadeTexto || (atleta.idade ? `${atleta.idade} anos` : '') || formatAge(calculateAge(atleta))) : ''
   const saude = atleta?.saude || []
   const alertas = saude.filter((item) => item.alerta)
   const outras = saude.filter((item) => !item.alerta)
@@ -237,7 +240,16 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
                   <span className="med-card-time">{elapsedLabel(item.criadaEm, now)}</span>
                 </span>
                 <span className="med-card-name">
-                  {item.atleta ? <><strong>{item.atleta.numero}</strong> {item.atleta.nome}</> : <em>Pessoa não identificada</em>}
+                  {item.atleta ? (
+                    <>
+                      <strong>{item.atleta.numero}</strong> {item.atleta.nome}
+                      {(item.atleta.idadeTexto || (item.atleta.idade ? `${item.atleta.idade} anos` : '') || formatAge(calculateAge(item.atleta))) && (
+                        <span className="med-card-age"> · {item.atleta.idadeTexto || (item.atleta.idade ? `${item.atleta.idade} anos` : '') || formatAge(calculateAge(item.atleta))}</span>
+                      )}
+                    </>
+                  ) : (
+                    <em>Pessoa não identificada</em>
+                  )}
                 </span>
                 <span className="med-card-desc">{item.descricao}</span>
                 <span className="med-card-foot">
@@ -313,7 +325,7 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
                       <span className="med-athlete-num">{atleta.numero}</span>
                       <div>
                         <strong>{atleta.nome}</strong>
-                        <span>{[atleta.modalidade, atleta.categoria].filter(Boolean).join(' · ')}</span>
+                        <span>{[atleta.modalidade, atleta.categoria, atletaIdade].filter(Boolean).join(' · ')}</span>
                       </div>
                     </div>
                     <dl className="med-dl">
@@ -321,7 +333,12 @@ export default function MedicoPage({ user, eventId, onLogout, onBack }) {
                         {atleta.contato && <a href={`tel:${String(atleta.contato).replace(/\D/g, '')}`}>{atleta.contato}</a>}
                       </Info>
                       <Info label="CPF">{atleta.doc}</Info>
-                      <Info label="Nascimento">{atleta.nascimento}</Info>
+                      <Info label="Idade">{atletaIdade || '—'}</Info>
+                      <Info label="Nascimento">
+                        {atleta.nascimento
+                          ? `${atleta.nascimento}${atletaIdade ? ` (${atletaIdade})` : ''}`
+                          : (atletaIdade || '—')}
+                      </Info>
                       <Info label="Sexo">{atleta.sexo}</Info>
                       <Info label="Cidade">{atleta.cidade}</Info>
                       <Info label="Equipe">{atleta.equipe}</Info>

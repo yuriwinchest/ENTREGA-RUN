@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { emergenciaApi } from '../utils/medicoApi.js'
-import { GRAVIDADES, maskPhoneInput } from '../utils/medico.js'
+import { GRAVIDADES, maskPhoneInput, calculateAge, formatAge } from '../utils/medico.js'
 import './EmergenciaPage.css'
 
 const EMPTY_FORM = { gravidade: '', solicitanteNome: '', solicitanteTelefone: '', descricao: '', localTexto: '' }
@@ -225,7 +225,9 @@ export default function EmergenciaPage({ eventId }) {
                       <button type="button" onClick={() => openAthlete(item.ref)}>
                         <span className="emg-res-num">{item.numero || '—'}</span>
                         <span className="emg-res-name">{item.nome}</span>
-                        <span className="emg-res-mod">{item.modalidade}</span>
+                        <span className="emg-res-mod">
+                          {[item.modalidade, item.idadeTexto || (item.idade ? `${item.idade} anos` : '') || formatAge(calculateAge(item))].filter(Boolean).join(' · ')}
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -250,7 +252,11 @@ export default function EmergenciaPage({ eventId }) {
                   <i className="emg-pin tl" /><i className="emg-pin tr" /><i className="emg-pin bl" /><i className="emg-pin br" />
                   <span className="emg-bib-num">{athlete.numero}</span>
                   <span className="emg-bib-name">{athlete.nome}</span>
-                  {athlete.modalidade && <span className="emg-bib-mod">{athlete.modalidade}</span>}
+                  {([athlete.modalidade, athlete.idadeTexto || (athlete.idade ? `${athlete.idade} anos` : '') || formatAge(calculateAge(athlete))].some(Boolean)) && (
+                    <span className="emg-bib-mod">
+                      {[athlete.modalidade, athlete.idadeTexto || (athlete.idade ? `${athlete.idade} anos` : '') || formatAge(calculateAge(athlete))].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
                 </div>
                 {alertas.length > 0 && (
                   <a className="emg-jump" href="#emg-saude">

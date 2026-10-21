@@ -10,20 +10,21 @@
 
 ## Última atualização
 
+- **Quando / quem:** 2026-10-21 · Antigravity (TONE) · Fase A (Construção).
+- **Pedido:** Cálculo automático e exibição da idade do atleta no módulo de emergência médica (busca por nome/peito/CPF, card da ficha e painel do médico). Se houver coluna de idade na planilha, utilizá-la; caso contrário, calcular automaticamente a partir da data de nascimento (`nascimento`), cobrindo formatos variados, anos bissextos e datas futuras. Preservar isolamento multi-agente e subir para produção.
+- **Arquivos / entrega:** `server/medico.js` e `client/src/utils/medico.js` (helpers `calculateAge` e `formatAge`), `server/server.js` (`idade` e `idadeTexto` em `/busca`, `/atleta/:ref` e `/ocorrencias`), `client/src/components/EmergenciaPage.jsx` (busca pública e cabeçalho da ficha com idade), `client/src/components/MedicoPage.jsx` e `MedicoPage.css` (card da fila, subtítulo e lista de informações médicas com idade explícita e data de nascimento), `client/src/components/ImportarAtletasModal.jsx` (reconhecimento do campo `idade`), testes unitários e de integração `client/src/utils/medico.test.mjs`, `server/medico.test.mjs`, `server/medico.http.test.mjs`. Trabalho executado em git worktree isolado (`Entregas-run-idade`) para evitar colisões com Codex.
+- **Validação:** [verificado] client 34/34 (`node --test client/src/utils/*.test.mjs`); server 27/27 (`node --test server/*.test.mjs`); lint 0 erros (`npx oxlint`); build Vite aprovado (`npm run build`); `bash -n scripts/deploy-vps.sh` aprovado. Testes cobrem cálculo de idade, anos bissextos, datas futuras, fallbacks e contratos HTTP.
+- **Riscos / pendências:** Nenhum risco de colisão com o branch ativo do Codex. Data de nascimento exata permanece protegida fora da API pública.
+- **Próximo passo:** Yuri homologar visual e cálculo da idade em produção.
+
+## Penúltima atualização
+
 - **Quando / quem:** 2026-10-21 · Codex/Tony · Fase A, integração da proteção de rotas com a emergência médica.
 - **Pedido:** Yuri autorizou integrar o commit f63c339 do branch claude/cool-euler-3b3396 à implementação local da emergência médica e publicar após validação.
 - **Arquivos / entrega:** candidato isolado codex/rotas-emergencia-medica; rotas de eventos/atletas exigem autenticação; server/deployCheck.js permite somente leituras locais do gate com token efêmero; cliente trata 401 encerrando sessão; CI inclui os testes de autenticação e os da emergência médica. Mudanças da emergência médica trazidas do checkout local; detalhes em docs/emergencia-medica.md.
 - **Validação:** [verificado] server 26/26; client 33/33; lint sem erros (3 avisos preexistentes em `OperacaoPage.jsx`); build Vite aprovado; `bash -n scripts/deploy-vps.sh` aprovado; diff sem conflitos e sem erros de whitespace. Leitura GET de `/api/health` em produção respondeu 200 antes e depois do deploy. CI/CD `39528865715` passou: validação, preflight e deploy concluídos; healthcheck pós-deploy respondeu `ok: true`, `diskWriteError: null`. Não testado em celular.
 - **Riscos / pendências:** tokens ausentes/expirados retornam ao login; dados de saúde e ocorrências continuam sujeitos à pendência de retenção LGPD já registrada. O workflow publicado usou snapshot, healthcheck e rollback automático; CI e deploy do commit `2a13ee0` concluídos. Permanecem tokens ausentes/expirados retornando ao login e a pendência de retenção LGPD.
 - **Próximo passo:** criar commit integrado e publicar na main conforme autorização do Yuri; acompanhar validação/healthcheck e rollback do workflow.
-## Penúltima atualização
-
-- **Quando / quem:** 2026-10-20 · Claude Code (Opus 5.5), sessão delegada pela sessão orquestradora — Fase A, etapa 1 redefinida pelo Yuri.
-- **Pedido:** dados de saúde vêm da planilha de inscrição (outro sistema), não de formulário: na importação, seção "Saúde" para marcar colunas de saúde e quais aparecem na página pública; escolha salva por evento e mantida ao reimportar; página pública mostra nome, peito, modalidade e as colunas públicas embaixo dos campos da ocorrência; CPF, telefone, e-mail, endereço e nascimento nunca públicos; Médico vê todas.
-- **Arquivos:** removidos o montador de perguntas, `FichaMedicaPage` e as rotas `/api/public/ficha-medica`. `server/medico.js` reescrito (colunas de saúde, regra de identificação, ocorrências); `server/server.js` (`healthFields` em `saveAthletesForEvent`, POST de atletas e chunks, GET de atletas; validação pública do kit e espelho escondem colunas de saúde); `ImportarAtletasModal` (seção Saúde; "contato de emergência" deixa de sobrescrever o telefone); `OperacaoPage` e `eventsApi` (levam e trazem `healthFields`); `EmergenciaPage`, `MedicoPage`, `EventoMedicoModal` (QR + resumo). Detalhes: [`docs/emergencia-medica.md`](docs/emergencia-medica.md).
-- **Validação real:** server 25/25 (fluxo HTTP: escolha salva e mantida no autosave, telefone forçado a privado, kit e espelho sem saúde, página pública sem CPF/telefone/coluna privada, médico com todas, vínculo da ocorrência sobrevive à reimportação); client 33/33; lint sem erro; build ok. Navegador local com planilha fictícia de 10 colunas: marcar 5 colunas (contato de emergência bloqueado como "só no painel"), importar, reimportar com marcações pré-selecionadas, página pública no celular (3 colunas públicas embaixo, Enviar fixo no rodapé), ocorrência nº 1, painel do médico com as 5 colunas.
-- **Riscos / pendências:** sem deploy (aguarda validação do candidato); as rotas de eventos/atletas agora exigem login; retenção LGPD a definir; alerta sonoro não ouvido de fato; QR impresso não lido por celular real.
-- **Próximo passo:** Yuri homologa e autoriza o push; testar com a planilha real do sistema de inscrição.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -45,5 +46,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-21 · Antigravity (TONE) · Cálculo automático e exibição da idade do corredor na busca, ficha e painel médico.
 - 2026-10-21 · Codex/Tony · Integração publicada em `2a13ee0`; CI/CD e healthcheck pós-deploy aprovados.
-- 2026-10-20 · Claude Code · Emergência médica: colunas de saúde na importação, página pública via QR do peito, perfil MEDICO com fila (local, sem deploy).

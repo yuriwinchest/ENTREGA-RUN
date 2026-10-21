@@ -2,9 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   buildHealthFields,
+  calculateAge,
   canBeHealthColumn,
   countByStatus,
   isIdentifyingColumn,
+  formatAge,
   prefillHealthSelection,
   elapsedLabel,
   emergencyUrl,
@@ -76,4 +78,39 @@ test('importação: colunas de saúde, públicas e reimportação', () => {
     prefillHealthSelection(['alergia', 'remedio controlado', 'EQUIPE'], [{ key: 'ALERGIA', publico: true }, { key: 'Remédio controlado', publico: false }]),
     { 0: { saude: true, publico: true }, 1: { saude: true, publico: false } },
   )
+})
+
+test('cálculo e formatação de idade: explícita, nascimento e fallbacks', () => {
+  const ref = new Date(2026, 9, 21) // 21 de Outubro de 2026
+
+  // Aniversário já passou este ano
+  assert.equal(calculateAge({ nascimento: '22/08/1995' }, ref), 31)
+  // Aniversário ainda não chegou este ano
+  assert.equal(calculateAge({ nascimento: '22/12/1995' }, ref), 30)
+  // Aniversário é exatamente hoje
+  assert.equal(calculateAge({ nascimento: '21/10/1995' }, ref), 31)
+  // Formato ISO
+  assert.equal(calculateAge({ nascimento: '1990-05-15' }, ref), 36)
+  // Idade explícita numérica tem prioridade
+  assert.equal(calculateAge({ idade: 42, nascimento: '22/08/1995' }, ref), 42)
+  // Idade explícita em string
+  assert.equal(calculateAge({ idade: ' 50 anos ' }, ref), 50)
+  // Campo de nascimento em customFields
+  assert.equal(calculateAge({ customFields: { 'DATA DE NASCIMENTO': '10/01/2000' } }, ref), 26)
+  // Idade em customFields
+  assert.equal(calculateAge({ customFields: { IDADE: 28 } }, ref), 28)
+  // Data inválida ou vazia retorna null
+  assert.equal(calculateAge(null, ref), null)
+  assert.equal(calculateAge({}, ref), null)
+  assert.equal(calculateAge({ nascimento: 'invalido' }, ref), null)
+  assert.equal(calculateAge({ nascimento: '32/13/2000' }, ref), null)
+  // Data futura retorna null
+  assert.equal(calculateAge({ nascimento: '01/01/2030' }, ref), null)
+
+  // Formatação
+  assert.equal(formatAge(31), '31 anos')
+  assert.equal(formatAge(1), '1 ano')
+  assert.equal(formatAge(0), '0 anos')
+  assert.equal(formatAge(null), '')
+  assert.equal(formatAge(''), '')
 })
