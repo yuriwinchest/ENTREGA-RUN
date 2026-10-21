@@ -23,6 +23,8 @@ OVERRIDE_FILE="$(mktemp /tmp/entregas-run-compose.XXXXXXXX.yml)"
 LOCK_FILE="$APP_DIR/.deploy.lock"
 DEPLOY_STARTED=0
 DEPLOY_OK=0
+QR_RELEASE_LOCK="$APP_DIR/data/.emergency-links-release-pending"
+QR_RELEASE_LOCK_CREATED=0
 PREVIOUS_IMAGE=''
 
 cleanup() {
@@ -48,6 +50,7 @@ EOF
       [[ "$restored" == 1 ]] || echo 'Rollback executado; verificar saúde do serviço imediatamente.' >&2
     fi
   fi
+  if [[ "$QR_RELEASE_LOCK_CREATED" == 1 ]]; then rm -f -- "$QR_RELEASE_LOCK"; fi
   git -C "$APP_DIR" worktree remove --force "$BUILD_DIR" >/dev/null 2>&1 || true
   [[ -f "$OVERRIDE_FILE" ]] && rm -f -- "$OVERRIDE_FILE"
   [[ -d "$BUILD_DIR" ]] && rmdir -- "$BUILD_DIR" 2>/dev/null || true
@@ -136,6 +139,13 @@ services:
   $SERVICE:
     image: $IMAGE
 EOF
+# Novos vínculos/arquivamentos só entram depois da validação da imagem.
+# Na primeira publicação a imagem de rollback ainda ignora esses estados.
+( set -o noclobber; printf '%s\n' "$DEPLOY_SHA" > "$QR_RELEASE_LOCK" ) || {
+  echo 'Validação de QR pendente de outra publicação; conferir antes de continuar.' >&2
+  exit 1
+}
+QR_RELEASE_LOCK_CREATED=1
 DEPLOY_STARTED=1
 docker compose -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE" up -d --no-build --no-deps "$SERVICE"
 [[ "$(docker inspect -f '{{.Image}}' "$SERVICE")" == "$(docker image inspect -f '{{.Id}}' "$IMAGE")" ]] || {

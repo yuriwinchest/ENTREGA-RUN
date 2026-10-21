@@ -3,6 +3,7 @@ import Sidebar from './Sidebar.jsx'
 import CidadeAutocomplete from './CidadeAutocomplete.jsx'
 import DataPickerInput from './DataPickerInput.jsx'
 import EventoMedicoModal from './EventoMedicoModal.jsx'
+import { emergencyLinksApi } from '../utils/medicoApi.js'
 import { apiCreateEvent, apiUpdateEvent, apiDeleteEvent } from '../utils/eventsApi.js'
 import { filterEvents, getEventStatusCounts } from '../utils/eventFilter.js'
 import './EventosPage.css'
@@ -174,6 +175,9 @@ export default function EventosPage({
   const [openDropdownId, setOpenDropdownId] = useState(null)
   const [editingEvent, setEditingEvent] = useState(null)
   const [deletingEvent, setDeletingEvent] = useState(null)
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false)
+  const [eventMutationBusy, setEventMutationBusy] = useState(false)
+  const [eventMutationError, setEventMutationError] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [medicoEventId, setMedicoEventId] = useState(null)
   const [newEventForm, setNewEventForm] = useState({
@@ -199,6 +203,7 @@ export default function EventosPage({
     planejados: countPlanejados,
     finalizados: countFinalizados,
     todos: countTodos,
+    arquivados: countArquivados,
   } = getEventStatusCounts(visibleEvents)
 
   const filteredEvents = filterEvents(visibleEvents, { statusFilter, search })
@@ -249,16 +254,31 @@ export default function EventosPage({
     setEditingEvent(null)
   }
 
-  function handleConfirmDelete() {
+  async function handleConfirmDelete() {
     if (!deletingEvent) return
+    if (!deleteAcknowledged || eventMutationBusy) return
     if (!canDelete) {
       alert('Somente o Super Admin tem permissão para excluir eventos.')
       setDeletingEvent(null)
       return
     }
     const idToDelete = deletingEvent.id
+    setEventMutationBusy(true)
+    const removed = await apiDeleteEvent(idToDelete, true)
+    setEventMutationBusy(false)
+    if (!removed) return setEventMutationError('A exclusão não foi confirmada pelo servidor. O evento permanece na lista.')
     setEvents((prev) => prev.filter((ev) => ev.id !== idToDelete))
-    apiDeleteEvent(idToDelete).catch(() => {})
+    setDeletingEvent(null)
+  }
+
+  async function handleArchive(event, archived) {
+    if (eventMutationBusy) return
+    setEventMutationBusy(true)
+    setEventMutationError('')
+    const response = await emergencyLinksApi.archive(event.id, archived)
+    setEventMutationBusy(false)
+    if (!response.ok) return setEventMutationError(response.data?.message || 'Não foi possível salvar o evento.')
+    setEvents((prev) => prev.map((item) => item.id === event.id ? response.data.event : item))
     setDeletingEvent(null)
   }
 
@@ -325,6 +345,7 @@ export default function EventosPage({
           </div>
         </header>
 
+        {eventMutationError && <p role="alert">{eventMutationError}</p>}
         {/* Navegação de Abas por Status */}
         <nav className="eventos-tabs-row" role="tablist" aria-label="Filtrar eventos por status">
           <button
@@ -372,6 +393,9 @@ export default function EventosPage({
           >
             <span>TODOS</span>
             <span className="tab-counter-badge">{countTodos}</span>
+          </button>
+          <button type="button" role="tab" aria-selected={statusFilter === 'ARQUIVADO'} className={`eventos-tab-btn tab-all ${statusFilter === 'ARQUIVADO' ? 'active' : ''}`} onClick={() => setStatusFilter('ARQUIVADO')}>
+            <span>ARQUIVADOS</span><span className="tab-counter-badge">{countArquivados}</span>
           </button>
         </nav>
 
@@ -441,6 +465,8 @@ export default function EventosPage({
                   ? 'Todos os eventos cadastrados já foram iniciados ou finalizados.'
                   : statusFilter === 'FINALIZADO'
                   ? 'Nenhum evento foi marcado como finalizado até o momento.'
+                  : statusFilter === 'ARQUIVADO'
+                  ? 'Nenhum evento arquivado. Arquivar preserva os dados e desativa a página pública de emergência.'
                   : 'Cadastre o seu primeiro evento esportivo para começar a operação.'}
               </p>
 
@@ -498,7 +524,7 @@ export default function EventosPage({
                   <span className="event-date">{event.date}</span>
 
                   <div className="event-top-actions">
-                    {!isOperator && (
+                    {!isOperator && event.status !== 'ARQUIVADO' && (
                       <button
                         type="button"
                         className="icon-action-btn"
@@ -514,15 +540,17 @@ export default function EventosPage({
                         type="button"
                         className="icon-action-btn delete"
                         title="Excluir evento"
-                        onClick={() => setDeletingEvent(event)}
+                        onClick={() => { setDeleteAcknowledged(false); setEventMutationError(''); setDeletingEvent(event) }}
                       >
                         <TrashIcon />
                       </button>
                     )}
 
+                    {canDelete && event.status === 'ARQUIVADO' && <button type="button" disabled={eventMutationBusy} className="icon-action-btn" title="Restaurar como planejado" onClick={() => handleArchive(event, false)}>Restaurar</button>}
+
                     {/* Status Pill Button + Dropdown Container */}
                     <div className="status-dropdown-container">
-                      {isOperator ? (
+                      {isOperator || event.status === 'ARQUIVADO' ? (
                         <div
                           className={`status-pill read-only ${
                             event.status === 'EM OPERAÇÃO'
@@ -644,6 +672,7 @@ export default function EventosPage({
                   <button
                     type="button"
                     className="card-action-btn"
+                    disabled={event.status === 'ARQUIVADO'}
                     onClick={() => onNavigate('operacao', event.id)}
                   >
                     <PackageIcon />
@@ -857,6 +886,8 @@ export default function EventosPage({
         {medicoEventId && events.some((ev) => ev.id === medicoEventId) && (
           <EventoMedicoModal
             event={events.find((ev) => ev.id === medicoEventId)}
+            events={events}
+            canManageLinks={canDelete}
             onClose={() => setMedicoEventId(null)}
             onOpenOperacao={() => {
               setMedicoEventId(null)
@@ -889,8 +920,12 @@ export default function EventosPage({
                 <p className="modal-delete-text">
                   Tem certeza que deseja excluir o evento{' '}
                   <strong>"{deletingEvent.name}"</strong>? Esta ação não poderá
-                  ser desfeita.
+                  ser desfeita. Os dados de saúde serão apagados e os QR Codes vinculados deixarão de abrir o evento.
                 </p>
+                <p className="modal-delete-text">Para guardar o evento e os dados, prefira arquivar. O arquivamento desativa a página pública de emergência e permite reaproveitar o QR no evento correto.</p>
+                {deletingEvent.status !== 'ARQUIVADO' && <button type="button" className="modal-btn-cancel" disabled={eventMutationBusy} onClick={() => handleArchive(deletingEvent, true)}>ARQUIVAR E PRESERVAR DADOS</button>}
+                <label className="modal-delete-text"><input type="checkbox" checked={deleteAcknowledged} disabled={eventMutationBusy} onChange={(e) => setDeleteAcknowledged(e.target.checked)} /> Entendi que os dados serão apagados e os QR Codes ficarão indisponíveis até serem vinculados a outro evento.</label>
+                {eventMutationError && <p role="alert">{eventMutationError}</p>}
 
                 <div className="modal-actions-row">
                   <button
@@ -904,8 +939,9 @@ export default function EventosPage({
                     type="button"
                     className="modal-btn-delete"
                     onClick={handleConfirmDelete}
+                    disabled={!deleteAcknowledged || eventMutationBusy}
                   >
-                    EXCLUIR
+                    {eventMutationBusy ? 'AGUARDE…' : 'EXCLUIR DEFINITIVAMENTE'}
                   </button>
                 </div>
               </div>

@@ -43,6 +43,7 @@ function getEnv() {
 }
 
 export function isAppwriteEnabled() {
+  if (process.env.APPWRITE_ENABLED === 'false') return false
   const { endpoint, projectId, apiKey } = getEnv()
   return Boolean(endpoint && projectId && apiKey)
 }

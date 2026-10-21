@@ -27,6 +27,7 @@ async function freePort() {
 
 test('rotas de eventos e atletas exigem login; públicas seguem abertas', async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'entregas-auth-'))
+  fs.writeFileSync(path.join(dataDir, 'events.json'), '[]')
   const port = await freePort()
   const adminPassword = `t-${Date.now()}-senha`
   const child = spawn(process.execPath, ['server/server.js'], {
@@ -36,6 +37,7 @@ test('rotas de eventos e atletas exigem login; públicas seguem abertas', async 
       PORT: String(port),
       DATA_DIR: dataDir,
       APPWRITE_ENABLED: 'false',
+      APPWRITE_API_KEY: '',
       APPWRITE_ENDPOINT: '',
       ADMIN_EMAIL: 'admin@teste.local',
       ADMIN_PASSWORD: adminPassword,
@@ -98,7 +100,7 @@ test('rotas de eventos e atletas exigem login; públicas seguem abertas', async 
     assert.ok(events.body.events.some((event) => event.id === eventId))
     const sync = await call('POST', '/api/events/sync', { events: [{ id: 'evt-sync', name: 'SYNC' }] }, admin)
     assert.equal(sync.status, 200)
-    assert.equal((await call('DELETE', '/api/events/evt-sync', undefined, admin)).status, 200)
+    assert.equal((await call('DELETE', '/api/events/evt-sync', { confirmQrInvalidation: true }, admin)).status, 200)
 
     // Nada do que foi tentado sem login chegou ao disco.
     assert.ok(!events.body.events.some((event) => event.id === 'evt-intruso'))

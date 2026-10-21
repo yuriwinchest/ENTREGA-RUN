@@ -3,7 +3,7 @@
  */
 
 export function isEventActive(event) {
-  if (!event) return false
+  if (!event || event.status === 'ARQUIVADO') return false
   return event.status === 'EM OPERAÇÃO' || event.status === 'EM_OPERACAO' || event.active === true
 }
 
@@ -14,7 +14,7 @@ export function isEventFinalizado(event) {
 
 export function isEventPlanejado(event) {
   if (!event) return false
-  return !isEventActive(event) && !isEventFinalizado(event)
+  return event?.status !== 'ARQUIVADO' && !isEventActive(event) && !isEventFinalizado(event)
 }
 
 export function getEventStatusCounts(events = []) {
@@ -22,7 +22,8 @@ export function getEventStatusCounts(events = []) {
     ativos: events.filter(isEventActive).length,
     planejados: events.filter(isEventPlanejado).length,
     finalizados: events.filter(isEventFinalizado).length,
-    todos: events.length,
+    todos: events.filter((event) => event.status !== 'ARQUIVADO').length,
+    arquivados: events.filter((event) => event.status === 'ARQUIVADO').length,
   }
 }
 
@@ -36,7 +37,7 @@ export function filterEvents(events = [], { statusFilter = 'ATIVOS', search = ''
       (event.location || '').toLowerCase().includes(term) ||
       (event.date || '').toLowerCase().includes(term)
 
-    let matchesStatus = true
+    let matchesStatus = event.status !== 'ARQUIVADO'
     if (statusFilter === 'ATIVOS') {
       matchesStatus = isEventActive(event)
     } else if (statusFilter === 'PLANEJADO') {
@@ -44,7 +45,9 @@ export function filterEvents(events = [], { statusFilter = 'ATIVOS', search = ''
     } else if (statusFilter === 'FINALIZADO') {
       matchesStatus = isEventFinalizado(event)
     } else if (statusFilter === 'TODOS') {
-      matchesStatus = true
+      matchesStatus = event.status !== 'ARQUIVADO'
+    } else if (statusFilter === 'ARQUIVADO') {
+      matchesStatus = event.status === 'ARQUIVADO'
     }
 
     return matchesSearch && matchesStatus

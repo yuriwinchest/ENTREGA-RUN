@@ -32,10 +32,17 @@ const enc = encodeURIComponent
 
 export const emergenciaApi = {
   evento: (eventId) => call(`/api/public/emergencia/${enc(eventId)}`),
-  buscar: (eventId, q) => call(`/api/public/emergencia/${enc(eventId)}/busca?q=${enc(q)}`),
-  atleta: (eventId, ref) => call(`/api/public/emergencia/${enc(eventId)}/atleta/${enc(ref)}`),
+  buscar: (eventId, q, expectedEventId) => call(`/api/public/emergencia/${enc(eventId)}/busca?q=${enc(q)}&event=${enc(expectedEventId || '')}`),
+  atleta: (eventId, ref, expectedEventId) => call(`/api/public/emergencia/${enc(eventId)}/atleta/${enc(ref)}?event=${enc(expectedEventId || '')}`),
   abrirOcorrencia: (eventId, payload) =>
     call(`/api/public/emergencia/${enc(eventId)}/ocorrencias`, { method: 'POST', body: payload }),
+}
+
+export const emergencyLinksApi = {
+  issue: (eventId) => call(`/api/events/${enc(eventId)}/emergency-links`, { method: 'POST', token: authToken() }),
+  preview: (code) => call(`/api/emergency-links/preview?code=${enc(code)}`, { token: authToken() }),
+  bind: (payload) => call('/api/emergency-links/binding', { method: 'PUT', body: payload, token: authToken() }),
+  archive: (eventId, archived) => call(`/api/events/${enc(eventId)}/archive`, { method: 'POST', body: { archived }, token: authToken() }),
 }
 
 export const medicoApi = {

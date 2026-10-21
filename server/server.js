@@ -10,6 +10,7 @@ import { hashPassword, verifyPassword } from './passwords.js'
 import { eventMetrics, mergeActiveAthletes } from './athleteSync.js'
 import { createSessionStore } from './sessionStore.js'
 import { deployCheckTokenFile } from './deployCheck.js'
+import { createEmergencyLinksStore, EMERGENCY_CODE } from './emergencyLinks.js'
 import {
   athleteKey,
   athleteRef,
@@ -596,7 +597,7 @@ function readEventsFromDisk() {
       if (fs.existsSync(filePath)) {
         const raw = fs.readFileSync(filePath, 'utf-8')
         const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed.filter(
             (e) =>
               e &&
@@ -618,9 +619,10 @@ function readEventsFromDisk() {
 // Estado em memória síncrono e ultra-rápido: qualquer requisição de qualquer
 // aparelho recebe o estado mais atual imediatamente em 0ms.
 let inMemoryEvents = readEventsFromDisk()
+const emergencyLinks = createEmergencyLinksStore(DATA_DIR)
 
 // Se o disco local estiver vazio em uma nova máquina, reidrata do Appwrite
-if (inMemoryEvents.length === 0 && isAppwriteEnabled()) {
+if (inMemoryEvents.length === 0 && !fs.existsSync(EVENTS_FILE) && isAppwriteEnabled()) {
   fetchEventsFromAppwrite()
     .then((remote) => {
       if (Array.isArray(remote) && remote.length > 0) {
@@ -771,12 +773,11 @@ app.post('/api/events', requireAuth, (req, res) => {
     updatedAt: Date.now(),
   }
 
-  const existingIdx = inMemoryEvents.findIndex((e) => e.id === eventId)
-  if (existingIdx >= 0) {
-    inMemoryEvents[existingIdx] = { ...inMemoryEvents[existingIdx], ...newEvent }
-  } else {
-    inMemoryEvents.unshift(newEvent)
+  if (!EMERGENCY_CODE.test(eventId) || deletedEventIds.has(eventId) || emergencyLinks.reserved(eventId) || inMemoryEvents.some((event) => event.id === eventId)) {
+    return res.status(409).json({ ok: false, message: 'Identificador já utilizado. Crie um evento novo e reaproveite o QR pela opção própria.' })
   }
+
+  inMemoryEvents.unshift(newEvent)
 
   writeEventsToDisk(inMemoryEvents)
   mirrorEventToAppwrite(newEvent)
@@ -801,6 +802,7 @@ app.put('/api/events/:eventId', requireAuth, (req, res) => {
   }
 
   const current = inMemoryEvents[index]
+  if (current.status === 'ARQUIVADO') return res.status(409).json({ ok: false, message: 'Restaure o evento antes de alterá-lo.' })
   const body = req.body || {}
   const validStatuses = ['PLANEJADO', 'EM OPERAÇÃO', 'FINALIZADO']
 
@@ -839,7 +841,15 @@ app.delete('/api/events/:eventId', requireAuth, (req, res) => {
   }
 
   const eventId = String(req.params.eventId || '').trim().slice(0, 64)
-  const initialLength = inMemoryEvents.length
+  if (!inMemoryEvents.some((event) => event.id === eventId)) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  if (req.body?.confirmQrInvalidation !== true) return res.status(409).json({ ok: false, message: 'A exclusão desativa os QR Codes vinculados e apaga os dados de saúde. Prefira arquivar ou confirme esse efeito.' })
+  try {
+    emergencyLinks.issue(eventId, req.session.userId)
+    fs.rmSync(getAthletesFilePath(eventId), { force: true })
+  } catch {
+    return res.status(503).json({ ok: false, message: 'Não foi possível preservar o QR e remover a planilha. Evento não excluído.' })
+  }
+  athletesCache.delete(eventId)
   inMemoryEvents = inMemoryEvents.filter((e) => e.id !== eventId)
 
   markEventDeleted(eventId)
@@ -847,13 +857,62 @@ app.delete('/api/events/:eventId', requireAuth, (req, res) => {
   runPhotoSweep()
   medicoStore.deleteEvent(eventId)
 
-  if (inMemoryEvents.length === initialLength) {
-    return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
-  }
-
   writeEventsToDisk(inMemoryEvents)
   void deleteEventFromAppwrite(eventId)
   res.json({ ok: true })
+})
+
+// Endereços impressos ficam no volume, separados dos dados médicos do evento.
+app.post('/api/events/:eventId/emergency-links', requireAuth, (req, res) => {
+  const event = inMemoryEvents.find((item) => item.id === req.params.eventId)
+  if (!event) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  const session = req.session
+  if (session.role !== 'ADMIN' && !(session.role === 'SUB_ADMIN' && (session.eventId === 'all' || session.eventId === event.id))) {
+    return res.status(403).json({ ok: false, message: 'Sem permissão para gerenciar o QR deste evento.' })
+  }
+  try {
+    const primary = emergencyLinks.issue(event.id, session.userId)
+    res.json({ ok: true, primaryCode: primary.code, links: emergencyLinks.forEvent(event.id) })
+  } catch { res.status(503).json({ ok: false, message: 'Falha ao salvar o endereço permanente. Tente novamente.' }) }
+})
+
+app.get('/api/emergency-links/preview', requireAuth, (req, res) => {
+  if (req.session.role !== 'ADMIN') return res.status(403).json({ ok: false, message: 'Somente o Super Admin pode transferir um QR.' })
+  const code = String(req.query.code || '')
+  if (!EMERGENCY_CODE.test(code)) return res.status(400).json({ ok: false, message: 'Código inválido.' })
+  const link = emergencyLinks.get(code)
+  const previous = inMemoryEvents.find((event) => event.id === (link?.eventId || code))
+  if (!link && !previous && !deletedEventIds.has(code)) return res.status(404).json({ ok: false, message: 'Endereço antigo não encontrado. Confira o QR impresso.' })
+  res.json({ ok: true, code, revision: link?.revision || 0, previous: previous ? { id: previous.id, name: previous.name, date: previous.date, status: previous.status } : null })
+})
+
+app.put('/api/emergency-links/binding', requireAuth, (req, res) => {
+  if (req.session.role !== 'ADMIN') return res.status(403).json({ ok: false, message: 'Somente o Super Admin pode transferir um QR.' })
+  if (fs.existsSync(path.join(DATA_DIR, '.emergency-links-release-pending'))) return res.status(503).json({ ok: false, message: 'Atualização em validação. Aguarde alguns instantes e tente novamente.' })
+  const { code, targetEventId, expectedRevision, confirmed } = req.body || {}
+  const target = inMemoryEvents.find((event) => event.id === targetEventId)
+  if (!target || target.status === 'ARQUIVADO') return res.status(400).json({ ok: false, message: 'Escolha um evento não arquivado.' })
+  if (confirmed !== true) return res.status(400).json({ ok: false, message: 'Confirme o evento, a data e a lista de atletas do destino.' })
+  try {
+    const result = emergencyLinks.bind({ code: String(code || ''), eventId: target.id, expectedRevision, actor: req.session.userId, knownDeleted: deletedEventIds.has(code), currentEvent: (id) => inMemoryEvents.find((event) => event.id === id) })
+    if (result.status) return res.status(result.status).json({ ok: false, message: result.message })
+    res.json({ ok: true, link: result.link })
+  } catch { res.status(503).json({ ok: false, message: 'Falha ao salvar o vínculo. Nenhuma transferência foi confirmada.' }) }
+})
+
+app.post('/api/events/:eventId/archive', requireAuth, (req, res) => {
+  if (req.session.role !== 'ADMIN') return res.status(403).json({ ok: false, message: 'Somente o Super Admin pode arquivar ou restaurar.' })
+  if (fs.existsSync(path.join(DATA_DIR, '.emergency-links-release-pending'))) return res.status(503).json({ ok: false, message: 'Atualização em validação. Aguarde alguns instantes e tente novamente.' })
+  const event = inMemoryEvents.find((item) => item.id === req.params.eventId)
+  if (!event) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  if (typeof req.body?.archived !== 'boolean') return res.status(400).json({ ok: false, message: 'Informe se deseja arquivar ou restaurar.' })
+  const updated = { ...event, status: req.body.archived ? 'ARQUIVADO' : 'PLANEJADO', active: false, updatedAt: Date.now() }
+  const next = inMemoryEvents.map((item) => item.id === event.id ? updated : item)
+  writeEventsToDisk(next)
+  if (diskWriteError) return res.status(503).json({ ok: false, message: 'Falha ao salvar o arquivamento.' })
+  inMemoryEvents = next
+  mirrorEventToAppwrite(updated)
+  res.json({ ok: true, event: updated })
 })
 
 // POST /api/events/sync — Sincronização em lote (dispositivo móvel -> servidor)
@@ -871,6 +930,7 @@ app.post('/api/events/sync', requireAuth, (req, res) => {
     const sanitized = sanitizeEventPayload(raw, false)
     if (!sanitized) continue
     const id = String(raw.id).trim().slice(0, 64)
+    if (!EMERGENCY_CODE.test(id) || emergencyLinks.reserved(id)) continue
     const existingIdx = inMemoryEvents.findIndex((e) => e.id === id)
     if (existingIdx === -1) {
       inMemoryEvents.push({ ...sanitized, id, updatedAt: Date.now() })
@@ -893,6 +953,17 @@ app.post('/api/events/sync', requireAuth, (req, res) => {
 // Permite consulta pública instantânea via QR Code e sincronização.
 // ============================================================
 const athletesJsonParser = express.json({ limit: '20mb' })
+
+app.use('/api/events/:eventId/athletes', (req, res, next) => {
+  if (req.method === 'GET') return next()
+  return requireAuth(req, res, () => {
+    if (!inMemoryEvents.some((event) => event.id === req.params.eventId)) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+    if (inMemoryEvents.some((event) => event.id === req.params.eventId && event.status === 'ARQUIVADO')) {
+      return res.status(409).json({ ok: false, message: 'Evento arquivado. Restaure-o antes de alterar atletas ou registrar entregas.' })
+    }
+    next()
+  })
+})
 
 function getAthletesFilePath(eventId) {
   const safeId = String(eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
@@ -1561,9 +1632,25 @@ function publicAthleteSummary(ctx, athlete) {
   }
 }
 
+function publicEmergencyContext(req, res) {
+  res.set('Cache-Control', 'no-store')
+  const code = String(req.params.eventId || '')
+  const ctx = EMERGENCY_CODE.test(code) ? emergencyContext(emergencyLinks.resolve(code)) : null
+  if (!ctx || ctx.event.status === 'ARQUIVADO') {
+    res.status(404).json({ ok: false, message: 'Página indisponível. O evento pode ter sido arquivado ou excluído. Procure a organização.' })
+    return null
+  }
+  const expected = req.query.event || req.body?.expectedEventId
+  if (expected && expected !== ctx.eventId) {
+    res.status(409).json({ ok: false, message: 'O destino deste QR foi atualizado. Recarregue a página e confira o evento antes de continuar.' })
+    return null
+  }
+  return ctx
+}
+
 app.get('/api/public/emergencia/:eventId', emergenciaReadLimiter, (req, res) => {
-  const ctx = emergencyContext(req.params.eventId)
-  if (!ctx) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  const ctx = publicEmergencyContext(req, res)
+  if (!ctx) return
   res.json({
     ok: true,
     event: {
@@ -1577,8 +1664,8 @@ app.get('/api/public/emergencia/:eventId', emergenciaReadLimiter, (req, res) => 
 })
 
 app.get('/api/public/emergencia/:eventId/busca', emergenciaReadLimiter, (req, res) => {
-  const ctx = emergencyContext(req.params.eventId)
-  if (!ctx) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  const ctx = publicEmergencyContext(req, res)
+  if (!ctx) return
   const result = searchAthletes(ctx.athletes, req.query.q)
   res.json({
     ok: true,
@@ -1589,7 +1676,8 @@ app.get('/api/public/emergencia/:eventId/busca', emergenciaReadLimiter, (req, re
 })
 
 app.get('/api/public/emergencia/:eventId/atleta/:ref', emergenciaReadLimiter, (req, res) => {
-  const ctx = emergencyContext(req.params.eventId)
+  const ctx = publicEmergencyContext(req, res)
+  if (!ctx) return
   const athlete = ctx?.index.byRef.get(String(req.params.ref || ''))
   if (!athlete) return res.status(404).json({ ok: false, message: 'Atleta não encontrado neste evento.' })
   res.json({
@@ -1603,8 +1691,8 @@ app.get('/api/public/emergencia/:eventId/atleta/:ref', emergenciaReadLimiter, (r
 })
 
 app.post('/api/public/emergencia/:eventId/ocorrencias', emergenciaWriteLimiter, (req, res) => {
-  const ctx = emergencyContext(req.params.eventId)
-  if (!ctx) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+  const ctx = publicEmergencyContext(req, res)
+  if (!ctx) return
   const { value, error } = validateOcorrencia(req.body)
   if (error) return res.status(400).json({ ok: false, message: error })
 

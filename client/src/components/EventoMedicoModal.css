@@ -332,3 +332,14 @@
   padding: 1px 6px;
   font-size: 10.5px;
 }
+
+.evmed-reuse { border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; color: #0c142c; }
+.evmed-reuse summary { cursor: pointer; font-weight: 800; }
+.evmed-reuse p { line-height: 1.5; }
+.evmed-reuse label { display: block; margin: 12px 0 6px; font-weight: 700; }
+.evmed-reuse input:not([type="checkbox"]), .evmed-reuse select { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px; border: 1px solid #94a3b8; border-radius: 8px; background: white; color: #0c142c; font: inherit; }
+.evmed-reuse .evmed-btn { margin-top: 12px; }
+.evmed-confirm { line-height: 1.6; }
+.evmed-confirm input { width: 20px; height: 20px; margin-right: 8px; vertical-align: middle; }
+.evmed-alias { display: block; overflow-wrap: anywhere; margin-top: 8px; }
+.evmed-btn:disabled { opacity: .5; cursor: not-allowed; }
