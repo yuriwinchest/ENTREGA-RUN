@@ -10,6 +10,7 @@ import MedicoPage from './components/MedicoPage.jsx'
 import ValidarAtletaPage from './components/ValidarAtletaPage.jsx'
 import TutorialModal from './components/TutorialModal.jsx'
 import UsuariosPage from './components/UsuariosPage.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { SESSION_EXPIRED_EVENT, apiFetchEvents, apiUpdateEvent } from './utils/eventsApi.js'
 import { readKitDecision } from './utils/kitDecisionLock.js'
 
@@ -221,9 +222,7 @@ export default function App() {
 
   const effectiveEventId = isRestrictedUser
     ? (user?.eventId || '')
-    : (selectedEventId && events.some((e) => e.id === selectedEventId)
-      ? selectedEventId
-      : (activeEventFallback?.id || ''))
+    : (selectedEventId || activeEventFallback?.id || '')
 
   const [currentPage, setCurrentPage] = useState(() => {
     const path = window.location.pathname
@@ -483,8 +482,15 @@ export default function App() {
     ? { id: user.eventId, name: user.eventName || 'PROJETO ATRIBUÍDO' }
     : activeEventFallback
 
+  const eventForOperacao = events.find((e) => e.id === effectiveEventId) || (
+    effectiveEventId
+      ? { id: effectiveEventId, name: 'CARREGANDO...', status: 'EM OPERAÇÃO', total: 0, entregues: 0, pendentes: 0, concl: '0.0%' }
+      : assignedEventFallback
+  )
+
   return (
-    <div className="app-container">
+    <ErrorBoundary onNavigate={navigateTo}>
+      <div className="app-container">
       {currentPage === 'dashboard' && (
         <DashboardPage
           events={events}
@@ -520,7 +526,7 @@ export default function App() {
       {currentPage === 'operacao' && (
         <OperacaoPage
           key={effectiveEventId || 'operacao'}
-          event={events.find((e) => e.id === effectiveEventId) || assignedEventFallback}
+          event={eventForOperacao}
           user={user}
           onUpdateEvent={(updatedEvent) => {
             setEvents((prev) =>
@@ -556,5 +562,6 @@ export default function App() {
         />
       )}
     </div>
+  </ErrorBoundary>
   )
 }

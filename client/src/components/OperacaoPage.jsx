@@ -912,7 +912,7 @@ export default function OperacaoPage({
   const camisetaStats = useMemo(() => {
     const map = {}
     athletes.forEach((a) => {
-      const raw = (a.camiseta || a.tamanho || a['TAMANHO'] || a['CAMISETA'] || 'M').trim().toUpperCase()
+      const raw = String(a.camiseta || a.tamanho || a['TAMANHO'] || a['CAMISETA'] || 'M').trim().toUpperCase()
       if (!map[raw]) {
         map[raw] = { size: raw, total: 0, entregues: 0, pendentes: 0, conclPercent: 0 }
       }
@@ -942,7 +942,7 @@ export default function OperacaoPage({
   const modalidadeStats = useMemo(() => {
     const map = {}
     athletes.forEach((a) => {
-      const raw = (
+      const raw = String(
         a.modalidade ||
         a.distancia ||
         a.percurso ||
@@ -1004,7 +1004,7 @@ export default function OperacaoPage({
               atletaNome: athlete.nome,
               atletaCpf: athlete.doc || '—',
               atletaChip: athlete.chip || '',
-              tipo: athlete.entreguePara && athlete.entreguePara.trim().toUpperCase() !== athlete.nome.trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
+              tipo: athlete.entreguePara && String(athlete.entreguePara).trim().toUpperCase() !== String(athlete.nome || '').trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
               retiradoPor: athlete.entreguePara || athlete.nome,
               operadorNome: athlete.entreguePor || 'Não informado',
               operadorEmail: '',
@@ -1067,7 +1067,7 @@ export default function OperacaoPage({
             atletaNome: athlete.nome,
             atletaCpf: athlete.doc || '—',
             atletaChip: athlete.chip || '',
-            tipo: athlete.entreguePara && athlete.entreguePara.trim().toUpperCase() !== athlete.nome.trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
+            tipo: athlete.entreguePara && String(athlete.entreguePara).trim().toUpperCase() !== String(athlete.nome || '').trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
             retiradoPor: athlete.entreguePara || athlete.nome,
             operadorNome: athlete.entreguePor || 'Não informado',
             operadorEmail: '',
@@ -1198,7 +1198,7 @@ export default function OperacaoPage({
     // 5. Conta real e precisa de entregas feitas neste evento por cada operador
     const list = Array.from(map.values())
     for (const op of list) {
-      const opNameLower = op.name.trim().toLowerCase()
+      const opNameLower = String(op.name || '').trim().toLowerCase()
       const athleteMatches = deliveredAthletes.filter((a) => {
         const entPor = String(a.entreguePor || '').trim().toLowerCase()
         return entPor === opNameLower || (op.id && entPor === String(op.id).toLowerCase())
@@ -1211,7 +1211,7 @@ export default function OperacaoPage({
       op.count = Math.max(athleteMatches, auditMatches)
     }
 
-    return list.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    return list.sort((a, b) => b.count - a.count || String(a.name || '').localeCompare(String(b.name || '')))
   }, [user, eventUsers, currentEvent.id, athletes, audits])
 
 
@@ -1779,7 +1779,7 @@ export default function OperacaoPage({
           atletaCpf: normalized.doc || item.atletaCpf,
           atletaChip: normalized.chip,
           retiradoPor: recipient,
-          tipo: recipient.trim().toUpperCase() !== normalized.nome.trim().toUpperCase()
+          tipo: String(recipient || '').trim().toUpperCase() !== String(normalized.nome || '').trim().toUpperCase()
             ? 'TERCEIRO'
             : 'ATLETA',
           kit: normalized.kit || item.kit,
@@ -2065,7 +2065,7 @@ export default function OperacaoPage({
       atletaNome: athlete.nome,
       atletaCpf: athlete.doc || '—',
       atletaChip: athlete.chip || '',
-      tipo: recipient.toUpperCase() !== athlete.nome.trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
+      tipo: String(recipient || '').trim().toUpperCase() !== String(athlete.nome || '').trim().toUpperCase() ? 'TERCEIRO' : 'ATLETA',
       retiradoPor: recipient,
       operadorNome: opName,
       operadorEmail: opEmail,
@@ -2195,7 +2195,7 @@ export default function OperacaoPage({
       const wordsB = nomeB.split(/\s+/).some((w) => w.startsWith(q)) ? 1 : 0
       if (wordsA !== wordsB) return wordsB - wordsA
 
-      return (a.nome || '').localeCompare(b.nome || '', 'pt-BR')
+      return String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR')
     })
   }
 
@@ -2641,8 +2641,8 @@ export default function OperacaoPage({
 
                 {/* 2. Cards de Destaque Superiores */}
                 {(() => {
-                  const hasShirtCard = Boolean(activeColumnKeys.has('camiseta') || (detailForm.camiseta && detailForm.camiseta !== '—' && detailForm.camiseta.trim() !== ''))
-                  const hasKitCard = Boolean(activeColumnKeys.has('kit') || (detailForm.kit && detailForm.kit !== '—' && detailForm.kit.trim() !== ''))
+                  const hasShirtCard = Boolean(activeColumnKeys.has('camiseta') || (detailForm.camiseta && detailForm.camiseta !== '—' && String(detailForm.camiseta).trim() !== ''))
+                  const hasKitCard = Boolean(activeColumnKeys.has('kit') || (detailForm.kit && detailForm.kit !== '—' && String(detailForm.kit).trim() !== ''))
                   const count = 1 + (hasShirtCard ? 1 : 0) + (hasKitCard ? 1 : 0)
 
                   return (
@@ -2886,7 +2886,7 @@ export default function OperacaoPage({
 
                   {/* Linha 4: KIT, CAMISETA, CHIP */}
                   <div className="detail-form-row-kit-chips">
-                    {(activeColumnKeys.has('kit') || Boolean(detailForm.kit && detailForm.kit !== '—' && detailForm.kit.trim() !== '')) && (
+                    {(activeColumnKeys.has('kit') || Boolean(detailForm.kit && detailForm.kit !== '—' && String(detailForm.kit).trim() !== '')) && (
                       <div className="athlete-form-group">
                         <label className="athlete-form-label">KIT</label>
                         <select
