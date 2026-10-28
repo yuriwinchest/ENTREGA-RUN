@@ -10,21 +10,21 @@
 
 ## Última atualização
 
+- **Quando / quem / fase:** 2026-10-28 · Codex/Tony, com UI, QA/Crowley e Ulisses/Vitor em subagentes · Fase A/B; código `67352ed..fbc795d`.
+- **Pedido / entrega:** Yuri autorizou publicar equipes e corrigir Usuários do sub-admin; redirecionamento indevido reproduzido/corrigido, recarga entre abas estabilizada, gate de equipes e rollback compatível. Detalhes: `docs/publicacao-admin-equipes-2026-10-28.md`.
+- **Validação real:** servidor 50/50, client 75/75, lint exit0 (4 avisos existentes), build/sintaxe bash/diff ok; navegador local reproduziu falha antiga e Usuários estável no candidato, com evidência sintética.
+- **Publicação:** runtime `fbc795d`, Actions `40789978678` success; dois domínios HTTP200 com bundle `index-Dl7Ksvzp.js`; snapshots/hash e manifesto/API preservaram 1 evento, 16.481 atletas e 865 entregas.
+- **Riscos / continuidade:** backup completo no volume obrigatório para equipes; Appwrite legado sem vínculo. Gate impede equipes durante validação, rollback antigo vetado se houver equipes; AI Memory atualizado em `decisoes/admin-equipes-2026-10-28.md`.
+- **Próximo passo:** Yuri conferir Usuários com sub-admin real e homologar administradores de equipe; sem teste destrutivo/cadastro real em produção; Fase C não iniciada.
+
+## Penúltima atualização
+
 - **Quando / quem / fase:** 2026-10-28 · Codex/Tony (UI, QA/segurança e Ulisses em subagentes) · Fase A; commits `67352ed..d93859b`.
 - **Pedido / entrega:** administrador secundário isolado; `TEAM_ADMIN`, equipe/autoria no servidor, principal global e legado no principal; rotas, sessões e cache protegidos. Arquivos e decisões: `docs/admin-equipes-2026-10-28.md`.
 - **Validação real:** servidor 49/49, client 70/70, lint exit 0 (4 avisos existentes), build final e diff check ok; navegador sintético confirma principal global, Alfa isolada e URL Beta recusada.
 - **Riscos / pendências:** schema Appwrite legado não guarda equipe; eventos de equipe persistem no volume, sem espelhar metadados. Recuperação exige backup local completo; rollback antigo perde isolamento. Sem deploy.
 - **Continuidade:** AI Memory gravado em `decisoes/admin-equipes-2026-10-28.md`; evidência visual em `docs/evidencias/admin-equipe-alfa-2026-10-28.png`.
 - **Próximo passo:** Yuri homologar candidato na branch `codex/admin-equipes`; publicação depende de autorização e plano operacional. Fase C não iniciada.
-
-## Penúltima atualização
-
-- **Quando / quem:** 2026-10-21 · Claude Code (Opus 5.5) · Fase B (homologação do Yuri).
-- **Pedido:** Espelho → Campos do Telão: os nomes dos campos apareciam cortados com "…"; ver o nome inteiro, mesmo que a tela cresça e precise rolar.
-- **Entrega:** `client/src/components/EspelhoModal.css`: nome e descrição dos cartões e itens quebram linha em vez de cortar; cartões um pouco mais largos (230 px / 210 px mínimos); caixa de seleção e etiqueta alinhadas ao topo quando o texto ocupa duas linhas. Só CSS.
-- **Validação real:** navegador local, aba Campos do Telão: 22 nomes, 0 cortados no computador e no celular (375 px), sem rolagem lateral, lista rola na vertical; teste de integridade do CSS ok; build ok.
-- **Riscos / pendências:** nenhum novo; continua valendo conferir em Eventos se algum evento ficou "CARREGANDO..." (registro anterior).
-- **Próximo passo:** Yuri conferir a aba Campos do Telão.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -46,5 +46,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-28 · Codex/Tony · Publicado `fbc795d`: equipes e Usuários do sub-admin; Actions40789978678 success.
 - 2026-10-28 · Codex/Tony · Equipes administrativas isoladas; candidato local `d93859b`, sem deploy.
-- 2026-10-21 · Claude Code · Espelho: nomes dos campos do telão inteiros (sem corte).
