@@ -13,7 +13,7 @@ import UsuariosPage from './components/UsuariosPage.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { SESSION_EXPIRED_EVENT, apiFetchEvents, apiUpdateEvent } from './utils/eventsApi.js'
 import { readKitDecision } from './utils/kitDecisionLock.js'
-import { activateSessionScope, clearPrivateCaches, canManageUsers, isEventBoundUser } from './utils/sessionScope.js'
+import { activateSessionScope, clearPrivateCaches, canManageUsers, isEventBoundUser, credentialStorageChangeRequiresReset } from './utils/sessionScope.js'
 
 const MOCK_EVENT_IDS = [
   '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6',
@@ -103,14 +103,18 @@ export default function App() {
   }, [user])
 
   useEffect(() => {
+    let currentToken = ''
+    try { currentToken = localStorage.getItem('entregas_run_token') || '' } catch {}
     function handleCredentialChange(event) {
-      if (['entregas_run_token', 'entregas_run_user'].includes(event.key)) {
+      if (event.storageArea && event.storageArea !== localStorage) return
+      if (credentialStorageChangeRequiresReset(event, user, currentToken)) {
+        clearPrivateCaches()
         window.location.reload()
       }
     }
     window.addEventListener('storage', handleCredentialChange)
     return () => window.removeEventListener('storage', handleCredentialChange)
-  }, [])
+  }, [user])
 
   // Sincroniza eventos locais com o servidor central e puxa atualizações em tempo real
   useEffect(() => {

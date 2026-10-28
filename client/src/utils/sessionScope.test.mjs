@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { activateSessionScope, clearPrivateCaches, canManageUsers, isEventBoundUser } from './sessionScope.js'
+import { activateSessionScope, clearPrivateCaches, canManageUsers, isEventBoundUser, credentialStorageChangeRequiresReset } from './sessionScope.js'
 
 function storage() {
   const entries = new Map()
@@ -50,4 +50,25 @@ test('administrador de equipe usa gestão e os perfis menores continuam vinculad
     assert.equal(isEventBoundUser({ role, eventId: 'event-a' }), true)
   }
   assert.equal(isEventBoundUser({ role: 'SUB_ADMIN', eventId: 'event-a' }), true)
+})
+
+test('outra aba valida a mesma sessão sem recarregar por ordem JSON ou nome atualizado', () => {
+  const user = { id: 'sub', email: 'sub@example.test', name: 'Sub', role: 'SUB_ADMIN', eventId: 'event-a', teamId: null, isPrincipal: false }
+  const validated = { id: user.id, name: 'Sub atualizado', email: user.email, role: user.role, eventId: user.eventId, teamId: null, isPrincipal: false }
+  assert.notEqual(JSON.stringify(user), JSON.stringify(validated))
+  assert.equal(credentialStorageChangeRequiresReset({ key: 'entregas_run_user', oldValue: JSON.stringify(user), newValue: JSON.stringify(validated) }, user, 'same-token'), false)
+  assert.equal(credentialStorageChangeRequiresReset({ key: 'entregas_run_events', newValue: '[]' }, user, 'same-token'), false)
+  assert.equal(credentialStorageChangeRequiresReset({ key: 'entregas_run_token', newValue: 'same-token' }, user, 'same-token'), false)
+})
+
+test('troca real de credencial, equipe, perfil ou logout continua invalidando a outra aba', () => {
+  const user = { id: 'sub', role: 'SUB_ADMIN', eventId: 'event-a', teamId: 'team-a', isPrincipal: false }
+  for (const patch of [{ id: 'other' }, { teamId: 'team-b' }, { role: 'OPERADOR' }, { eventId: 'event-b' }, { isPrincipal: true }]) {
+    assert.equal(credentialStorageChangeRequiresReset({ key: 'entregas_run_user', newValue: JSON.stringify({ ...user, ...patch }) }, user, 'token'), true)
+  }
+  assert.equal(credentialStorageChangeRequiresReset({ key: 'entregas_run_user', newValue: null }, user, 'token'), true)
+  assert.equal(credentialStorageChangeRequiresReset({ key: 'entregas_run_user', newValue: '{invalid' }, user, 'token'), true)
+  assert.equal(credentialStorageChangeRequiresReset({ key: 'entregas_run_token', newValue: 'other' }, user, 'token'), true)
+  assert.equal(credentialStorageChangeRequiresReset({ key: 'entregas_run_token', newValue: null }, user, 'token'), true)
+  assert.equal(credentialStorageChangeRequiresReset({ key: null }, user, 'token'), true)
 })
