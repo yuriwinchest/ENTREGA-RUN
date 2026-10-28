@@ -27,6 +27,21 @@ test('appearance publish does not clear live athlete or status', async () => {
   assert.equal(Object.hasOwn(payload, 'atleta'), false)
 })
 
+test('publicação do espelho envia a sessão para validar acesso à equipe', async () => {
+  let authorization
+  storage.set('entregas_run_token', 'session-equipe-a')
+  globalThis.fetch = async (_url, options) => {
+    authorization = options.headers.Authorization
+    return ok()
+  }
+  try {
+    assert.equal(await publishEspelhoState('team-event', { config: { mensagem: 'Equipe A' } }), true)
+    assert.equal(authorization, 'Bearer session-equipe-a')
+  } finally {
+    storage.delete('entregas_run_token')
+  }
+})
+
 test('queue survives closing, isolates events and never marks pending save complete on remote load', async () => {
   let complete
   globalThis.fetch = (_url, options) => options.method === 'POST'

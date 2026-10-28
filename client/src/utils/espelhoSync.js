@@ -199,12 +199,15 @@ export async function publishEspelhoState(eventId, state) {
     // ignore
   }
 
+  let token = ''
+  try { token = localStorage.getItem('entregas_run_token') || '' } catch {}
+
   // 2. Publicação remota para outros dispositivos/segundas telas via backend (transmitida via SSE)
   if (typeof fetch === 'function') {
     try {
       const response = await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(payload),
       })
       const result = await response.json().catch(() => ({}))

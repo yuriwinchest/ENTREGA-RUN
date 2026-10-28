@@ -24,20 +24,27 @@ test('espelho images persist across restart, SSE and independent clients; disk f
   const port = await freePort()
   const base = `http://127.0.0.1:${port}`
   let child
+  let token
   const start = async () => {
     child = spawn(process.execPath, ['server/server.js'], {
       cwd: path.resolve(import.meta.dirname, '..'), stdio: 'ignore',
       env: { ...process.env, PORT: String(port), DATA_DIR: dir, APPWRITE_ENABLED: 'false', APPWRITE_API_KEY: '', ADMIN_EMAIL: 'espelho@test.local', ADMIN_PASSWORD: 'espelho-local-test-only' },
     })
     for (let i = 0; i < 80; i++) {
-      try { if ((await fetch(`${base}/api/health`)).ok) return } catch {}
+      try {
+        if ((await fetch(`${base}/api/health`)).ok) {
+          const login = await fetch(`${base}/api/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'espelho@test.local', password: 'espelho-local-test-only' }) })
+          token = (await login.json()).token
+          return
+        }
+      } catch {}
       await new Promise((resolve) => setTimeout(resolve, 100))
     }
     throw new Error('local test server did not start')
   }
   const route = `${base}/api/espelho/qa-event/estado`
   const get = async () => (await (await fetch(route)).json()).state
-  const post = (body) => fetch(route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  const post = (body) => fetch(route, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body) })
   const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aKasAAAAASUVORK5CYII='
   try {
     await start()

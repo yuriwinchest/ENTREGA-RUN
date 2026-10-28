@@ -222,7 +222,7 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
               <span>EVENTOS</span>
             </button>
 
-            {(userRole === 'ADMIN' || userRole === 'SUB_ADMIN') && (
+            {(['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(userRole)) && (
               <button
                 type="button"
                 className={`nav-item ${activePage === 'usuarios' ? 'active' : ''}`}
@@ -242,7 +242,7 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
             <div className="sidebar-user-text-col">
               <span className="sidebar-user-label">USUÁRIO</span>
               <span className="sidebar-user-name">{userName}</span>
-              <span className="sidebar-user-role">{userRole === 'ADMIN' ? 'SUPER ADMIN' : userRole === 'SUB_ADMIN' ? 'SUB-ADMIN' : userRole}</span>
+              <span className="sidebar-user-role">{userRole === 'ADMIN' ? (user?.isPrincipal ? 'SUPER ADMIN PRINCIPAL' : 'ADMIN DO PRINCIPAL') : userRole === 'TEAM_ADMIN' ? 'ADMIN DE EQUIPE' : userRole === 'SUB_ADMIN' ? 'SUB-ADMIN' : userRole}</span>
             </div>
           </div>
 
@@ -281,7 +281,7 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
           <span>Eventos</span>
         </button>
 
-        {(userRole === 'ADMIN' || userRole === 'SUB_ADMIN') && (
+        {(['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(userRole)) && (
           <button
             type="button"
             className={`mobile-nav-btn ${activePage === 'usuarios' ? 'active' : ''}`}

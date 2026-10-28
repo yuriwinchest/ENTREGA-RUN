@@ -188,10 +188,10 @@ export default function EventosPage({
 
   const isOperator = user?.role === 'OPERADOR'
   const isRestricted = Boolean(
-    user && user.role !== 'ADMIN' && (user.role === 'OPERADOR' || user.role === 'SUPERVISOR' || (user.eventId && user.eventId !== 'all'))
+    user && !['ADMIN', 'TEAM_ADMIN'].includes(user.role) && (user.role === 'OPERADOR' || user.role === 'SUPERVISOR' || (user.eventId && user.eventId !== 'all'))
   )
-  const canDelete = user?.role === 'ADMIN'
-  const canCreate = user?.role === 'ADMIN' || user?.role === 'SUB_ADMIN'
+  const canDelete = ['ADMIN', 'TEAM_ADMIN'].includes(user?.role)
+  const canCreate = ['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(user?.role)
   const isStep2 = tutorialStep === 2
 
   const visibleEvents = isRestricted && user?.eventId
@@ -887,7 +887,7 @@ export default function EventosPage({
           <EventoMedicoModal
             event={events.find((ev) => ev.id === medicoEventId)}
             events={events}
-            canManageLinks={canDelete}
+            canManageLinks={Boolean(user?.isPrincipal)}
             onClose={() => setMedicoEventId(null)}
             onOpenOperacao={() => {
               setMedicoEventId(null)

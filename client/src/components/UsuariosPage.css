@@ -179,7 +179,8 @@
   color: #475569;
 }
 
-.role-pill.sub_admin {
+.role-pill.sub_admin,
+.role-pill.team_admin {
   background: rgba(99, 102, 241, 0.1);
   border: 1px solid rgba(99, 102, 241, 0.25);
   color: #4f46e5;
@@ -592,7 +593,8 @@
   color: #2563eb;
 }
 
-.role-tag-badge.sub_admin {
+.role-tag-badge.sub_admin,
+.role-tag-badge.team_admin {
   background: rgba(99, 102, 241, 0.12);
   color: #4f46e5;
 }
@@ -989,4 +991,11 @@
 .role-tag-badge.medico {
   background: rgba(198, 42, 58, 0.12);
   color: #c62a3a;
+}
+
+.user-team-note {
+  margin: 8px 0 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
 }

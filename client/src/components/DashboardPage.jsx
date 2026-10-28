@@ -84,7 +84,7 @@ export default function DashboardPage({
 }) {
   const isRestricted = Boolean(
     user &&
-    user.role !== 'ADMIN' &&
+    !['ADMIN', 'TEAM_ADMIN'].includes(user.role) &&
     (user.role === 'OPERADOR' || user.role === 'SUPERVISOR' || (user.eventId && user.eventId !== 'all'))
   )
   const visibleEvents = isRestricted

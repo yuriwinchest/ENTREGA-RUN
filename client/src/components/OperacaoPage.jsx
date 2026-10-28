@@ -374,7 +374,7 @@ export default function OperacaoPage({
   const userRole = user?.role || 'ADMIN'
   const isOperator = userRole === 'OPERADOR'
   const isSubAdmin = userRole === 'SUB_ADMIN'
-  const isAdmin = userRole === 'ADMIN' || isSubAdmin
+  const isAdmin = ['ADMIN', 'TEAM_ADMIN'].includes(userRole) || isSubAdmin
   const canEditAthlete = isAdmin || userRole === 'SUPERVISOR'
   const canUndo = isAdmin || userRole === 'SUPERVISOR'
 
@@ -1135,7 +1135,7 @@ export default function OperacaoPage({
         const isAssigned =
           u.eventId === 'all' ||
           u.eventId === currentEvent.id ||
-          u.role === 'ADMIN' ||
+          u.role === 'ADMIN' || u.role === 'TEAM_ADMIN' ||
           u.role === 'SUB_ADMIN'
 
         if (isAssigned) {

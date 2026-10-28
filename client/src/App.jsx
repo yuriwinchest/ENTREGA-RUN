@@ -13,6 +13,7 @@ import UsuariosPage from './components/UsuariosPage.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { SESSION_EXPIRED_EVENT, apiFetchEvents, apiUpdateEvent } from './utils/eventsApi.js'
 import { readKitDecision } from './utils/kitDecisionLock.js'
+import { activateSessionScope, clearPrivateCaches, canManageUsers, isEventBoundUser } from './utils/sessionScope.js'
 
 const MOCK_EVENT_IDS = [
   '11c1fb52-9b9d-4f50-ad9a-3bffa67b00a6',
@@ -21,35 +22,10 @@ const MOCK_EVENT_IDS = [
 ]
 
 export default function App() {
-  const [user, setUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem('entregas_run_user')
-      return saved ? JSON.parse(saved) : null
-    } catch {
-      return null
-    }
-  })
-
-  const [events, setEvents] = useState(() => {
-    try {
-      const saved = localStorage.getItem('entregas_run_events')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed)) {
-          return parsed.filter(
-            (e) =>
-              !MOCK_EVENT_IDS.includes(e?.id) &&
-              !e?.name?.includes('GALINHA') &&
-              !e?.name?.includes('SURUBIM') &&
-              !e?.name?.includes('YURI2TESTE')
-          )
-        }
-      }
-      return []
-    } catch {
-      return []
-    }
-  })
+  const [user, setUser] = useState(null)
+  const [sessionLoading, setSessionLoading] = useState(true)
+  const [events, setEvents] = useState([])
+  const [eventsLoaded, setEventsLoaded] = useState(false)
 
   // Valida o token salvo: restaura a sessão após reload, derruba login expirado
   useEffect(() => {
@@ -65,6 +41,8 @@ export default function App() {
       // nas rotas de eventos/atletas: volta ao login em vez de operar sem salvar.
       if (!token) {
         setUser(null)
+        setSessionLoading(false)
+        clearPrivateCaches()
         try {
           localStorage.removeItem('entregas_run_user')
         } catch {
@@ -79,16 +57,12 @@ export default function App() {
         const data = await res.json().catch(() => ({}))
         if (!isMounted) return
         if (res.ok && data.ok && data.user) {
-          setUser((current) => current || {
-            id: data.user.id,
-            email: data.user.email,
-            name: data.user.name,
-            role: data.user.role,
-            eventId: data.user.eventId,
-            eventName: data.user.eventName,
-          })
+          activateSessionScope(data.user)
+          setUser(data.user)
+          try { localStorage.setItem('entregas_run_user', JSON.stringify(data.user)) } catch {}
         } else {
           setUser(null)
+          clearPrivateCaches()
           try {
             localStorage.removeItem('entregas_run_user')
             localStorage.removeItem('entregas_run_token')
@@ -97,7 +71,9 @@ export default function App() {
           }
         }
       } catch {
-        // sem rede: mantém o usuário em cache até a próxima validação
+        if (isMounted) setUser(null)
+      } finally {
+        if (isMounted) setSessionLoading(false)
       }
     }
     validateSession()
@@ -112,6 +88,9 @@ export default function App() {
     if (!user) return undefined
     function handleSessionExpired() {
       setUser(null)
+      setEvents([])
+      setEventsLoaded(false)
+      clearPrivateCaches()
       try {
         localStorage.removeItem('entregas_run_user')
         localStorage.removeItem('entregas_run_token')
@@ -122,6 +101,16 @@ export default function App() {
     window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
   }, [user])
+
+  useEffect(() => {
+    function handleCredentialChange(event) {
+      if (['entregas_run_token', 'entregas_run_user'].includes(event.key)) {
+        window.location.reload()
+      }
+    }
+    window.addEventListener('storage', handleCredentialChange)
+    return () => window.removeEventListener('storage', handleCredentialChange)
+  }, [])
 
   // Sincroniza eventos locais com o servidor central e puxa atualizações em tempo real
   useEffect(() => {
@@ -136,15 +125,14 @@ export default function App() {
       const serverEvents = await apiFetchEvents()
       if (!isMounted || !Array.isArray(serverEvents)) return
 
-      const isRestricted = Boolean(
-        user && user.role !== 'ADMIN' && (user.role === 'OPERADOR' || user.role === 'SUPERVISOR' || (user.eventId && user.eventId !== 'all'))
-      )
+      const isRestricted = isEventBoundUser(user)
 
       const finalEvents = isRestricted && user?.eventId
         ? serverEvents.filter((e) => e.id === user.eventId)
         : serverEvents
 
       setEvents(finalEvents)
+      setEventsLoaded(true)
       try {
         localStorage.setItem('entregas_run_events', JSON.stringify(finalEvents))
       } catch {
@@ -157,7 +145,7 @@ export default function App() {
     // Só admin/sub-admin acompanham todos os eventos ao vivo. Operador já recebe
     // as entregas pela tela de operação; polling em dezenas de celulares a cada
     // 5 s dobrava a carga da VPS (2 vCPU compartilhada) durante o evento.
-    const watchesAllEvents = user?.role === 'ADMIN' || user?.role === 'SUB_ADMIN'
+    const watchesAllEvents = canManageUsers(user)
     const timer = watchesAllEvents
       ? window.setInterval(() => {
         if (document.visibilityState !== 'hidden') void syncEventsWithServer()
@@ -212,11 +200,7 @@ export default function App() {
     return ''
   })
 
-  const isRestrictedUser = Boolean(
-    user &&
-    user.role !== 'ADMIN' &&
-    (user.role === 'OPERADOR' || user.role === 'SUPERVISOR' || (user.eventId && user.eventId !== 'all'))
-  )
+  const isRestrictedUser = isEventBoundUser(user)
 
   const activeEventFallback = events.find((e) => e.status === 'EM OPERAÇÃO' || e.status === 'EM_OPERACAO') || events[0]
 
@@ -251,7 +235,7 @@ export default function App() {
       }
       return
     }
-    if (currentPage === 'medico' && user.role !== 'ADMIN' && user.role !== 'SUB_ADMIN') {
+    if (currentPage === 'medico' && !canManageUsers(user)) {
       const fallback = isRestrictedUser && user.eventId ? 'operacao' : 'eventos'
       setCurrentPage(fallback)
       window.history.replaceState(null, '', fallback === 'operacao' ? `/operacao/${user.eventId}` : '/eventos')
@@ -263,7 +247,7 @@ export default function App() {
       const section = parts[1] || ''
       const urlId = parts[2] || ''
 
-      if (section === 'usuarios') {
+      if (section === 'usuarios' && !canManageUsers(user)) {
         setSelectedEventId(user.eventId)
         setCurrentPage('operacao')
         window.history.replaceState(null, '', `/operacao/${user.eventId}`)
@@ -301,7 +285,7 @@ export default function App() {
       } else if (path.startsWith('/eventos')) {
         setCurrentPage('eventos')
       } else if (path.startsWith('/usuarios')) {
-        if (isRestrictedUser) {
+        if (isRestrictedUser && !canManageUsers(user)) {
           setCurrentPage('operacao')
         } else {
           setCurrentPage('usuarios')
@@ -326,13 +310,14 @@ export default function App() {
 
   function navigateTo(page, id) {
     let targetPage = page
-    if (targetPage === 'usuarios' && user?.role !== 'ADMIN' && user?.role !== 'SUB_ADMIN') {
+    if (targetPage === 'usuarios' && !canManageUsers(user)) {
       targetPage = isRestrictedUser ? 'operacao' : 'eventos'
     }
     let targetId = id || effectiveEventId
     if (isRestrictedUser && user?.eventId) {
       targetId = user.eventId
     }
+    if (targetPage === 'login' || targetPage === 'eventos') targetId = ''
     if (targetId) {
       setSelectedEventId(targetId)
     }
@@ -361,11 +346,19 @@ export default function App() {
       id: userData?.id || 'admin_pacetime',
       email: userData?.email || 'pacetime@entregas.com',
       name: userData?.name || 'Felipe Admin',
-      role: userData?.role || 'ADMIN',
+      role: userData?.role || 'OPERADOR',
+      teamId: userData?.teamId || null,
+      isPrincipal: Boolean(userData?.isPrincipal),
       eventId: userData?.eventId || 'all',
       eventName: userData?.eventName || 'TODOS OS PROJETOS',
     }
+    clearPrivateCaches()
+    activateSessionScope(loggedUser)
+    setEvents([])
+    setEventsLoaded(false)
+    setSelectedEventId('')
     setUser(loggedUser)
+    setSessionLoading(false)
     try {
       localStorage.setItem('entregas_run_user', JSON.stringify(loggedUser))
       if (token) localStorage.setItem('entregas_run_token', token)
@@ -397,6 +390,10 @@ export default function App() {
       // ignore
     }
     setUser(null)
+    setEvents([])
+    setEventsLoaded(false)
+    setSelectedEventId('')
+    clearPrivateCaches()
     setShowTutorial(false)
     try {
       localStorage.removeItem('entregas_run_user')
@@ -458,6 +455,8 @@ export default function App() {
     return <EmergenciaPage eventId={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
   }
 
+  if (sessionLoading) return <p role="status">Validando sua sessão…</p>
+
   // Se não estiver autenticado, exibe a tela de login
   if (!user) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />
@@ -468,7 +467,14 @@ export default function App() {
     return <MedicoPage user={user} eventId={user.eventId} onLogout={handleLogout} />
   }
 
-  if (currentPage === 'medico' && (user.role === 'ADMIN' || user.role === 'SUB_ADMIN') && effectiveEventId) {
+  if (['operacao', 'event-dashboard', 'medico'].includes(currentPage)) {
+    if (!eventsLoaded) return <p role="status">Carregando seus projetos…</p>
+    if (!events.some((event) => event.id === effectiveEventId)) {
+      return <main><p role="alert">Projeto indisponível para seu acesso.</p><button onClick={() => navigateTo('eventos')}>Voltar aos projetos</button></main>
+    }
+  }
+
+  if (currentPage === 'medico' && canManageUsers(user) && effectiveEventId) {
     return (
       <MedicoPage
         key={effectiveEventId}

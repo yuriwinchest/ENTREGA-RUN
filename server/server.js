@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { teamOf, sameScope, canAccessEvent, canCreateEvent, canManageUser } from './teamAccess.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -101,6 +102,8 @@ function createSession(user) {
     eventId: user.eventId || 'all',
     eventName: user.eventName || 'TODOS OS PROJETOS',
     name: user.name || '',
+    teamId: teamOf(user),
+    legacy: user.legacy === true,
     expiresAt: Date.now() + SESSION_TTL_MS,
   })
   return token
@@ -112,7 +115,33 @@ function getSessionFromReq(req) {
   if (!token) return null
   const session = sessions.get(token)
   if (!session) return null
-  return { token, ...session }
+  const current = inMemoryUsers.find((user) => user.id === session.userId)
+  if (!current && !session.legacy) return null
+  if (current?.status === 'INATIVO') return null
+  if (current?.role === 'TEAM_ADMIN' && !teamOf(current)) return null
+  if (current?.teamId) {
+    const leader = inMemoryUsers.find((user) => user.role === 'TEAM_ADMIN' && user.teamId === current.teamId)
+    if (!leader || leader.status === 'INATIVO') return null
+  }
+  return { token, ...session, ...(current ? {
+    role: current.role, teamId: teamOf(current), name: current.name, email: current.email,
+    eventId: current.eventId && current.eventId !== 'all' ? current.eventId : session.eventId,
+  } : {}), isPrincipal: isPrincipalAdmin(current) }
+}
+
+function requireEventScope(req, res, session) {
+  if (!req.params.eventId) return true
+  const eventId = String(req.params.eventId)
+  if (!EMERGENCY_CODE.test(eventId)) {
+    res.status(400).json({ ok: false, message: 'Identificador de projeto inválido.' })
+    return false
+  }
+  const event = inMemoryEvents.find((item) => item.id === eventId)
+  // Preserve o 404 das rotas legadas, mas equipes nunca operam IDs sem dono.
+  if (!event && !teamOf(session) && session.role !== 'TEAM_ADMIN') return true
+  if (event && canAccessEvent(session, event)) return true
+  res.status(403).json({ ok: false, message: 'Projeto fora do seu acesso.' })
+  return false
 }
 
 function requireAuth(req, res, next) {
@@ -120,6 +149,7 @@ function requireAuth(req, res, next) {
   if (!session) {
     return res.status(401).json({ ok: false, message: 'Sessão inválida ou expirada. Entre novamente.' })
   }
+  if (!requireEventScope(req, res, session)) return
   req.session = session
   next()
 }
@@ -141,7 +171,7 @@ function requireAdminOrSubAdmin(req, res, next) {
   if (!session) {
     return res.status(401).json({ ok: false, message: 'Sessão inválida ou expirada. Entre novamente.' })
   }
-  if (session.role !== 'ADMIN' && session.role !== 'SUB_ADMIN') {
+  if (!['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(session.role)) {
     return res.status(403).json({ ok: false, message: 'Acesso restrito à administração.' })
   }
   req.session = session
@@ -171,7 +201,7 @@ function isDeployCheck(req) {
 
 function requireAuthOrDeployCheck(req, res, next) {
   if (!isDeployCheck(req)) return requireAuth(req, res, next)
-  req.session = { userId: 'deploy-check', role: 'ADMIN', eventId: 'all', name: 'deploy-check' }
+  req.session = { userId: 'deploy-check', role: 'ADMIN', isPrincipal: true, eventId: 'all', name: 'deploy-check' }
   next()
 }
 
@@ -402,7 +432,7 @@ app.get('/api/espelho/:eventId/estado', espelhoLimiter, (req, res) => {
   res.json({ ok: true, state: { ...state, config: state.config || persistedConfig } })
 })
 
-app.post('/api/espelho/:eventId/estado', espelhoLimiter, espelhoJsonParser, (req, res) => {
+app.post('/api/espelho/:eventId/estado', espelhoLimiter, requireAuth, espelhoJsonParser, (req, res) => {
   const body = req.body || {}
   const key = espelhoKey(req.params.eventId)
   const previous = espelhoStates.get(key)
@@ -723,6 +753,9 @@ function sanitizeEventPayload(raw, isUpdate = false) {
 const eventMirrors = new Map()
 
 function mirrorEventToAppwrite(event) {
+  // O schema remoto legado não guarda a equipe. Não produza cópia que possa
+  // reaparecer como projeto principal após reidratação sem o volume local.
+  if (teamOf(event)) return
   let mirror = eventMirrors.get(event.id)
   if (!mirror) {
     mirror = { running: false, latest: null }
@@ -751,7 +784,7 @@ function mirrorEventToAppwrite(event) {
 }
 
 app.get('/api/events', requireAuthOrDeployCheck, (req, res) => {
-  const events = inMemoryEvents.map((event) => {
+  const events = inMemoryEvents.filter((event) => canAccessEvent(req.session, event)).map((event) => {
     const athletes = loadAthletesForEvent(event.id)?.athletes
     return Array.isArray(athletes) && athletes.length > 0
       ? { ...event, ...eventMetrics(athletes) }
@@ -771,7 +804,7 @@ app.get('/api/events', requireAuthOrDeployCheck, (req, res) => {
 
 // POST /api/events — Cria novo evento
 app.post('/api/events', requireAuth, (req, res) => {
-  if (req.session.role === 'OPERADOR') {
+  if (!canCreateEvent(req.session)) {
     return res.status(403).json({ ok: false, message: 'Operador não tem permissão para criar eventos.' })
   }
 
@@ -787,6 +820,8 @@ app.post('/api/events', requireAuth, (req, res) => {
   const newEvent = {
     ...sanitized,
     id: eventId,
+    teamId: teamOf(req.session),
+    createdBy: req.session.userId,
     updatedAt: Date.now(),
   }
 
@@ -856,7 +891,7 @@ app.put('/api/events/:eventId', requireAuth, (req, res) => {
 
 // DELETE /api/events/:eventId — Remove evento (somente Super Admin)
 app.delete('/api/events/:eventId', requireAuth, (req, res) => {
-  if (req.session.role !== 'ADMIN') {
+  if (!['ADMIN', 'TEAM_ADMIN'].includes(req.session.role)) {
     return res.status(403).json({
       ok: false,
       message: 'Sub-Admin não tem permissão para excluir eventos. Somente o Super Admin pode realizar exclusões.',
@@ -890,7 +925,7 @@ app.post('/api/events/:eventId/emergency-links', requireAuth, (req, res) => {
   const event = inMemoryEvents.find((item) => item.id === req.params.eventId)
   if (!event) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
   const session = req.session
-  if (session.role !== 'ADMIN' && !(session.role === 'SUB_ADMIN' && (session.eventId === 'all' || session.eventId === event.id))) {
+  if (!['ADMIN', 'TEAM_ADMIN'].includes(session.role) && !(session.role === 'SUB_ADMIN' && (session.eventId === 'all' || session.eventId === event.id))) {
     return res.status(403).json({ ok: false, message: 'Sem permissão para gerenciar o QR deste evento.' })
   }
   try {
@@ -900,7 +935,7 @@ app.post('/api/events/:eventId/emergency-links', requireAuth, (req, res) => {
 })
 
 app.get('/api/emergency-links/preview', requireAuth, (req, res) => {
-  if (req.session.role !== 'ADMIN') return res.status(403).json({ ok: false, message: 'Somente o Super Admin pode transferir um QR.' })
+  if (!req.session.isPrincipal) return res.status(403).json({ ok: false, message: 'Somente o administrador principal pode transferir um QR.' })
   const code = String(req.query.code || '')
   if (!EMERGENCY_CODE.test(code)) return res.status(400).json({ ok: false, message: 'Código inválido.' })
   const link = emergencyLinks.get(code)
@@ -910,7 +945,7 @@ app.get('/api/emergency-links/preview', requireAuth, (req, res) => {
 })
 
 app.put('/api/emergency-links/binding', requireAuth, (req, res) => {
-  if (req.session.role !== 'ADMIN') return res.status(403).json({ ok: false, message: 'Somente o Super Admin pode transferir um QR.' })
+  if (!req.session.isPrincipal) return res.status(403).json({ ok: false, message: 'Somente o administrador principal pode transferir um QR.' })
   if (fs.existsSync(path.join(DATA_DIR, '.emergency-links-release-pending'))) return res.status(503).json({ ok: false, message: 'Atualização em validação. Aguarde alguns instantes e tente novamente.' })
   const { code, targetEventId, expectedRevision, confirmed } = req.body || {}
   const target = inMemoryEvents.find((event) => event.id === targetEventId)
@@ -924,7 +959,7 @@ app.put('/api/emergency-links/binding', requireAuth, (req, res) => {
 })
 
 app.post('/api/events/:eventId/archive', requireAuth, (req, res) => {
-  if (req.session.role !== 'ADMIN') return res.status(403).json({ ok: false, message: 'Somente o Super Admin pode arquivar ou restaurar.' })
+  if (!['ADMIN', 'TEAM_ADMIN'].includes(req.session.role)) return res.status(403).json({ ok: false, message: 'Sem permissão para arquivar ou restaurar.' })
   if (fs.existsSync(path.join(DATA_DIR, '.emergency-links-release-pending'))) return res.status(503).json({ ok: false, message: 'Atualização em validação. Aguarde alguns instantes e tente novamente.' })
   const event = inMemoryEvents.find((item) => item.id === req.params.eventId)
   if (!event) return res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
@@ -940,10 +975,16 @@ app.post('/api/events/:eventId/archive', requireAuth, (req, res) => {
 
 // POST /api/events/sync — Sincronização em lote (dispositivo móvel -> servidor)
 app.post('/api/events/sync', requireAuth, (req, res) => {
-  if (req.session.role === 'OPERADOR') {
+  if (!canCreateEvent(req.session)) {
     return res.status(403).json({ ok: false, message: 'Operador não tem permissão para criar eventos.' })
   }
   const incoming = Array.isArray(req.body?.events) ? req.body.events : []
+  // Rejeite o lote inteiro antes de gravar qualquer projeto se houver ID alheio.
+  if (incoming.some((raw) => {
+    const id = String(raw?.id || '').trim().slice(0, 64)
+    const existing = inMemoryEvents.find((event) => event.id === id)
+    return existing && !canAccessEvent(req.session, existing)
+  })) return res.status(403).json({ ok: false, message: 'Sincronização contém projeto fora do seu acesso.' })
   let changed = false
 
   for (const raw of incoming) {
@@ -956,7 +997,7 @@ app.post('/api/events/sync', requireAuth, (req, res) => {
     if (!EMERGENCY_CODE.test(id) || emergencyLinks.reserved(id)) continue
     const existingIdx = inMemoryEvents.findIndex((e) => e.id === id)
     if (existingIdx === -1) {
-      inMemoryEvents.push({ ...sanitized, id, updatedAt: Date.now() })
+      inMemoryEvents.push({ ...sanitized, id, teamId: teamOf(req.session), createdBy: req.session.userId, updatedAt: Date.now() })
       changed = true
     }
   }
@@ -967,7 +1008,7 @@ app.post('/api/events/sync', requireAuth, (req, res) => {
       mirrorEventToAppwrite(ev)
     }
   }
-  res.json({ ok: true, events: inMemoryEvents })
+  res.json({ ok: true, events: inMemoryEvents.filter((event) => canAccessEvent(req.session, event)) })
 })
 
 // ============================================================
@@ -1218,7 +1259,7 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
     existing?.athletes?.some((athlete) => String(athlete.status || '').toUpperCase() === 'ENTREGUE')
   const safeUndoId = String(undoAthleteId || '').slice(0, 64)
   const undoTarget = existing?.athletes?.find((athlete) => String(athlete.id) === safeUndoId)
-  const canUndoDelivery = session.role === 'ADMIN' || session.role === 'SUPERVISOR'
+  const canUndoDelivery = ['ADMIN', 'TEAM_ADMIN', 'SUPERVISOR'].includes(session.role)
   if (undoTarget?.status === 'ENTREGUE' && !canUndoDelivery) {
     return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
   }
@@ -1316,7 +1357,7 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
   const protectExistingChunk = curEvChunk?.status === 'EM OPERAÇÃO' ||
     existingChunk?.athletes?.some((athlete) => String(athlete.status || '').toUpperCase() === 'ENTREGUE')
   const undoTargetChunk = existingChunk?.athletes?.find((athlete) => String(athlete.id) === upload.undoAthleteId)
-  const canUndoDelivery = session.role === 'ADMIN' || session.role === 'SUPERVISOR'
+  const canUndoDelivery = ['ADMIN', 'TEAM_ADMIN', 'SUPERVISOR'].includes(session.role)
   if (undoTargetChunk?.status === 'ENTREGUE' && !canUndoDelivery) {
     athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
     return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
@@ -1506,13 +1547,13 @@ app.put('/api/events/:eventId/athletes/:numero/status', requireAuth, express.jso
 // Permite que o Super Admin acompanhe a produtividade de cada operador
 // ao vivo nas telas de Usuários e Dashboards.
 // ============================================================
-function getUserDeliveryCounts(restrictedEventId = null) {
+function getUserDeliveryCounts(restrictedEventId = null, actor = null) {
   const countsByNormalizedName = new Map()
   const eventsToScan = restrictedEventId && restrictedEventId !== 'all'
     ? inMemoryEvents.filter((e) => e.id === restrictedEventId)
     : inMemoryEvents
 
-  for (const event of eventsToScan) {
+  for (const event of eventsToScan.filter((event) => !actor || canAccessEvent(actor, event))) {
     const data = loadAthletesForEvent(event.id)
     if (data && Array.isArray(data.athletes)) {
       for (const athlete of data.athletes) {
@@ -1558,12 +1599,13 @@ function resolveUserDeliveries(user, countsMap) {
 // GET /api/events/:eventId/operators — Lista operadores vinculados ao evento com entregas reais
 app.get('/api/events/:eventId/operators', requireAuth, (req, res) => {
   const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
-  const visibleUsers = inMemoryUsers.filter((user) =>
+  const event = inMemoryEvents.find((item) => item.id === safeEventId)
+  const visibleUsers = inMemoryUsers.filter((user) => teamOf(user) === teamOf(event) && (
     user.eventId === 'all' ||
     user.eventId === safeEventId ||
     user.role === 'ADMIN' ||
     (user.role === 'SUB_ADMIN' && (user.eventId === 'all' || user.eventId === safeEventId))
-  )
+  ))
   const countsMap = getUserDeliveryCounts(safeEventId)
   res.json({
     ok: true,
@@ -1808,11 +1850,12 @@ function requireMedicoAccess(req, res, next) {
   const session = getSessionFromReq(req)
   if (!session) return res.status(401).json({ ok: false, message: 'Sessão inválida ou expirada. Entre novamente.' })
   const eventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
-  const allowedRole = ['MEDICO', 'ADMIN', 'SUB_ADMIN'].includes(session.role)
+  const allowedRole = ['MEDICO', 'ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(session.role)
   const inScope = session.role === 'ADMIN' || (session.eventId && session.eventId !== 'all'
     ? session.eventId === eventId
     : session.role === 'SUB_ADMIN')
-  if (!allowedRole || !inScope) {
+  if (!allowedRole || !(session.role === 'TEAM_ADMIN' || inScope) || !requireEventScope(req, res, session)) {
+    if (res.headersSent) return
     return res.status(403).json({ ok: false, message: 'Sem acesso às ocorrências deste evento.' })
   }
   req.session = session
@@ -1989,7 +2032,7 @@ function readUsersFromDisk() {
 
 let inMemoryUsers = readUsersFromDisk()
 
-const USER_ROLES = ['ADMIN', 'SUB_ADMIN', 'SUPERVISOR', 'OPERADOR', 'MEDICO']
+const USER_ROLES = ['TEAM_ADMIN', 'ADMIN', 'SUB_ADMIN', 'SUPERVISOR', 'OPERADOR', 'MEDICO']
 const EVENT_BOUND_ROLES = ['OPERADOR', 'SUPERVISOR', 'MEDICO']
 
 function writeUsersToDisk(users) {
@@ -2022,12 +2065,19 @@ function writeUsersToDisk(users) {
 app.get('/api/users', requireAdminOrSubAdmin, (req, res) => {
   const isRestrictedSubAdmin = req.session.role === 'SUB_ADMIN' && req.session.eventId !== 'all'
   const visibleUsers = isRestrictedSubAdmin
-    ? inMemoryUsers.filter((user) => user.eventId === req.session.eventId)
-    : inMemoryUsers
-  const countsMap = getUserDeliveryCounts(isRestrictedSubAdmin ? req.session.eventId : null)
+    ? inMemoryUsers.filter((user) => sameScope(req.session, user) && user.eventId === req.session.eventId)
+    : inMemoryUsers.filter((user) => sameScope(req.session, user))
+  const countsByTeam = new Map()
   const usersWithDeliveries = visibleUsers.map((u) => ({
     ...publicUser(u),
-    deliveries: resolveUserDeliveries(u, countsMap),
+    deliveries: (() => {
+      const team = teamOf(u)
+      if (!countsByTeam.has(team)) countsByTeam.set(team, getUserDeliveryCounts(
+        isRestrictedSubAdmin ? req.session.eventId : null,
+        { role: 'ADMIN', teamId: team },
+      ))
+      return resolveUserDeliveries(u, countsByTeam.get(team))
+    })(),
   }))
   res.json({ ok: true, users: usersWithDeliveries })
 })
@@ -2042,6 +2092,16 @@ app.post('/api/users', requireAdminOrSubAdmin, (req, res) => {
   const eventId = String(body.eventId || 'all').trim()
   const eventName = String(body.eventName || 'TODOS OS PROJETOS').trim()
 
+  if (['ADMIN', 'TEAM_ADMIN'].includes(role) && !req.session.isPrincipal) {
+    return res.status(403).json({ ok: false, message: 'Somente o principal pode criar administradores.' })
+  }
+  if (eventId !== 'all') {
+    const event = inMemoryEvents.find((item) => item.id === eventId)
+    if (!event || !canAccessEvent(req.session, event) || (!req.session.isPrincipal && teamOf(event) !== teamOf(req.session))) {
+      return res.status(403).json({ ok: false, message: 'Projeto fora da sua equipe.' })
+    }
+  }
+  if (role === 'TEAM_ADMIN' && eventId !== 'all') return res.status(400).json({ ok: false, message: 'Administrador de equipe deve começar sem projeto atribuído.' })
   if (req.session?.role === 'SUB_ADMIN' && role === 'ADMIN') {
     return res.status(403).json({ ok: false, message: 'Sub-Admin não tem permissão para criar usuários Super Admin.' })
   }
@@ -2079,6 +2139,9 @@ app.post('/api/users', requireAdminOrSubAdmin, (req, res) => {
     status: body.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
     deliveries: Number(body.deliveries || 0),
     avatar: name.substring(0, 2).toUpperCase(),
+    teamId: role === 'TEAM_ADMIN' ? `team-${crypto.randomUUID()}`
+      : req.session.isPrincipal && eventId !== 'all'
+        ? teamOf(inMemoryEvents.find((event) => event.id === eventId)) : teamOf(req.session),
     createdBy: req.session.userId,
     createdAt: new Date().toISOString(),
     updatedAt: Date.now(),
@@ -2097,12 +2160,18 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
     return res.status(404).json({ ok: false, message: 'Usuário não encontrado.' })
   }
 
-  const current = inMemoryUsers[idx]
   const body = req.body || {}
-
+  const current = inMemoryUsers[idx]
+  if (!canManageUser(req.session, publicUser(current))) return res.status(403).json({ ok: false, message: 'Usuário fora da sua administração.' })
+  if (body.teamId !== undefined && body.teamId !== teamOf(current)) return res.status(400).json({ ok: false, message: 'Transferência de equipe não permitida.' })
+  if (body.role && body.role !== current.role && (['ADMIN', 'TEAM_ADMIN'].includes(body.role) || current.role === 'TEAM_ADMIN')) return res.status(400).json({ ok: false, message: 'Crie um administrador de equipe separado; conversão de perfil não permitida.' })
   const targetRole = body.role && USER_ROLES.includes(body.role) ? body.role : current.role
   const targetEventId = body.eventId !== undefined ? String(body.eventId).trim() : current.eventId
 
+  if (targetEventId !== 'all') {
+    const event = inMemoryEvents.find((item) => item.id === targetEventId)
+    if (!event || teamOf(event) !== teamOf(current) || !canAccessEvent(req.session, event)) return res.status(403).json({ ok: false, message: 'Projeto fora da equipe do usuário.' })
+  }
   if (EVENT_BOUND_ROLES.includes(targetRole)) {
     if (!targetEventId || targetEventId === 'all') {
       return res.status(400).json({
@@ -2151,6 +2220,9 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   if (!writeUsersToDisk(nextUsers)) return res.status(500).json({ ok: false, message: 'Não foi possível salvar o usuário.' })
   inMemoryUsers = nextUsers
   if (body.password !== undefined || body.role !== undefined || body.status !== undefined || body.eventId !== undefined) revokeUserSessions(userId)
+  if (current.role === 'TEAM_ADMIN' && body.status !== undefined) {
+    for (const member of inMemoryUsers.filter((user) => user.teamId === current.teamId)) revokeUserSessions(member.id)
+  }
   res.json({ ok: true, user: publicUser(updated) })
 })
 
@@ -2162,6 +2234,8 @@ app.delete('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
     return res.status(404).json({ ok: false, message: 'Usuário não encontrado.' })
   }
   const target = inMemoryUsers[idx]
+  if (!canManageUser(req.session, publicUser(target))) return res.status(403).json({ ok: false, message: 'Usuário fora da sua administração.' })
+  if (target.role === 'TEAM_ADMIN') return res.status(409).json({ ok: false, message: 'Desative o administrador para suspender a equipe; exclusão não permitida.' })
   if (isPrincipalAdmin(target)) {
     return res.status(400).json({ ok: false, message: 'Não é possível remover o administrador principal.' })
   }
@@ -2194,6 +2268,9 @@ app.post('/api/login', loginLimiter, (req, res) => {
     (u) => u.email && u.email.toLowerCase() === normalizedEmail
   )
   if (foundUser && (verifyPassword(password, foundUser.passwordHash) || (!foundUser.passwordHash && foundUser.password === password))) {
+    if (teamOf(foundUser) && !inMemoryUsers.some((user) => user.role === 'TEAM_ADMIN' && user.teamId === foundUser.teamId && user.status !== 'INATIVO')) {
+      return res.status(403).json({ ok: false, message: 'Equipe desativada. Fale com o administrador principal.' })
+    }
     if (foundUser.status === 'INATIVO') {
       return res.status(403).json({
         ok: false,
@@ -2209,7 +2286,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
     }
 
     if ((foundUser.role === 'OPERADOR' || foundUser.role === 'SUPERVISOR') && (!finalEventId || finalEventId === 'all')) {
-      const firstEvent = inMemoryEvents[0]
+      const firstEvent = inMemoryEvents.find((event) => teamOf(event) === teamOf(foundUser))
       if (firstEvent) {
         finalEventId = firstEvent.id
         finalEventName = firstEvent.name
@@ -2221,6 +2298,8 @@ app.post('/api/login', loginLimiter, (req, res) => {
       name: foundUser.name,
       email: foundUser.email,
       role: foundUser.role || 'OPERADOR',
+      teamId: teamOf(foundUser),
+      isPrincipal: isPrincipalAdmin(foundUser),
       eventId: finalEventId,
       eventName: finalEventName,
     }
@@ -2237,9 +2316,10 @@ app.post('/api/login', loginLimiter, (req, res) => {
   }
 
   if (legacyOperators[normalizedEmail] && password === ADMIN_PASSWORD) {
-    const firstEvent = inMemoryEvents[0]
+    const firstEvent = inMemoryEvents.find((event) => !teamOf(event))
     const legacyUser = {
       id: normalizedEmail.split('@')[0],
+      legacy: true,
       name: legacyOperators[normalizedEmail],
       email: normalizedEmail,
       role: 'OPERADOR',
@@ -2270,6 +2350,8 @@ app.get('/api/session', (req, res) => {
       role: session.role,
       eventId: session.eventId,
       eventName: session.eventName,
+      teamId: teamOf(session),
+      isPrincipal: session.isPrincipal === true,
     },
   })
 })

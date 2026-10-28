@@ -106,7 +106,7 @@ test('fluxo completo: colunas de saúde da planilha, busca pública, ocorrência
     const kit = await request('/api/public/events/ev-poa/athletes/1')
     assert.deepEqual(kit.data.athlete.customFields, { EQUIPE2: 'Pace' })
     // Nem o espelho do guichê (segunda tela pública).
-    await request('/api/espelho/ev-poa/estado', 'POST', { status: 'ATENDENDO', atleta: { numero: '1', nome: 'ELIUD', customFields: athletes[0].customFields } })
+    assert.equal((await request('/api/espelho/ev-poa/estado', 'POST', { status: 'ATENDENDO', atleta: { numero: '1', nome: 'ELIUD', customFields: athletes[0].customFields } }, admin)).status, 200)
     const espelho = await request('/api/espelho/ev-poa/estado')
     assert.deepEqual(espelho.data.state.atleta.customFields, { EQUIPE2: 'Pace' })
 

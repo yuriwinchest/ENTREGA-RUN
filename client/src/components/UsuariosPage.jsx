@@ -151,10 +151,16 @@ const ROLE_OPTIONS = [
     detail: 'Gerencia usuários e auditoria; exclui apenas usuários que criou'
   },
   {
+    value: 'TEAM_ADMIN',
+    label: 'ADMIN DE EQUIPE',
+    description: 'Gestão da própria equipe',
+    detail: 'Cria usuários e projetos em uma equipe separada, sem acesso às outras equipes'
+  },
+  {
     value: 'ADMIN',
-    label: 'SUPER ADMIN',
-    description: 'Acesso total',
-    detail: 'Acesso total irrestrito, gestão e exclusões'
+    label: 'ADMIN DO PRINCIPAL',
+    description: 'Administração do principal',
+    detail: 'Gerencia o ambiente do principal; acesso global fica reservado ao administrador principal'
   }
 ]
 
@@ -165,18 +171,19 @@ export default function UsuariosPage({
   onLogout,
   onOpenTutorial,
 }) {
-  const availableEvents = (events && events.length > 0) ? events : (() => {
-    try {
-      const saved = localStorage.getItem('entregas_run_events')
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })()
-  const manageableEvents = user?.role === 'SUB_ADMIN' && user.eventId !== 'all'
+  const availableEvents = events
+  const manageableEvents = user?.isPrincipal ? availableEvents.filter((event) => !event.teamId) : user?.role === 'SUB_ADMIN' && user.eventId !== 'all'
     ? availableEvents.filter((event) => event.id === user.eventId)
     : availableEvents
   const defaultEvent = manageableEvents[0] || (user?.eventId !== 'all' ? { id: user.eventId, name: user.eventName } : null)
+
+  const allProjectsLabel = user?.teamId ? 'TODOS OS PROJETOS DA EQUIPE' : 'TODOS OS PROJETOS DO PRINCIPAL'
+  const projectScopeLabel = (role, teamId) => role === 'TEAM_ADMIN' || teamId ? 'TODOS OS PROJETOS DA EQUIPE' : 'TODOS OS PROJETOS DO PRINCIPAL'
+  const canManageTarget = (target) => {
+    if (user?.isPrincipal) return true
+    if (target.role === 'ADMIN' || target.role === 'TEAM_ADMIN' || target.isPrincipal) return false
+    return true
+  }
 
   const [users, setUsers] = useState([])
   const [loadError, setLoadError] = useState('')
@@ -228,6 +235,9 @@ export default function UsuariosPage({
     eventId: '',
     eventName: '',
   })
+  const editManageableEvents = user?.isPrincipal
+    ? availableEvents.filter((event) => (event.teamId || null) === (userToEdit?.teamId || null))
+    : manageableEvents
   const [editFormError, setEditFormError] = useState('')
   const [isEditRoleDropdownOpen, setIsEditRoleDropdownOpen] = useState(false)
   const [isEditEventDropdownOpen, setIsEditEventDropdownOpen] = useState(false)
@@ -310,7 +320,7 @@ export default function UsuariosPage({
 
     const selectedEv = availableEvents.find((ev) => ev.id === newUserForm.eventId)
     const assignedName = newUserForm.eventId === 'all'
-      ? 'TODOS OS PROJETOS'
+      ? projectScopeLabel(newUserForm.role, user?.teamId)
       : (selectedEv?.name || newUserForm.eventName || 'PROJETO VINCULADO')
 
     const newUser = {
@@ -345,8 +355,8 @@ export default function UsuariosPage({
     setEditUserForm({
       name: targetUser.name || '',
       role: targetUser.role || 'OPERADOR',
-      eventId: targetUser.eventId && targetUser.eventId !== 'all' ? targetUser.eventId : (initialEvent?.id || ''),
-      eventName: targetUser.eventName && targetUser.eventName !== 'TODOS OS PROJETOS' ? targetUser.eventName : (initialEvent?.name || ''),
+      eventId: targetUser.eventId || (initialEvent?.id || ''),
+      eventName: targetUser.eventId === 'all' ? projectScopeLabel(targetUser.role, targetUser.teamId) : (targetUser.eventName || initialEvent?.name || ''),
     })
     setEditFormError('')
     setIsEditRoleDropdownOpen(false)
@@ -367,7 +377,7 @@ export default function UsuariosPage({
 
     const selectedEv = availableEvents.find((ev) => ev.id === editUserForm.eventId)
     const assignedName = editUserForm.eventId === 'all'
-      ? 'TODOS OS PROJETOS'
+      ? projectScopeLabel(editUserForm.role, userToEdit?.teamId)
       : (selectedEv?.name || editUserForm.eventName || 'PROJETO VINCULADO')
 
     setSaving(true)
@@ -388,18 +398,18 @@ export default function UsuariosPage({
     }
   }
 
-  const availableRoleOptions = useMemo(() => {
-    if (user?.role === 'SUB_ADMIN') {
-      return ROLE_OPTIONS.filter((r) => r.value !== 'ADMIN')
-    }
-    return ROLE_OPTIONS
-  }, [user?.role])
+  const availableRoleOptions = useMemo(() => user?.isPrincipal
+    ? ROLE_OPTIONS
+    : ROLE_OPTIONS.filter((option) => !['ADMIN', 'TEAM_ADMIN'].includes(option.value)), [user?.isPrincipal])
+  const editRoleOptions = userToEdit?.role === 'TEAM_ADMIN'
+    ? ROLE_OPTIONS.filter((option) => option.value === 'TEAM_ADMIN')
+    : availableRoleOptions.filter((option) => option.value !== 'TEAM_ADMIN' && (!userToEdit?.teamId || option.value !== 'ADMIN'))
 
   async function handleToggleStatus(userId) {
     const target = users.find((u) => u.id === userId)
     if (!target) return
-    if (user?.role === 'SUB_ADMIN' && target.role === 'ADMIN') {
-      alert('Sub-Admin não tem permissão para alterar o status do Super Admin.')
+    if (!canManageTarget(target)) {
+      alert('Você não tem permissão para alterar este administrador.')
       return
     }
     const nextStatus = target.status === 'ATIVO' ? 'INATIVO' : 'ATIVO'
@@ -459,8 +469,8 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
   async function handleResetPasswordForUser(userId) {
     const target = users.find((u) => u.id === userId)
-    if (user?.role === 'SUB_ADMIN' && target?.role === 'ADMIN') {
-      alert('Sub-Admin não tem permissão para redefinir a senha do Super Admin.')
+    if (target && !canManageTarget(target)) {
+      alert('Você não tem permissão para redefinir a senha deste administrador.')
       return
     }
     if (manualPassword.length < 6) {
@@ -492,7 +502,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
           <div className="usuarios-title-wrap">
             <h1 className="usuarios-page-title">USUÁRIOS</h1>
             <p className="usuarios-subtitle">
-              Gerencie os usuários da operação. O Sub-Admin acessa auditoria, cria usuários e remove apenas quem criou. O Super Admin gerencia todos.
+              O Super Admin principal gerencia toda a plataforma. Cada administrador de equipe gerencia apenas seus usuários e projetos, com acesso separado das outras equipes.
               <br />
               Crie logins com a senha que você definir e compartilhe o acesso com a equipe.
             </p>
@@ -532,18 +542,21 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                   <div className="user-badges-row">
                     <span className={`role-pill ${item.role.toLowerCase()}`}>
-                      {item.role === 'ADMIN' || item.role === 'SUB_ADMIN' ? <ShieldIcon /> : <UserIcon />}
-                      <span>{item.role === 'SUB_ADMIN' ? 'SUB-ADMIN' : item.role === 'ADMIN' ? 'SUPER ADMIN' : item.role === 'MEDICO' ? 'MÉDICO' : item.role}</span>
+                      {['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(item.role) ? <ShieldIcon /> : <UserIcon />}
+                      <span>{item.role === 'TEAM_ADMIN' ? 'ADMIN DE EQUIPE' : item.role === 'SUB_ADMIN' ? 'SUB-ADMIN' : item.role === 'ADMIN' ? (item.isPrincipal ? 'SUPER ADMIN PRINCIPAL' : 'ADMIN DO PRINCIPAL') : item.role === 'MEDICO' ? 'MÉDICO' : item.role}</span>
                     </span>
 
                     <span className={`status-pill-user ${item.status === 'INATIVO' ? 'inactive' : ''}`}>
                       {item.status}
                     </span>
 
-                    <span className="user-event-pill" title={item.eventName || 'Todos os Projetos'}>
-                      📍 {item.eventName || 'TODOS OS PROJETOS'}
+                    <span className="user-event-pill" title={item.eventId === 'all' ? (item.isPrincipal ? 'TODOS OS PROJETOS DA PLATAFORMA' : projectScopeLabel(item.role, item.teamId)) : item.eventName}>
+                      📍 {item.eventId === 'all' ? (item.isPrincipal ? 'TODOS OS PROJETOS DA PLATAFORMA' : projectScopeLabel(item.role, item.teamId)) : item.eventName}
                     </span>
                   </div>
+                  {item.role === 'TEAM_ADMIN' && canManageTarget(item) && (
+                    <p className="user-team-note">Desativar suspende o acesso de toda a equipe e preserva seus usuários e projetos.</p>
+                  )}
                 </div>
               </div>
 
@@ -554,7 +567,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                 </div>
 
                 <div className="user-card-actions">
-                  {!(user?.role === 'SUB_ADMIN' && item.role === 'ADMIN') && (
+                  {canManageTarget(item) && (
                     <button
                       type="button"
                       className="btn-user-cred-action"
@@ -566,7 +579,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     </button>
                   )}
 
-                  {!(user?.role === 'SUB_ADMIN' && item.role === 'ADMIN') && (
+                  {canManageTarget(item) && (
                     <button
                       type="button"
                       className="btn-user-cred-action"
@@ -586,17 +599,17 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     </button>
                   )}
 
-                  {!(user?.role === 'SUB_ADMIN' && item.role === 'ADMIN') && !item.isPrincipal && (
+                  {canManageTarget(item) && !item.isPrincipal && (
                     <button
                       type="button"
                       className="btn-deactivate"
                       onClick={() => handleToggleStatus(item.id)}
                     >
-                      {item.status === 'ATIVO' ? 'DESATIVAR' : 'ATIVAR'}
+                      {item.role === 'TEAM_ADMIN' ? (item.status === 'ATIVO' ? 'DESATIVAR EQUIPE' : 'REATIVAR EQUIPE') : (item.status === 'ATIVO' ? 'DESATIVAR' : 'ATIVAR')}
                     </button>
                   )}
 
-                  {(user?.role === 'ADMIN' || (user?.role === 'SUB_ADMIN' && item.createdBy === user.id && item.role !== 'ADMIN' && (user.eventId === 'all' || item.eventId === user.eventId))) && item.id !== user?.id && !item.isPrincipal && (
+                  {(user?.role === 'ADMIN' || (user?.role === 'TEAM_ADMIN' && canManageTarget(item)) || (user?.role === 'SUB_ADMIN' && item.createdBy === user.id && item.role !== 'ADMIN' && (user.eventId === 'all' || item.eventId === user.eventId))) && item.id !== user?.id && !item.isPrincipal && item.role !== 'TEAM_ADMIN' && (
                     <button
                       type="button"
                       className="icon-action-btn"
@@ -719,8 +732,8 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                                 setNewUserForm((prev) => ({
                                   ...prev,
                                   role: opt.value,
-                                  ...((opt.value === 'ADMIN' || opt.value === 'SUB_ADMIN') && (user?.role === 'ADMIN' || user?.eventId === 'all')
-                                    ? { eventId: 'all', eventName: 'TODOS OS PROJETOS' }
+                                  ...((['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(opt.value)) && (['ADMIN', 'TEAM_ADMIN'].includes(user?.role) || user?.eventId === 'all')
+                                    ? { eventId: 'all', eventName: allProjectsLabel }
                                     : {}),
                                 }))
                                 setIsRoleDropdownOpen(false)
@@ -756,6 +769,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     <button
                       type="button"
                       className={`custom-role-trigger ${isEventDropdownOpen ? 'open' : ''}`}
+                      disabled={newUserForm.role === 'TEAM_ADMIN'}
                       onClick={() => {
                         setIsRoleDropdownOpen(false)
                         setIsEventDropdownOpen((prev) => !prev)
@@ -767,7 +781,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                       <div className="role-trigger-text">
                         <span className="role-trigger-name">
                           {newUserForm.eventId === 'all'
-                            ? 'TODOS OS PROJETOS (Acesso Global)'
+                            ? projectScopeLabel(newUserForm.role, user?.teamId)
                             : (manageableEvents.find((e) => e.id === newUserForm.eventId)?.name || newUserForm.eventName || 'SELECIONE A CORRIDA')}
                         </span>
                       </div>
@@ -776,7 +790,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                     {isEventDropdownOpen && (
                       <div className="role-options-list" role="listbox">
-                        {(newUserForm.role === 'ADMIN' || newUserForm.role === 'SUB_ADMIN') && (user?.role === 'ADMIN' || user?.eventId === 'all') && (
+                        {(['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(newUserForm.role)) && (['ADMIN', 'TEAM_ADMIN'].includes(user?.role) || user?.eventId === 'all') && (
                           <button
                             type="button"
                             className={`role-option-item ${newUserForm.eventId === 'all' ? 'selected' : ''}`}
@@ -784,7 +798,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                               setNewUserForm((prev) => ({
                                 ...prev,
                                 eventId: 'all',
-                                eventName: 'TODOS OS PROJETOS',
+                                eventName: allProjectsLabel,
                               }))
                               setIsEventDropdownOpen(false)
                             }}
@@ -793,10 +807,10 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                           >
                             <div className="role-option-content">
                               <div className="role-option-title-row">
-                                <span className={`role-tag-badge ${newUserForm.role === 'SUB_ADMIN' ? 'sub_admin' : 'admin'}`}>GLOBAL</span>
-                                <span className="role-option-desc">TODOS OS PROJETOS</span>
+                                <span className={`role-tag-badge ${newUserForm.role === 'SUB_ADMIN' ? 'sub_admin' : 'admin'}`}>EQUIPE</span>
+                                <span className="role-option-desc">{projectScopeLabel(newUserForm.role, user?.teamId)}</span>
                               </div>
-                              <p className="role-option-detail">Acesso e gestão de todas as corridas do sistema</p>
+                              <p className="role-option-detail">Acesso aos projetos deste ambiente, respeitando o perfil escolhido</p>
                             </div>
                             {newUserForm.eventId === 'all' && (
                               <div className="role-selected-check">
@@ -1007,7 +1021,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                     {isEditRoleDropdownOpen && (
                       <div className="role-options-list" role="listbox">
-                        {availableRoleOptions.map((opt) => {
+                        {editRoleOptions.map((opt) => {
                           const isSelected = editUserForm.role === opt.value
                           return (
                             <button
@@ -1016,14 +1030,14 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                               className={`role-option-item ${isSelected ? 'selected' : ''}`}
                               onClick={() => {
                                 setEditUserForm((prev) => {
-                                  const isGlobalRole = opt.value === 'ADMIN' || opt.value === 'SUB_ADMIN'
+                                  const isGlobalRole = ['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(opt.value)
                                   let nextEventId = prev.eventId
                                   let nextEventName = prev.eventName
                                   if (!isGlobalRole && (prev.eventId === 'all' || !prev.eventId)) {
-                                    nextEventId = manageableEvents[0]?.id || ''
-                                    nextEventName = manageableEvents[0]?.name || ''
+                                    nextEventId = editManageableEvents[0]?.id || ''
+                                    nextEventName = editManageableEvents[0]?.name || ''
                                   }
-                                  if (isGlobalRole && (user?.role === 'ADMIN' || user?.eventId === 'all')) {
+                                  if (isGlobalRole && (['ADMIN', 'TEAM_ADMIN'].includes(user?.role) || user?.eventId === 'all')) {
                                     nextEventId = 'all'
                                     nextEventName = 'TODOS OS PROJETOS'
                                   }
@@ -1067,6 +1081,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     <button
                       type="button"
                       className={`custom-role-trigger ${isEditEventDropdownOpen ? 'open' : ''}`}
+                      disabled={editUserForm.role === 'TEAM_ADMIN'}
                       onClick={() => {
                         setIsEditRoleDropdownOpen(false)
                         setIsEditEventDropdownOpen((prev) => !prev)
@@ -1078,8 +1093,8 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                       <div className="role-trigger-text">
                         <span className="role-trigger-name">
                           {editUserForm.eventId === 'all'
-                            ? 'TODOS OS PROJETOS (Acesso Global)'
-                            : (manageableEvents.find((e) => e.id === editUserForm.eventId)?.name || editUserForm.eventName || 'SELECIONE A CORRIDA')}
+                            ? projectScopeLabel(editUserForm.role, userToEdit?.teamId)
+                            : (editManageableEvents.find((e) => e.id === editUserForm.eventId)?.name || editUserForm.eventName || 'SELECIONE A CORRIDA')}
                         </span>
                       </div>
                       <ChevronDownIcon className={`role-chevron ${isEditEventDropdownOpen ? 'rotated' : ''}`} />
@@ -1087,7 +1102,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                     {isEditEventDropdownOpen && (
                       <div className="role-options-list" role="listbox">
-                        {(editUserForm.role === 'ADMIN' || editUserForm.role === 'SUB_ADMIN') && (user?.role === 'ADMIN' || user?.eventId === 'all') && (
+                        {(['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(editUserForm.role)) && (['ADMIN', 'TEAM_ADMIN'].includes(user?.role) || user?.eventId === 'all') && (
                           <button
                             type="button"
                             className={`role-option-item ${editUserForm.eventId === 'all' ? 'selected' : ''}`}
@@ -1095,7 +1110,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                               setEditUserForm((prev) => ({
                                 ...prev,
                                 eventId: 'all',
-                                eventName: 'TODOS OS PROJETOS',
+                                eventName: allProjectsLabel,
                               }))
                               setIsEditEventDropdownOpen(false)
                             }}
@@ -1104,10 +1119,10 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                           >
                             <div className="role-option-content">
                               <div className="role-option-title-row">
-                                <span className={`role-tag-badge ${editUserForm.role === 'SUB_ADMIN' ? 'sub_admin' : 'admin'}`}>GLOBAL</span>
-                                <span className="role-option-desc">TODOS OS PROJETOS</span>
+                                <span className={`role-tag-badge ${editUserForm.role === 'SUB_ADMIN' ? 'sub_admin' : 'admin'}`}>EQUIPE</span>
+                                <span className="role-option-desc">{projectScopeLabel(editUserForm.role, userToEdit?.teamId)}</span>
                               </div>
-                              <p className="role-option-detail">Acesso e gestão de todas as corridas do sistema</p>
+                              <p className="role-option-detail">Acesso aos projetos deste ambiente, respeitando o perfil escolhido</p>
                             </div>
                             {editUserForm.eventId === 'all' && (
                               <div className="role-selected-check">
@@ -1117,12 +1132,12 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                           </button>
                         )}
 
-                        {manageableEvents.length === 0 ? (
+                        {editManageableEvents.length === 0 ? (
                           <div className="empty-events-select-msg">
                             Nenhum projeto cadastrado no momento.
                           </div>
                         ) : (
-                          manageableEvents.map((ev) => {
+                          editManageableEvents.map((ev) => {
                             const isSelected = editUserForm.eventId === ev.id
                             return (
                               <button
