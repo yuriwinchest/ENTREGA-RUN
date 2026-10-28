@@ -68,6 +68,24 @@ flock -n 9 || { echo 'Outro deploy está em andamento.' >&2; exit 1; }
 }
 grep -q '^ADMIN_PASSWORD=.' .env || { echo 'ADMIN_PASSWORD não configurado; deploy cancelado.' >&2; exit 1; }
 docker inspect "$SERVICE" >/dev/null
+PREVIOUS_IMAGE="$(docker inspect -f '{{.Image}}' "$SERVICE")"
+# O rollback conserva o volume. Equipes existentes exigem imagem anterior
+# compatível com o isolamento, verificada sem montar dados nem usar rede.
+HAS_TEAM_DATA="$(docker exec "$SERVICE" node -e '
+  const fs = require("fs");
+  const users = JSON.parse(fs.readFileSync("/app/data/users.json", "utf8"));
+  const events = JSON.parse(fs.readFileSync("/app/data/events.json", "utf8"));
+  if (!Array.isArray(users) || !Array.isArray(events)) process.exit(1);
+  console.log(Number(users.some(u => u.role === "TEAM_ADMIN" || Boolean(u.teamId)) || events.some(e => Boolean(e.teamId))));
+')"
+[[ "$HAS_TEAM_DATA" == 0 || "$HAS_TEAM_DATA" == 1 ]] || { echo 'Não foi possível conferir as equipes; deploy cancelado.' >&2; exit 1; }
+if [[ "$HAS_TEAM_DATA" == 1 ]]; then
+  docker run --rm --network none --read-only --entrypoint sh "$PREVIOUS_IMAGE" -c 'test -f /app/server/teamAccess.js' || {
+    echo 'Dados de equipe exigem imagem de rollback compatível; deploy cancelado.' >&2
+    exit 1
+  }
+fi
+echo "Rollback conferido: imagem=$PREVIOUS_IMAGE equipes_existentes=$HAS_TEAM_DATA"
 curl --silent --fail --max-time 5 http://127.0.0.1:3050/api/health >/dev/null || {
   echo 'Serviço atual sem saúde; deploy cancelado.' >&2
   exit 1
@@ -97,7 +115,6 @@ git cat-file -e "$DEPLOY_SHA^{commit}"
 git worktree add --detach "$BUILD_DIR" "$DEPLOY_SHA" >/dev/null
 docker build -t "$IMAGE" "$BUILD_DIR"
 
-PREVIOUS_IMAGE="$(docker inspect -f '{{.Image}}' "$SERVICE")"
 docker tag "$PREVIOUS_IMAGE" "$ROLLBACK_IMAGE"
 
 # Capture the live event files immediately before replacing the container.

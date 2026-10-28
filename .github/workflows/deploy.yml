@@ -81,10 +81,13 @@ jobs:
             command -v tar
             command -v sha256sum
             docker inspect entregas-run-web >/dev/null
+            docker inspect -f 'current_image={{.Image}}' entregas-run-web
             docker compose version
             curl --silent --fail --max-time 5 http://127.0.0.1:3050/api/health >/dev/null
             docker exec entregas-run-web node -e 'const fs=require("fs"); const events=JSON.parse(fs.readFileSync("/app/data/events.json","utf8")); if(!Array.isArray(events)||events.length===0) process.exit(1); const active=events.find(e=>(e.status==="EM OPERAÇÃO"||Number(e.total)>0)&&fs.existsSync(`/app/data/athletes_${e.id}.json`))||events.find(e=>fs.existsSync(`/app/data/athletes_${e.id}.json`)); if(active){ const data=JSON.parse(fs.readFileSync(`/app/data/athletes_${active.id}.json`,"utf8")); if(!Array.isArray(data.athletes)) process.exit(1); console.log(`active_event=${active.id} athletes=${data.athletes.length} delivered=${data.athletes.filter(a=>a.status==="ENTREGUE").length}`); } else { console.log("Nenhum evento com planilha importada ainda"); }'
             df -P . | awk 'NR==2 {gsub(/%/, "", $5); print "disk_used_percent=" $5; if ($5 >= 80) exit 1}'
+            awk '/MemTotal:/ {total=$2} /MemAvailable:/ {available=$2} END {if(total>0) printf "ram_used_percent=%.1f\n", 100*(total-available)/total; else exit 1}' /proc/meminfo
+            docker exec entregas-run-web node -e 'const fs=require("fs"); const users=JSON.parse(fs.readFileSync("/app/data/users.json","utf8")); const events=JSON.parse(fs.readFileSync("/app/data/events.json","utf8")); if(!Array.isArray(users)||!Array.isArray(events)) process.exit(1); console.log("team_users="+users.filter(u=>u.role==="TEAM_ADMIN"||Boolean(u.teamId)).length+" team_events="+events.filter(e=>Boolean(e.teamId)).length)'
             echo 'VPS preflight OK'
 
   deploy:

@@ -64,6 +64,25 @@ test('equipes isoladas no HTTP: hierarquia, recursos, sync e sessões persistent
     await start()
     principal = await login(principalEmail)
     legacyToken = await login(legacyUser.email)
+    await t.test('janela de release bloqueia nova equipe sem gravar usuário nem vínculo', async () => {
+      const lock = path.join(dir, '.emergency-links-release-pending')
+      const usersFile = path.join(dir, 'users.json')
+      const beforeDisk = fs.readFileSync(usersFile, 'utf8')
+      const beforeUsers = (await request('/api/users', 'GET', undefined, principal)).data.users
+      fs.writeFileSync(lock, 'candidate-verification')
+      try {
+        const blocked = await request('/api/users', 'POST', {
+          name: 'NAO GRAVAR', email: 'release-blocked@example.test', password, role: 'TEAM_ADMIN', eventId: 'all',
+        }, principal)
+        assert.equal(blocked.status, 503)
+        assert.equal((await request(`/api/users/${legacyUser.id}`, 'PUT', { role: 'TEAM_ADMIN' }, principal)).status, 400)
+        assert.equal(fs.readFileSync(usersFile, 'utf8'), beforeDisk)
+        assert.deepEqual((await request('/api/users', 'GET', undefined, principal)).data.users, beforeUsers)
+        assert.equal((await request('/api/health')).status, 200)
+      } finally {
+        fs.unlinkSync(lock)
+      }
+    })
     a = await createUser(principal, 'leader-a@example.test', 'TEAM_ADMIN', 'all', { teamId: 'forged', createdBy: 'forged' })
     b = await createUser(principal, 'leader-b@example.test', 'TEAM_ADMIN')
     aToken = await login(a.email)

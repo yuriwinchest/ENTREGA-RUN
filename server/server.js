@@ -2095,6 +2095,10 @@ app.post('/api/users', requireAdminOrSubAdmin, (req, res) => {
   if (['ADMIN', 'TEAM_ADMIN'].includes(role) && !req.session.isPrincipal) {
     return res.status(403).json({ ok: false, message: 'Somente o principal pode criar administradores.' })
   }
+  // O rollback da imagem candidata não pode receber uma equipe que só a versão nova entende.
+  if (role === 'TEAM_ADMIN' && fs.existsSync(path.join(DATA_DIR, '.emergency-links-release-pending'))) {
+    return res.status(503).json({ ok: false, message: 'Atualização em validação. Aguarde alguns instantes e tente novamente.' })
+  }
   if (eventId !== 'all') {
     const event = inMemoryEvents.find((item) => item.id === eventId)
     if (!event || !canAccessEvent(req.session, event) || (!req.session.isPrincipal && teamOf(event) !== teamOf(req.session))) {
