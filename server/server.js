@@ -2230,6 +2230,67 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   res.json({ ok: true, user: publicUser(updated) })
 })
 
+// POST /api/users/:id/isolar — o principal transforma um SUB-ADMIN/ADMIN antigo
+// (que via todo o acervo principal) em sub-admin isolado (TEAM_ADMIN). Vão junto
+// os eventos escolhidos e os usuários ligados a eles ou criados por ele. Eventos
+// antigos não registram autor, por isso a escolha é do principal.
+app.post('/api/users/:id/isolar', requireAdminOrSubAdmin, (req, res) => {
+  if (!req.session.isPrincipal) return res.status(403).json({ ok: false, message: 'Somente o super admin principal pode isolar um sub-admin.' })
+  if (fs.existsSync(path.join(DATA_DIR, '.emergency-links-release-pending'))) {
+    return res.status(503).json({ ok: false, message: 'Atualização em validação. Aguarde alguns instantes e tente novamente.' })
+  }
+  const userId = String(req.params.id || '').trim()
+  const target = inMemoryUsers.find((u) => u.id === userId)
+  if (!target) return res.status(404).json({ ok: false, message: 'Usuário não encontrado.' })
+  if (isPrincipalAdmin(target) || teamOf(target) || !['SUB_ADMIN', 'ADMIN'].includes(target.role)) {
+    return res.status(400).json({ ok: false, message: 'Só SUB-ADMIN ou ADMIN do acervo principal pode ser isolado.' })
+  }
+  const requested = Array.isArray(req.body?.eventIds) ? [...new Set(req.body.eventIds.map((id) => String(id)))] : null
+  if (!requested) return res.status(400).json({ ok: false, message: 'Informe a lista de eventos (pode ser vazia).' })
+  const moving = requested.map((id) => inMemoryEvents.find((event) => event.id === id))
+  if (moving.some((event) => !event || teamOf(event))) {
+    return res.status(400).json({ ok: false, message: 'Evento inexistente ou já pertencente a outro sub-admin.' })
+  }
+  const teamId = `team-${crypto.randomUUID()}`
+  const movingIds = new Set(requested)
+  const movesWithEvent = (user) => user.id !== target.id && !isPrincipalAdmin(user) && !teamOf(user) &&
+    !['ADMIN', 'TEAM_ADMIN'].includes(user.role) &&
+    (movingIds.has(user.eventId) || (user.createdBy === target.id && user.eventId === 'all'))
+  const movedUsers = inMemoryUsers.filter(movesWithEvent)
+  const movedUserIds = new Set(movedUsers.map((user) => user.id))
+  const now = Date.now()
+
+  const previousEvents = inMemoryEvents
+  const nextEvents = inMemoryEvents.map((event) => movingIds.has(event.id) ? { ...event, teamId, updatedAt: now } : event)
+  const nextUsers = inMemoryUsers.map((user) => {
+    if (user.id === target.id) {
+      return { ...user, role: 'TEAM_ADMIN', teamId, eventId: 'all', eventName: 'TODOS OS PROJETOS DA EQUIPE', isolatedAt: new Date(now).toISOString(), updatedAt: now }
+    }
+    return movedUserIds.has(user.id) ? { ...user, teamId, updatedAt: now } : user
+  })
+  inMemoryEvents = nextEvents
+  if (!writeEventsToDisk(inMemoryEvents)) {
+    inMemoryEvents = previousEvents
+    writeEventsToDisk(inMemoryEvents)
+    return res.status(500).json({ ok: false, message: 'Não foi possível salvar os eventos. Nada foi alterado.' })
+  }
+  if (!writeUsersToDisk(nextUsers)) {
+    inMemoryEvents = previousEvents
+    writeEventsToDisk(inMemoryEvents)
+    return res.status(500).json({ ok: false, message: 'Não foi possível salvar os usuários. Nada foi alterado.' })
+  }
+  inMemoryUsers = nextUsers
+  // Sessões guardam a equipe: quem mudou de âmbito entra de novo.
+  revokeUserSessions(target.id)
+  for (const id of movedUserIds) revokeUserSessions(id)
+  res.json({
+    ok: true,
+    user: publicUser(inMemoryUsers.find((u) => u.id === target.id)),
+    eventos: requested.length,
+    usuarios: movedUserIds.size,
+  })
+})
+
 // DELETE /api/users/:id — Remove usuário
 app.delete('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   const userId = String(req.params.id || '').trim()
