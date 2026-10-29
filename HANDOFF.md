@@ -10,19 +10,19 @@
 
 ## Última atualização
 
+- **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `d1749fb..33934ec`.
+- **Pedido:** tela de perfis confusa. Modelo do Yuri: Super admin = só a conta dona (não se cria pela tela); Sub-admin faz tudo, mas só nos eventos dele e dos usuários dele; "Gerente de evento" desnecessário.
+- **Entrega:** criação mostra Sub-admin (topo), Operador, Supervisor e Médico, com texto explicando Super admin × Sub-admin; "Gerente de evento"/"Admin do principal" só aparecem na edição de quem já os tem. Só client (`UsuariosPage`).
+- **Validação:** client 79/79, lint/build ok; navegador local no celular: lista e texto conferidos.
+- **Próximo passo:** Yuri criar um Sub-admin e entrar com ele para conferir que só vê os próprios eventos.
+
+## Penúltima atualização
+
 - **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5), sobre base do Codex/Tony · Fase B; código `b223cc7..6dcec95`.
 - **Pedido / causa:** com 3 computadores entregando, os 3 Espelhos mostravam o atleta de um só: o estado era um por evento. Agora cada aparelho+usuário é um guichê com canal próprio (`espelho_canais.json`, número estável por evento).
 - **Entrega:** Operação publica só no canal do seu guichê; botão ESPELHO mostra "ESPELHO DO GUICHÊ N" com link/QR `/espelho/:id?canal=…`; tela pública mostra "GUICHÊ N". Link antigo sem canal segue vivo (último atendimento de qualquer guichê). Aparência segue por evento.
 - **Validação / publicação:** servidor 57/57, client 79/79, lint/build ok; navegador local fictício: 3 operações (2 usuários, um em 2 aparelhos), cada Espelho só com seu atleta, entrega no guichê 2 liberou só o 2. Actions `40794883213` success; dois domínios health 200, bundle `index-sjvm0NiJ.js` com o texto novo.
 - **Próximo passo:** Yuri homologar num evento real com 2+ computadores (abrir ESPELHO em cada um e usar o QR daquele guichê). Tela de Usuários agrupada do Codex (`95da7fe`) ficou fora, não publicada.
-
-## Penúltima atualização
-
-- **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `c78e7ff..b52d18d`.
-- **Pedido / causa:** sub-admin continuava vendo tudo. O isolamento existia só no perfil novo (TEAM_ADMIN); SUB-ADMIN/ADMIN antigos com "todos os projetos" seguiam globais e não havia conversão.
-- **Entrega:** `POST /api/users/:id/isolar` (só principal) converte o antigo em Sub-admin isolado com os eventos marcados (e usuários deles/criados por ele); tela: "SUB-ADMIN" = isolado, "GERENTE DE EVENTO" = sub-admin de um evento, antigos marcados "VÊ TUDO" com botão ISOLAR.
-- **Validação real:** servidor 51/51 (novo `subadminIsolar.http.test.mjs`), client 75/75, lint/build ok; navegador local: antigo via 3 eventos → isolado pela tela com 2 → vê 2 e seus usuários; principal segue com 3.
-- **Próximo passo:** Yuri, em Usuários, clicar ISOLAR COMO SUB-ADMIN em cada sub-admin antigo e marcar os eventos dele.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -44,5 +44,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
-- 2026-10-28 · Claude Code · Espelho separado por guichê (cada computador com seu link/QR) publicado.
-- 2026-10-28 · Claude Code · Sub-admin antigo pode ser isolado pela tela; perfis renomeados (Sub-admin / Gerente de evento).
+- 2026-10-28 · Claude Code · Perfis simplificados: Super admin (dono) e Sub-admin; "Gerente de evento" sai da criação.
+- 2026-10-28 · Claude Code · Espelho por guichê publicado (`b223cc7..6dcec95`).
