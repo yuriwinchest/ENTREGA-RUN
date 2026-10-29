@@ -10,20 +10,19 @@
 
 ## Última atualização
 
+- **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5), sobre base do Codex/Tony · Fase B; código `b223cc7..6dcec95`.
+- **Pedido / causa:** com 3 computadores entregando, os 3 Espelhos mostravam o atleta de um só: o estado era um por evento. Agora cada aparelho+usuário é um guichê com canal próprio (`espelho_canais.json`, número estável por evento).
+- **Entrega:** Operação publica só no canal do seu guichê; botão ESPELHO mostra "ESPELHO DO GUICHÊ N" com link/QR `/espelho/:id?canal=…`; tela pública mostra "GUICHÊ N". Link antigo sem canal segue vivo (último atendimento de qualquer guichê). Aparência segue por evento.
+- **Validação / publicação:** servidor 57/57, client 79/79, lint/build ok; navegador local fictício: 3 operações (2 usuários, um em 2 aparelhos), cada Espelho só com seu atleta, entrega no guichê 2 liberou só o 2. Actions `40794883213` success; dois domínios health 200, bundle `index-sjvm0NiJ.js` com o texto novo.
+- **Próximo passo:** Yuri homologar num evento real com 2+ computadores (abrir ESPELHO em cada um e usar o QR daquele guichê). Tela de Usuários agrupada do Codex (`95da7fe`) ficou fora, não publicada.
+
+## Penúltima atualização
+
 - **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `c78e7ff..b52d18d`.
 - **Pedido / causa:** sub-admin continuava vendo tudo. O isolamento existia só no perfil novo (TEAM_ADMIN); SUB-ADMIN/ADMIN antigos com "todos os projetos" seguiam globais e não havia conversão.
 - **Entrega:** `POST /api/users/:id/isolar` (só principal) converte o antigo em Sub-admin isolado com os eventos marcados (e usuários deles/criados por ele); tela: "SUB-ADMIN" = isolado, "GERENTE DE EVENTO" = sub-admin de um evento, antigos marcados "VÊ TUDO" com botão ISOLAR.
 - **Validação real:** servidor 51/51 (novo `subadminIsolar.http.test.mjs`), client 75/75, lint/build ok; navegador local: antigo via 3 eventos → isolado pela tela com 2 → vê 2 e seus usuários; principal segue com 3.
 - **Próximo passo:** Yuri, em Usuários, clicar ISOLAR COMO SUB-ADMIN em cada sub-admin antigo e marcar os eventos dele.
-
-## Penúltima atualização
-
-- **Quando / quem / fase:** 2026-10-28 · Codex/Tony, com UI, QA/Crowley e Ulisses/Vitor em subagentes · Fase A/B; código `67352ed..fbc795d`.
-- **Pedido / entrega:** Yuri autorizou publicar equipes e corrigir Usuários do sub-admin; redirecionamento indevido reproduzido/corrigido, recarga entre abas estabilizada, gate de equipes e rollback compatível. Detalhes: `docs/publicacao-admin-equipes-2026-10-28.md`.
-- **Validação real:** servidor 50/50, client 75/75, lint exit0 (4 avisos existentes), build/sintaxe bash/diff ok; navegador local reproduziu falha antiga e Usuários estável no candidato, com evidência sintética.
-- **Publicação:** runtime `fbc795d`, Actions `40789978678` success; dois domínios HTTP200 com bundle `index-Dl7Ksvzp.js`; snapshots/hash e manifesto/API preservaram 1 evento, 16.481 atletas e 865 entregas.
-- **Riscos / continuidade:** backup completo no volume obrigatório para equipes; Appwrite legado sem vínculo. Gate impede equipes durante validação, rollback antigo vetado se houver equipes; AI Memory atualizado em `decisoes/admin-equipes-2026-10-28.md`.
-- **Próximo passo:** Yuri conferir Usuários com sub-admin real e homologar administradores de equipe; sem teste destrutivo/cadastro real em produção; Fase C não iniciada.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -45,5 +44,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-28 · Claude Code · Espelho separado por guichê (cada computador com seu link/QR) publicado.
 - 2026-10-28 · Claude Code · Sub-admin antigo pode ser isolado pela tela; perfis renomeados (Sub-admin / Gerente de evento).
-- 2026-10-28 · Codex/Tony · Administradores de equipe isolados publicados (`d93859b..fbc795d`).
