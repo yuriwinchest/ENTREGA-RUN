@@ -1137,3 +1137,149 @@
   background: #0c142c;
   color: #ffffff;
 }
+
+/* Escadinha: abas por administrador e por evento */
+.user-scope-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 14px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.user-scope-tabs button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  color: #334155;
+  cursor: pointer;
+}
+
+.user-scope-tabs button.on {
+  border-color: #0c142c;
+  background: #0c142c;
+  color: #ffffff;
+}
+
+.user-scope-kind {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(99, 102, 241, 0.14);
+  color: #4f46e5;
+  font-size: 9.5px;
+  letter-spacing: 0.4px;
+}
+
+.user-scope-tabs button.on .user-scope-kind {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.user-scope-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11.5px;
+  text-align: center;
+}
+
+.user-scope-tabs button.on .user-scope-count {
+  background: #ff5200;
+  color: #ffffff;
+}
+
+.user-scope-summary {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.user-scope-summary h2 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.user-scope-summary ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.user-scope-summary li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-left: 4px solid #ff5200;
+  border-radius: 4px 10px 10px 4px;
+  background: #f8fafc;
+}
+
+.user-scope-summary strong {
+  font-size: 13px;
+  color: #0c142c;
+}
+
+.user-scope-summary li span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.user-scope-empty {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.user-event-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+}
+
+.user-event-tabs button {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 99px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+}
+
+.user-event-tabs button span {
+  margin-left: 4px;
+  color: #94a3b8;
+}
+
+.user-event-tabs button.on {
+  border-color: #ff5200;
+  background: rgba(255, 82, 0, 0.08);
+  color: #c2410c;
+}

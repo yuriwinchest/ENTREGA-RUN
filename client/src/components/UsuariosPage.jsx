@@ -7,6 +7,7 @@ import {
   apiIsolarUser,
   apiDeleteUser,
 } from '../utils/usersApi.js'
+import { buildEventTabs, buildUserScopes, usersForEventTab } from '../utils/userTabs.js'
 import './UsuariosPage.css'
 
 function HelpCircleIcon() {
@@ -217,6 +218,14 @@ export default function UsuariosPage({
 
   const [users, setUsers] = useState([])
   const [loadError, setLoadError] = useState('')
+  // Escadinha: aba do super admin + uma por Sub-admin; dentro, sub-abas por evento.
+  const [scopeId, setScopeId] = useState('')
+  const [eventTabId, setEventTabId] = useState('all')
+  const userScopes = useMemo(() => buildUserScopes(users, events, user || {}), [users, events, user])
+  const activeScope = userScopes.find((scope) => scope.id === scopeId) || userScopes[0]
+  const eventTabs = useMemo(() => buildEventTabs(activeScope), [activeScope])
+  const activeEventTab = eventTabs.some((tab) => tab.id === eventTabId) ? eventTabId : 'all'
+  const shownUsers = usersForEventTab(activeScope, activeEventTab)
 
   // Remove cache legado que continha senhas em texto puro e sincroniza usuários em tempo real
   useEffect(() => {
@@ -603,8 +612,66 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
         </header>
 
         {loadError && <p role="alert" className="alert-feedback-error">{loadError}</p>}
+        {userScopes.length > 1 && (
+          <nav className="user-scope-tabs" role="tablist" aria-label="Usuários por administrador">
+            {userScopes.map((scope) => (
+              <button
+                key={scope.id}
+                type="button"
+                role="tab"
+                aria-selected={activeScope?.id === scope.id}
+                className={activeScope?.id === scope.id ? 'on' : ''}
+                onClick={() => { setScopeId(scope.id); setEventTabId('all') }}
+              >
+                {scope.leader && <span className="user-scope-kind">SUB-ADMIN</span>}
+                <span className="user-scope-name">{scope.label}</span>
+                <span className="user-scope-count">{scope.users.length}</span>
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {activeScope?.leader && (
+          <section className="user-scope-summary" aria-label={`Eventos de ${activeScope.label}`}>
+            <h2>Eventos de {activeScope.label}</h2>
+            {activeScope.events.length === 0 ? (
+              <p className="user-scope-empty">Ainda não criou nenhum evento.</p>
+            ) : (
+              <ul>
+                {activeScope.events.map((event) => (
+                  <li key={event.id}>
+                    <strong>{event.name}</strong>
+                    <span>{Number(event.total) || 0} atletas · {Number(event.entregues) || 0} entregues{event.status ? ` · ${event.status}` : ''}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {eventTabs.length > 2 && (
+          <nav className="user-event-tabs" role="tablist" aria-label="Usuários por evento">
+            {eventTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeEventTab === tab.id}
+                className={activeEventTab === tab.id ? 'on' : ''}
+                onClick={() => setEventTabId(tab.id)}
+              >
+                {tab.label} <span>{tab.count}</span>
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {shownUsers.length === 0 && users.length > 0 && (
+          <p className="user-scope-empty">Ninguém cadastrado aqui ainda.</p>
+        )}
+
         <section className="users-grid">
-          {users.map((item) => (
+          {shownUsers.map((item) => (
             <article key={item.id} className="user-card">
               <div className="user-card-top">
                 <div className="user-avatar">{item.avatar || item.name?.substring(0, 2).toUpperCase() || 'U'}</div>
