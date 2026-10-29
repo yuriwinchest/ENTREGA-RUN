@@ -183,7 +183,7 @@ test('equipes isoladas no HTTP: hierarquia, recursos, sync e sessões persistent
         assert.equal((await request(`/api/espelho/${id}/estado`, 'POST', { status: 'LIVRE' }, aToken)).status, 403)
       }
       assert.equal((await request('/api/espelho/team-a-event/estado', 'POST', { status: 'LIVRE' })).status, 401)
-      assert.equal((await request('/api/espelho/team-a-event/estado', 'POST', { status: 'LIVRE' }, aToken)).status, 200)
+      assert.equal((await request('/api/espelho/team-a-event/estado', 'POST', { status: 'LIVRE' }, aToken)).status, 409)
       // A leitura do telão continua pública por contrato; apenas gestão exige sessão/equipe.
       assert.equal((await request('/api/espelho/team-a-event/estado')).status, 200)
       assert.equal((await request('/api/emergency-links/preview?code=team-b-event', 'GET', undefined, aToken)).status, 403)

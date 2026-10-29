@@ -106,8 +106,9 @@ test('fluxo completo: colunas de saúde da planilha, busca pública, ocorrência
     const kit = await request('/api/public/events/ev-poa/athletes/1')
     assert.deepEqual(kit.data.athlete.customFields, { EQUIPE2: 'Pace' })
     // Nem o espelho do guichê (segunda tela pública).
-    assert.equal((await request('/api/espelho/ev-poa/estado', 'POST', { status: 'ATENDENDO', atleta: { numero: '1', nome: 'ELIUD', customFields: athletes[0].customFields } }, admin)).status, 200)
-    const espelho = await request('/api/espelho/ev-poa/estado')
+    const canal = (await request('/api/espelho/ev-poa/canais', 'POST', { stationId: '40a61d42-9be5-499c-a66f-b0169dcefc31' }, admin)).data.canalId
+    assert.equal((await request(`/api/espelho/ev-poa/estado?canal=${canal}`, 'POST', { status: 'ATENDENDO', atleta: { numero: '1', nome: 'ELIUD', customFields: athletes[0].customFields } }, admin)).status, 200)
+    const espelho = await request(`/api/espelho/ev-poa/estado?canal=${canal}`)
     assert.deepEqual(espelho.data.state.atleta.customFields, { EQUIPE2: 'Pace' })
 
     // Página pública de emergência: só colunas públicas preenchidas, sem CPF nem telefone.

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import { teamOf, sameScope, canAccessEvent, canCreateEvent, canManageUser } from './teamAccess.js'
+import { createEspelhoChannels, STATION_ID } from './espelhoChannels.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -264,6 +265,7 @@ app.use('/api', (req, res, next) => {
 // ============================================================
 const espelhoStates = new Map()
 const espelhoClients = new Map() // key -> Set<Response>
+const espelhoChannels = createEspelhoChannels(DATA_DIR)
 
 const ESPELHO_CONFIGS_FILE = path.join(DATA_DIR, 'espelho_configs.json')
 let inMemoryEspelhoConfigs = {}
@@ -304,6 +306,49 @@ const espelhoJsonParser = express.json({ limit: '9mb' })
 function espelhoKey(rawId) {
   return String(rawId || 'default').replace(/[^\w-]/g, '').slice(0, 64) || 'default'
 }
+
+function resolveEspelho(req, res) {
+  const eventId = req.params.eventId
+  const hasChannel = Object.hasOwn(req.query, 'canal')
+  const channel = hasChannel ? espelhoChannels.get(eventId, req.query.canal) : null
+  if (hasChannel && (!channel || !inMemoryEvents.some((event) => event.id === eventId))) {
+    res.status(404).json({ ok: false, message: 'Canal do Espelho não encontrado. Abra o link deste posto novamente.' })
+    return null
+  }
+  return { eventId, channel, key: channel ? `${eventId}:${channel.canalId}` : espelhoKey(eventId) }
+}
+
+function espelhoState(eventId, key, channel = false) {
+  const state = espelhoStates.get(key)
+  const config = inMemoryEspelhoConfigs[espelhoKey(eventId)] || null
+  if (!state && !config && !channel) return null
+  return { status: 'LIVRE', eventName: '', atleta: null, updatedAt: Date.now(), ...state, config }
+}
+
+function broadcastEspelho(eventId, key, configChanged) {
+  const targets = configChanged
+    ? [espelhoKey(eventId), ...espelhoChannels.forEvent(eventId).map((channel) => `${eventId}:${channel.canalId}`)]
+    : [key]
+  for (const target of targets) {
+    const state = espelhoState(eventId, target, target !== espelhoKey(eventId))
+    const payload = `data: ${JSON.stringify({ ok: true, state })}\n\n`
+    for (const client of espelhoClients.get(target) || []) {
+      try { client.write(payload) } catch {}
+    }
+  }
+}
+
+app.post('/api/espelho/:eventId/canais', espelhoLimiter, requireAuth, express.json({ limit: '2kb' }), (req, res) => {
+  if (!inMemoryEvents.some((event) => event.id === req.params.eventId)) return res.status(404).json({ ok: false, message: 'Projeto não encontrado.' })
+  const stationId = typeof req.body?.stationId === 'string' ? req.body.stationId.toLowerCase() : ''
+  if (!STATION_ID.test(stationId)) return res.status(400).json({ ok: false, message: 'Identificador do posto inválido.' })
+  try {
+    const channel = espelhoChannels.open(req.params.eventId, req.session.userId, stationId)
+    res.json({ ok: true, canalId: channel.canalId })
+  } catch {
+    res.status(503).json({ ok: false, message: 'Não foi possível salvar o canal deste posto. Tente novamente.' })
+  }
+})
 
 function sanitizeHexColor(value, fallback) {
   const text = String(value ?? '').trim()
@@ -361,7 +406,9 @@ function sanitizeEspelhoConfig(raw, previousConfig) {
 
 // Endpoint de streaming SSE para segunda tela / espelho em tempo real
 app.get('/api/espelho/:eventId/stream', (req, res) => {
-  const key = espelhoKey(req.params.eventId)
+  const resolved = resolveEspelho(req, res)
+  if (!resolved) return
+  const { key, eventId, channel } = resolved
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -380,17 +427,7 @@ app.get('/api/espelho/:eventId/stream', (req, res) => {
   clients.add(res)
 
   // Envia estado atual imediatamente ao conectar, garantindo que a config persistida acompanhe
-  const currentState = espelhoStates.get(key) || null
-  const persistedConfig = inMemoryEspelhoConfigs[key] || null
-  const initialPayload = currentState
-    ? { ...currentState, config: currentState.config || persistedConfig }
-    : {
-        status: 'LIVRE',
-        eventName: '',
-        atleta: null,
-        config: persistedConfig,
-        updatedAt: Date.now(),
-      }
+  const initialPayload = espelhoState(eventId, key, Boolean(channel)) || { status: 'LIVRE', eventName: '', atleta: null, config: null, updatedAt: Date.now() }
   res.write(`data: ${JSON.stringify({ ok: true, state: initialPayload })}\n\n`)
 
   // Heartbeat a cada 15 segundos para manter a conexão aberta
@@ -412,33 +449,22 @@ app.get('/api/espelho/:eventId/stream', (req, res) => {
 })
 
 app.get('/api/espelho/:eventId/estado', espelhoLimiter, (req, res) => {
-  const key = espelhoKey(req.params.eventId)
-  const state = espelhoStates.get(key)
-  const persistedConfig = inMemoryEspelhoConfigs[key] || null
-  if (!state) {
-    return res.json({
-      ok: true,
-      state: persistedConfig
-        ? {
-            status: 'LIVRE',
-            eventName: '',
-            atleta: null,
-            config: persistedConfig,
-            updatedAt: Date.now(),
-          }
-        : null,
-    })
-  }
-  res.json({ ok: true, state: { ...state, config: state.config || persistedConfig } })
+  const resolved = resolveEspelho(req, res)
+  if (!resolved) return
+  res.json({ ok: true, state: espelhoState(resolved.eventId, resolved.key, Boolean(resolved.channel)) })
 })
 
 app.post('/api/espelho/:eventId/estado', espelhoLimiter, requireAuth, espelhoJsonParser, (req, res) => {
   const body = req.body || {}
-  const key = espelhoKey(req.params.eventId)
+  const resolved = resolveEspelho(req, res)
+  if (!resolved) return
+  const { key, eventId, channel } = resolved
+  if (channel && channel.ownerUserId !== req.session.userId) return res.status(403).json({ ok: false, message: 'Este canal pertence a outro posto de atendimento.' })
   const previous = espelhoStates.get(key)
 
   // Proteção contra sobrescrita por requisições fora de ordem
-  const hasLiveState = Object.hasOwn(body, 'status') || Object.hasOwn(body, 'atleta')
+  const hasLiveState = ['status', 'atleta', 'eventName'].some((field) => Object.hasOwn(body, field))
+  if (hasLiveState && !channel) return res.status(409).json({ ok: false, message: 'Abra um novo Espelho para este posto antes de enviar o atendimento.' })
   const incomingTime = hasLiveState ? (Number(body.updatedAt) || Date.now()) : (previous?.updatedAt || Date.now())
   if (hasLiveState && previous?.updatedAt && incomingTime < previous.updatedAt) {
     return res.json({ ok: true, ignored: true })
@@ -491,15 +517,14 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, requireAuth, espelhoJso
                 entregueEm: String(atleta.entregueEm ?? '').slice(0, 60),
                 entreguePor: String(atleta.entreguePor ?? '').slice(0, 80),
                 status: String(atleta.status ?? '').slice(0, 20),
-                customFields: withoutHealthFields(atleta.customFields, loadAthletesForEvent(key)?.healthFields),
+                customFields: withoutHealthFields(atleta.customFields, loadAthletesForEvent(eventId)?.healthFields),
               }
             : null,
-    config: sanitizeEspelhoConfig(body.config, previous?.config || inMemoryEspelhoConfigs[key])
-      ?? previous?.config ?? inMemoryEspelhoConfigs[key] ?? null,
     updatedAt: incomingTime,
   }
   if (body.config && typeof body.config === 'object') {
-    const nextConfigs = { ...inMemoryEspelhoConfigs, [key]: state.config }
+    const configKey = espelhoKey(eventId)
+    const nextConfigs = { ...inMemoryEspelhoConfigs, [configKey]: sanitizeEspelhoConfig(body.config, inMemoryEspelhoConfigs[configKey]) }
     try {
       writeEspelhoConfigsToDisk(nextConfigs)
     } catch {
@@ -507,20 +532,10 @@ app.post('/api/espelho/:eventId/estado', espelhoLimiter, requireAuth, espelhoJso
     }
     inMemoryEspelhoConfigs = nextConfigs
   }
-  espelhoStates.set(key, state)
+  if (channel && hasLiveState) espelhoStates.set(key, state)
 
   // Broadcast imediato para todos os clientes SSE conectados para este evento
-  const clients = espelhoClients.get(key)
-  if (clients && clients.size > 0) {
-    const ssePayload = `data: ${JSON.stringify({ ok: true, state })}\n\n`
-    for (const client of clients) {
-      try {
-        client.write(ssePayload)
-      } catch {
-        // cliente desconectado
-      }
-    }
-  }
+  broadcastEspelho(eventId, key, Boolean(body.config && typeof body.config === 'object'))
 
   res.json({ ok: true })
 })

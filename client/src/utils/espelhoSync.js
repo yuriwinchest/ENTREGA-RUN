@@ -1,3 +1,5 @@
+import { espelhoChannelQuery } from './espelhoStation.js'
+
 export const DEFAULT_ESPELHO_CONFIG = {
   fundo: '#071526', // Navy escuro idêntico ao Screenshot 1
   texto: '#ffffff', // Branco puro
@@ -178,9 +180,10 @@ export function buildEspelhoAthlete(athlete) {
   }
 }
 
-export async function publishEspelhoState(eventId, state) {
+export async function publishEspelhoState(eventId, state, canalId = '') {
   if (!eventId) return false
   const hasLiveState = state?.status !== undefined || state?.atleta !== undefined
+  if (hasLiveState && !canalId) return false
   const payload = {
     eventName: text(state?.eventName),
     ...(hasLiveState ? { status: state?.status || 'LIVRE', atleta: buildEspelhoAthlete(state?.atleta) } : {}),
@@ -190,28 +193,20 @@ export async function publishEspelhoState(eventId, state) {
     payload.config = state.config
   }
 
-  // 1. Sincronização em tempo real instantânea (0ms) no mesmo navegador via BroadcastChannel e localStorage
-  if (hasLiveState) broadcastEspelhoChange({ type: 'STATE_CHANGE', eventId, state: payload })
-
-  try {
-    if (hasLiveState) localStorage.setItem(`entregas_run_espelho_live_${eventId}`, JSON.stringify(payload))
-  } catch {
-    // ignore
-  }
-
   let token = ''
   try { token = localStorage.getItem('entregas_run_token') || '' } catch {}
 
   // 2. Publicação remota para outros dispositivos/segundas telas via backend (transmitida via SSE)
   if (typeof fetch === 'function') {
     try {
-      const response = await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado`, {
+      const response = await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado${espelhoChannelQuery(canalId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(payload),
       })
       const result = await response.json().catch(() => ({}))
       const saved = response.ok && result.ok === true && !result.ignored
+      if (saved && hasLiveState) broadcastEspelhoChange({ type: 'STATE_CHANGE', eventId, canalId, state: payload })
       if (saved && !hasLiveState) broadcastEspelhoChange({ type: 'CONFIG_CHANGE', eventId, config: payload.config })
       return saved
     } catch {
@@ -221,9 +216,9 @@ export async function publishEspelhoState(eventId, state) {
   return false
 }
 
-export async function fetchEspelhoState(eventId) {
+export async function fetchEspelhoState(eventId, canalId = '') {
   if (!eventId || typeof fetch !== 'function') return null
-  const response = await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado`, {
+  const response = await fetch(`/api/espelho/${encodeURIComponent(eventId)}/estado${espelhoChannelQuery(canalId)}`, {
     headers: { Accept: 'application/json' },
     cache: 'no-store',
   })
@@ -232,7 +227,7 @@ export async function fetchEspelhoState(eventId) {
   return data?.state || null
 }
 
-export function subscribeEspelhoSSE(eventId, onStateChange, onStatusChange) {
+export function subscribeEspelhoSSE(eventId, onStateChange, onStatusChange, canalId = '') {
   if (!eventId || typeof window === 'undefined' || !('EventSource' in window)) {
     return () => {}
   }
@@ -243,7 +238,7 @@ export function subscribeEspelhoSSE(eventId, onStateChange, onStatusChange) {
   function initSSE() {
     if (!isAlive) return
     try {
-      eventSource = new EventSource(`/api/espelho/${encodeURIComponent(eventId)}/stream`)
+      eventSource = new EventSource(`/api/espelho/${encodeURIComponent(eventId)}/stream${espelhoChannelQuery(canalId)}`)
 
       eventSource.onopen = () => {
         if (typeof onStatusChange === 'function') {
