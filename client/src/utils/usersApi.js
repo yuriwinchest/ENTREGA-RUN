@@ -93,6 +93,19 @@ export async function apiUpdateUser(userId, patchData) {
   }
 }
 
+// Só o super admin principal: transforma um sub-admin antigo (vê tudo) em
+// sub-admin isolado, levando os eventos escolhidos.
+export async function apiIsolarUser(userId, eventIds) {
+  const res = await fetch(`/api/users/${encodeURIComponent(userId)}/isolar`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ eventIds }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.ok) throw new Error(data.message || `HTTP ${res.status}`)
+  return data
+}
+
 export async function apiDeleteUser(userId) {
   try {
     const res = await fetch(`/api/users/${encodeURIComponent(userId)}`, {

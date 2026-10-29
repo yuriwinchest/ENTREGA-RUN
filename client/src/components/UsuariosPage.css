@@ -999,3 +999,123 @@
   font-size: 12px;
   line-height: 1.5;
 }
+
+/* Isolar sub-admin antigo (vê tudo) */
+.user-isolar-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px dashed #f59e0b;
+  border-radius: 8px;
+  background: #fffbeb;
+}
+
+.user-isolar-note p {
+  margin: 0;
+  flex: 1 1 180px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.btn-isolar {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1.5px solid #0c142c;
+  border-radius: 8px;
+  background: #0c142c;
+  color: #ffffff;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+}
+
+.btn-isolar.ghost {
+  background: #ffffff;
+  color: #0c142c;
+}
+
+.btn-isolar:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.isolar-card {
+  max-width: 560px;
+}
+
+.isolar-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.isolar-help {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.isolar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 46vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.isolar-list label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.isolar-list input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  accent-color: #ff5200;
+}
+
+.isolar-list strong {
+  display: block;
+  font-size: 13px;
+  color: #0c142c;
+}
+
+.isolar-list small {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.isolar-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.isolar-done {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.isolar-done p {
+  margin: 0;
+  color: #475569;
+}

@@ -4,6 +4,7 @@ import {
   apiFetchUsers,
   apiCreateUser,
   apiUpdateUser,
+  apiIsolarUser,
   apiDeleteUser,
 } from '../utils/usersApi.js'
 import './UsuariosPage.css'
@@ -146,15 +147,15 @@ const ROLE_OPTIONS = [
   },
   {
     value: 'SUB_ADMIN',
-    label: 'SUB-ADMIN',
-    description: 'Gestão da operação',
-    detail: 'Gerencia usuários e auditoria; exclui apenas usuários que criou'
+    label: 'GERENTE DE EVENTO',
+    description: 'Gestão de um evento',
+    detail: 'Gerencia usuários e auditoria de um evento específico'
   },
   {
     value: 'TEAM_ADMIN',
-    label: 'ADMIN DE EQUIPE',
-    description: 'Gestão da própria equipe',
-    detail: 'Cria usuários e projetos em uma equipe separada, sem acesso às outras equipes'
+    label: 'SUB-ADMIN',
+    description: 'Vê só o que é dele',
+    detail: 'Acesso de administrador, mas só aos eventos e usuários que ele criar ou que você passar para ele'
   },
   {
     value: 'ADMIN',
@@ -163,6 +164,19 @@ const ROLE_OPTIONS = [
     detail: 'Gerencia o ambiente do principal; acesso global fica reservado ao administrador principal'
   }
 ]
+
+function isLegacyGlobalAdmin(item) {
+  return !item?.isPrincipal && !item?.teamId && (item?.role === 'ADMIN' || (item?.role === 'SUB_ADMIN' && item?.eventId === 'all'))
+}
+
+function roleBadgeLabel(item) {
+  if (item.isPrincipal) return 'SUPER ADMIN'
+  if (item.role === 'TEAM_ADMIN') return 'SUB-ADMIN'
+  if (isLegacyGlobalAdmin(item)) return item.role === 'ADMIN' ? 'ADMIN ANTIGO · VÊ TUDO' : 'SUB-ADMIN ANTIGO · VÊ TUDO'
+  if (item.role === 'SUB_ADMIN') return 'GERENTE DE EVENTO'
+  if (item.role === 'MEDICO') return 'MÉDICO'
+  return item.role
+}
 
 export default function UsuariosPage({
   user,
@@ -179,6 +193,10 @@ export default function UsuariosPage({
 
   const allProjectsLabel = user?.teamId ? 'TODOS OS PROJETOS DA EQUIPE' : 'TODOS OS PROJETOS DO PRINCIPAL'
   const projectScopeLabel = (role, teamId) => role === 'TEAM_ADMIN' || teamId ? 'TODOS OS PROJETOS DA EQUIPE' : 'TODOS OS PROJETOS DO PRINCIPAL'
+  // "Todos os projetos" só faz sentido dentro de um âmbito isolado: o sub-admin
+  // (TEAM_ADMIN) e o gerente criado por ele. Para o principal, um gerente com
+  // todos os projetos seria o sub-admin antigo que vê tudo.
+  const canPickAllProjects = (role) => role === 'TEAM_ADMIN' || role === 'ADMIN' || (role === 'SUB_ADMIN' && user?.role === 'TEAM_ADMIN')
   const canManageTarget = (target) => {
     if (user?.isPrincipal) return true
     if (target.role === 'ADMIN' || target.role === 'TEAM_ADMIN' || target.isPrincipal) return false
@@ -229,6 +247,36 @@ export default function UsuariosPage({
 
   // Modal para editar usuário (função, nome e projeto atribuído)
   const [userToEdit, setUserToEdit] = useState(null)
+  // Isolar sub-admin antigo: { target, eventIds: Set, saving, error, done }
+  const [isolar, setIsolar] = useState(null)
+  const principalEvents = events.filter((event) => !event.teamId)
+
+  function openIsolar(target) {
+    const own = principalEvents.filter((event) => event.createdBy === target.id || (target.eventId !== 'all' && event.id === target.eventId))
+    setIsolar({ target, eventIds: new Set(own.map((event) => event.id)), saving: false, error: '', done: null })
+  }
+
+  function toggleIsolarEvent(eventId) {
+    setIsolar((prev) => {
+      const next = new Set(prev.eventIds)
+      if (next.has(eventId)) next.delete(eventId)
+      else next.add(eventId)
+      return { ...prev, eventIds: next, error: '' }
+    })
+  }
+
+  async function confirmIsolar() {
+    if (!isolar || isolar.saving) return
+    setIsolar((prev) => ({ ...prev, saving: true, error: '' }))
+    try {
+      const result = await apiIsolarUser(isolar.target.id, [...isolar.eventIds])
+      setIsolar((prev) => ({ ...prev, saving: false, done: result }))
+      const serverUsers = await apiFetchUsers()
+      if (Array.isArray(serverUsers)) setUsers(serverUsers)
+    } catch (error) {
+      setIsolar((prev) => ({ ...prev, saving: false, error: error.message || 'Não foi possível isolar.' }))
+    }
+  }
   const [editUserForm, setEditUserForm] = useState({
     name: '',
     role: 'OPERADOR',
@@ -313,8 +361,8 @@ export default function UsuariosPage({
       return
     }
 
-    if (['OPERADOR', 'SUPERVISOR', 'MEDICO'].includes(newUserForm.role) && (!newUserForm.eventId || newUserForm.eventId === 'all')) {
-      setFormError('Operadores, Supervisores e Médicos devem ser vinculados obrigatoriamente a um projeto específico.')
+    if ((['OPERADOR', 'SUPERVISOR', 'MEDICO'].includes(newUserForm.role) || !canPickAllProjects(newUserForm.role)) && (!newUserForm.eventId || newUserForm.eventId === 'all')) {
+      setFormError('Escolha o evento deste usuário. Para um administrador que vê só o que é dele, use o perfil SUB-ADMIN.')
       return
     }
 
@@ -398,8 +446,10 @@ export default function UsuariosPage({
     }
   }
 
+  // Perfis de administrador visíveis: Super admin (principal) e Sub-admin isolado.
+  // "ADMIN DO PRINCIPAL" e o sub-admin geral antigo não são mais criados.
   const availableRoleOptions = useMemo(() => user?.isPrincipal
-    ? ROLE_OPTIONS
+    ? ROLE_OPTIONS.filter((option) => option.value !== 'ADMIN')
     : ROLE_OPTIONS.filter((option) => !['ADMIN', 'TEAM_ADMIN'].includes(option.value)), [user?.isPrincipal])
   const editRoleOptions = userToEdit?.role === 'TEAM_ADMIN'
     ? ROLE_OPTIONS.filter((option) => option.value === 'TEAM_ADMIN')
@@ -502,7 +552,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
           <div className="usuarios-title-wrap">
             <h1 className="usuarios-page-title">USUÁRIOS</h1>
             <p className="usuarios-subtitle">
-              O Super Admin principal gerencia toda a plataforma. Cada administrador de equipe gerencia apenas seus usuários e projetos, com acesso separado das outras equipes.
+              O Super Admin vê e gerencia tudo. Cada Sub-admin vê só os eventos e os usuários dele.
               <br />
               Crie logins com a senha que você definir e compartilhe o acesso com a equipe.
             </p>
@@ -543,7 +593,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   <div className="user-badges-row">
                     <span className={`role-pill ${item.role.toLowerCase()}`}>
                       {['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(item.role) ? <ShieldIcon /> : <UserIcon />}
-                      <span>{item.role === 'TEAM_ADMIN' ? 'ADMIN DE EQUIPE' : item.role === 'SUB_ADMIN' ? 'SUB-ADMIN' : item.role === 'ADMIN' ? (item.isPrincipal ? 'SUPER ADMIN PRINCIPAL' : 'ADMIN DO PRINCIPAL') : item.role === 'MEDICO' ? 'MÉDICO' : item.role}</span>
+                      <span>{roleBadgeLabel(item)}</span>
                     </span>
 
                     <span className={`status-pill-user ${item.status === 'INATIVO' ? 'inactive' : ''}`}>
@@ -555,7 +605,13 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     </span>
                   </div>
                   {item.role === 'TEAM_ADMIN' && canManageTarget(item) && (
-                    <p className="user-team-note">Desativar suspende o acesso de toda a equipe e preserva seus usuários e projetos.</p>
+                    <p className="user-team-note">Vê só os eventos e usuários dele. Desativar suspende o acesso dele e dos usuários dele, sem apagar nada.</p>
+                  )}
+                  {user?.isPrincipal && isLegacyGlobalAdmin(item) && (
+                    <div className="user-isolar-note">
+                      <p>Este perfil antigo vê todos os eventos. Isole para ele ver só o que é dele.</p>
+                      <button type="button" className="btn-isolar" onClick={() => openIsolar(item)}>ISOLAR COMO SUB-ADMIN</button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -624,6 +680,63 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
             </article>
           ))}
         </section>
+
+        {/* MODAL: ISOLAR SUB-ADMIN ANTIGO */}
+        {isolar && (
+          <div className="modal-backdrop" onClick={() => !isolar.saving && setIsolar(null)}>
+            <div className="modal-card isolar-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="isolar-title">
+              <div className="modal-header">
+                <div className="modal-title-with-badge">
+                  <h2 className="modal-title" id="isolar-title">ISOLAR {isolar.target.name}</h2>
+                  <span className="modal-title-desc">Depois disso ele verá só os eventos marcados e os que criar.</span>
+                </div>
+                <button type="button" className="modal-close-btn" onClick={() => setIsolar(null)} disabled={isolar.saving} title="Fechar">
+                  <CloseIcon />
+                </button>
+              </div>
+              <div className="modal-body isolar-body">
+                {isolar.done ? (
+                  <div className="isolar-done" role="status">
+                    <strong>{isolar.target.name} agora é SUB-ADMIN isolado.</strong>
+                    <p>{isolar.done.eventos} evento(s) e {isolar.done.usuarios} usuário(s) passaram para ele. Ele precisa entrar de novo no sistema.</p>
+                    <button type="button" className="btn-isolar" onClick={() => setIsolar(null)}>CONCLUIR</button>
+                  </div>
+                ) : (
+                  <>
+                    <p className="isolar-help">
+                      Marque os eventos que passam a ser dele. Os operadores, supervisores e médicos desses eventos vão junto.
+                      Os eventos não marcados continuam só com você.
+                    </p>
+                    {principalEvents.length === 0 ? (
+                      <p className="isolar-help">Nenhum evento disponível para passar. Ele começará sem eventos.</p>
+                    ) : (
+                      <ul className="isolar-list">
+                        {principalEvents.map((event) => (
+                          <li key={event.id}>
+                            <label>
+                              <input type="checkbox" checked={isolar.eventIds.has(event.id)} onChange={() => toggleIsolarEvent(event.id)} disabled={isolar.saving} />
+                              <span>
+                                <strong>{event.name}</strong>
+                                <small>{[event.date || event.dateInput, event.location, event.createdBy === isolar.target.id ? 'criado por ele' : ''].filter(Boolean).join(' · ')}</small>
+                              </span>
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {isolar.error && <p className="alert-feedback-error" role="alert">{isolar.error}</p>}
+                    <div className="isolar-actions">
+                      <button type="button" className="btn-isolar ghost" onClick={() => setIsolar(null)} disabled={isolar.saving}>CANCELAR</button>
+                      <button type="button" className="btn-isolar" onClick={() => void confirmIsolar()} disabled={isolar.saving}>
+                        {isolar.saving ? 'ISOLANDO…' : `ISOLAR COM ${isolar.eventIds.size} EVENTO(S)`}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL 1: ADICIONAR NOVO USUÁRIO */}
         {showAddUserModal && (
@@ -732,9 +845,11 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                                 setNewUserForm((prev) => ({
                                   ...prev,
                                   role: opt.value,
-                                  ...((['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(opt.value)) && (['ADMIN', 'TEAM_ADMIN'].includes(user?.role) || user?.eventId === 'all')
+                                  ...(canPickAllProjects(opt.value)
                                     ? { eventId: 'all', eventName: allProjectsLabel }
-                                    : {}),
+                                    : prev.eventId === 'all'
+                                      ? { eventId: manageableEvents[0]?.id || '', eventName: manageableEvents[0]?.name || '' }
+                                      : {}),
                                 }))
                                 setIsRoleDropdownOpen(false)
                               }}
@@ -790,7 +905,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                     {isEventDropdownOpen && (
                       <div className="role-options-list" role="listbox">
-                        {(['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(newUserForm.role)) && (['ADMIN', 'TEAM_ADMIN'].includes(user?.role) || user?.eventId === 'all') && (
+                        {canPickAllProjects(newUserForm.role) && (
                           <button
                             type="button"
                             className={`role-option-item ${newUserForm.eventId === 'all' ? 'selected' : ''}`}
@@ -1030,14 +1145,14 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                               className={`role-option-item ${isSelected ? 'selected' : ''}`}
                               onClick={() => {
                                 setEditUserForm((prev) => {
-                                  const isGlobalRole = ['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(opt.value)
+                                  const isGlobalRole = canPickAllProjects(opt.value)
                                   let nextEventId = prev.eventId
                                   let nextEventName = prev.eventName
                                   if (!isGlobalRole && (prev.eventId === 'all' || !prev.eventId)) {
                                     nextEventId = editManageableEvents[0]?.id || ''
                                     nextEventName = editManageableEvents[0]?.name || ''
                                   }
-                                  if (isGlobalRole && (['ADMIN', 'TEAM_ADMIN'].includes(user?.role) || user?.eventId === 'all')) {
+                                  if (isGlobalRole) {
                                     nextEventId = 'all'
                                     nextEventName = 'TODOS OS PROJETOS'
                                   }
@@ -1102,7 +1217,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                     {isEditEventDropdownOpen && (
                       <div className="role-options-list" role="listbox">
-                        {(['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(editUserForm.role)) && (['ADMIN', 'TEAM_ADMIN'].includes(user?.role) || user?.eventId === 'all') && (
+                        {canPickAllProjects(editUserForm.role) && (
                           <button
                             type="button"
                             className={`role-option-item ${editUserForm.eventId === 'all' ? 'selected' : ''}`}
