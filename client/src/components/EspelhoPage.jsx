@@ -7,6 +7,7 @@ import {
   subscribeEspelhoSSE,
   subscribeEspelhoSync,
 } from '../utils/espelhoSync.js'
+import { espelhoChannelFromSearch, isEspelhoStationMessage } from '../utils/espelhoStation.js'
 import './EspelhoPage.css'
 
 function mergeEspelhoConfig(prevConfig, incomingConfig) {
@@ -35,6 +36,9 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     return ''
   })()
 
+  // ?canal= identifica o guichê; sem ele é o link antigo do evento (último atendimento de qualquer guichê).
+  const [canalId] = useState(() => (typeof window === 'undefined' ? '' : espelhoChannelFromSearch(window.location.search)))
+  const [invalidLink, setInvalidLink] = useState(false)
   const mainRef = useRef(null)
   const contentRef = useRef(null)
   const [config, setConfig] = useState(() => getEspelhoConfig(eventId))
@@ -63,7 +67,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     let active = true
     let receivedStream = false
     // Consulta inicial imediata para exibir o estado mesmo antes do stream estabelecer
-    fetchEspelhoState(eventId)
+    fetchEspelhoState(eventId, canalId)
       .then((state) => {
         if (active && !receivedStream && state) {
           setMirrorState(state)
@@ -74,7 +78,9 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
           }
         }
       })
-      .catch(() => {})
+      .catch((error) => {
+        if (active && error?.message === 'HTTP 404' && canalId) setInvalidLink(true)
+      })
 
     const unsubscribeSSE = subscribeEspelhoSSE(
       eventId,
@@ -90,19 +96,20 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
       },
       (isConnected) => {
         setConnected(isConnected)
-      }
+      },
+      canalId
     )
 
     return () => {
       active = false
       unsubscribeSSE()
     }
-  }, [eventId])
+  }, [eventId, canalId])
 
   // 2. Sincronização local em 0ms no mesmo navegador (BroadcastChannel + storage events)
   useEffect(() => {
     const unsubscribeSync = subscribeEspelhoSync((msg) => {
-      if (msg.type === 'STATE_CHANGE' && (!msg.eventId || msg.eventId === eventId)) {
+      if (msg.type === 'STATE_CHANGE' && isEspelhoStationMessage(msg, eventId, canalId)) {
         if (msg.state) {
           setMirrorState(msg.state)
           setConnected(true)
@@ -121,7 +128,7 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
     return () => {
       unsubscribeSync()
     }
-  }, [eventId])
+  }, [eventId, canalId])
 
   // Mede o conteúdo real: campos extras e mensagens longas também precisam caber.
   useLayoutEffect(() => {
@@ -256,6 +263,11 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
         </div>
 
         <div className="espelho-header-status">
+          {mirrorState?.guiche ? (
+            <span className="espelho-tag-guiche" style={{ color: config.texto || '#ffffff' }}>
+              GUICHÊ {mirrorState.guiche}
+            </span>
+          ) : null}
           <span
             className={`espelho-tag-livre ${statusClass}`}
             style={!isDelivered && !isAttending ? { color: config.destaque || '#ff6b00' } : undefined}
@@ -389,10 +401,10 @@ export default function EspelhoPage({ eventId: propEventId, eventName: propEvent
 
       {/* Rodapé: Indicador de Conexão em Tempo Real */}
       <footer className="espelho-screen-footer">
-        <div className={`espelho-connection-indicator ${connected ? '' : 'disconnected'}`}>
+        <div className={`espelho-connection-indicator ${connected && !invalidLink ? '' : 'disconnected'}`}>
           <span className="connection-pulse-dot" />
           <span className="connection-text">
-            {connected ? 'TEMPO REAL ATIVO (SSE)' : 'CONECTANDO AO GUICHÊ...'}
+            {invalidLink ? 'LINK DO GUICHÊ NÃO ENCONTRADO: LEIA O QR DO GUICHÊ NOVAMENTE' : connected ? 'TEMPO REAL ATIVO (SSE)' : 'CONECTANDO AO GUICHÊ...'}
           </span>
         </div>
       </footer>

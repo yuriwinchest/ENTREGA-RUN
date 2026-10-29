@@ -60,6 +60,15 @@
 .espelho-header-status {
   display: flex;
   align-items: center;
+  gap: clamp(10px, 1.4vw, 20px);
+}
+
+.espelho-tag-guiche {
+  font-family: Montserrat, Inter, system-ui, sans-serif;
+  font-size: clamp(14px, 1.4vw, 20px);
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  opacity: 0.85;
 }
 
 .espelho-tag-livre {

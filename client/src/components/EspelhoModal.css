@@ -343,6 +343,36 @@
   cursor: pointer;
 }
 
+.espelho-station-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9a3412;
+  background: #fff7ed;
+}
+
+.espelho-station-error button {
+  flex-shrink: 0;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.btn-abrir-segunda-tela-primary:disabled,
+.btn-copy-link-subtle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .espelho-controls {
   border: 0;
   padding: 0;

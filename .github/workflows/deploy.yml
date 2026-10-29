@@ -29,7 +29,7 @@ jobs:
         working-directory: client
         run: |
           npm ci
-          node --test src/utils/kitCache.test.mjs src/utils/deliveryFeed.test.mjs src/utils/kitDecisionLock.test.mjs src/utils/mobileKeyboard.test.mjs src/utils/qrFrame.test.mjs src/utils/exportColumns.test.mjs src/utils/dailyDeliveries.test.mjs src/utils/cssIntegrity.test.mjs src/utils/athleteDetail.test.mjs src/utils/medico.test.mjs src/utils/eventFilter.test.mjs src/utils/emergencyLinks.test.mjs src/utils/medicoAlert.test.mjs src/utils/espelhoSync.test.mjs src/utils/sessionScope.test.mjs src/utils/navigationAccess.test.mjs
+          node --test src/utils/kitCache.test.mjs src/utils/deliveryFeed.test.mjs src/utils/kitDecisionLock.test.mjs src/utils/mobileKeyboard.test.mjs src/utils/qrFrame.test.mjs src/utils/exportColumns.test.mjs src/utils/dailyDeliveries.test.mjs src/utils/cssIntegrity.test.mjs src/utils/athleteDetail.test.mjs src/utils/medico.test.mjs src/utils/eventFilter.test.mjs src/utils/emergencyLinks.test.mjs src/utils/medicoAlert.test.mjs src/utils/espelhoSync.test.mjs src/utils/espelhoStation.test.mjs src/utils/sessionScope.test.mjs src/utils/navigationAccess.test.mjs
           npm run lint
           npm run build
 

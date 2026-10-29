@@ -9,6 +9,7 @@ import {
   subscribeEspelhoSSE,
   subscribeEspelhoSync,
 } from '../utils/espelhoSync.js'
+import { espelhoStationUrl } from '../utils/espelhoStation.js'
 import './EspelhoModal.css'
 
 function CheckIcon() {
@@ -97,7 +98,7 @@ const STANDARD_FIELD_DEFS = [
   { key: 'nacionalidade', label: 'Nacionalidade', category: 'Dados Pessoais' },
 ]
 
-export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
+export default function EspelhoModal({ isOpen, onClose, event, columns = [], station = {} }) {
   const [activeTab, setActiveTab] = useState('acesso') // 'acesso' | 'aparencia' | 'campos'
   const [config, setConfig] = useState(() => getEspelhoConfig(event?.id))
   const [copied, setCopied] = useState(false)
@@ -125,15 +126,15 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
     return () => { stopEditor(); stopSSE(); stopLocal() }
   }, [isOpen, eventId, editor])
 
-  // URL do espelho (compatível com localhost ou produção)
-  const getEspelhoUrl = () => {
-    if (typeof window === 'undefined') return '/espelho'
-    return `${window.location.origin}/espelho/${eventId}`
-  }
+  // Link do Espelho deste guichê; sem canal ainda não há link para entregar ao atleta.
+  const canalId = station.canalId || ''
+  const espelhoUrl = canalId && typeof window !== 'undefined' ? espelhoStationUrl(window.location.origin, eventId, canalId) : ''
+  const getEspelhoUrl = () => espelhoUrl
+  const guicheLabel = station.numero ? `GUICHÊ ${station.numero}` : 'ESTE GUICHÊ'
 
-  // Gera o QR Code da URL pública sempre que o modal abre/troca de evento
+  // Gera o QR Code da URL pública sempre que o modal abre/troca de evento ou guichê
   useEffect(() => {
-    if (!isOpen || !eventId) {
+    if (!isOpen || !espelhoUrl) {
       setQrDataUrl('')
       return
     }
@@ -154,7 +155,7 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, eventId])
+  }, [isOpen, espelhoUrl])
 
   const customColumns = useMemo(() => {
     if (!Array.isArray(columns)) return []
@@ -204,11 +205,12 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
 
   function handleOpenSecondScreen() {
     const url = getEspelhoUrl()
-    window.open(url, '_blank', 'noopener,noreferrer')
+    if (url) window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   function handleCopy() {
     const url = getEspelhoUrl()
+    if (!url) return
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(url).then(() => {
         setCopied(true)
@@ -357,26 +359,34 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
               <div className="monitor-icon-badge">
                 <MonitorIcon />
               </div>
-              <h3 className="espelho-access-title">ESPELHO DA SEGUNDA TELA</h3>
+              <h3 className="espelho-access-title">ESPELHO DO {guicheLabel}</h3>
               <p className="espelho-helper-text">
-                A segunda tela espelha em tempo real a busca e a ficha aberta aqui. O layout se ajusta automaticamente à TV, ao computador ou ao telão, sem informar polegadas.
+                Esta segunda tela mostra só a ficha aberta neste computador. Cada computador de entrega tem o seu próprio link: abra-o no monitor virado para o atleta deste guichê. O layout se ajusta à TV, ao computador ou ao telão.
               </p>
             </div>
+
+            {station.error && (
+              <div className="espelho-station-error" role="alert">
+                <span>{station.error}</span>
+                {station.retry && <button type="button" onClick={station.retry}>Tentar novamente</button>}
+              </div>
+            )}
 
             {/* QR Code para abrir o espelho em outro aparelho */}
             <div className="espelho-qr-section">
               {qrDataUrl ? (
                 <img
                   src={qrDataUrl}
-                  alt={`QR Code para abrir o espelho do evento ${eventName}`}
+                  alt={`QR Code para abrir o espelho do ${guicheLabel.toLowerCase()} no evento ${eventName}`}
                   className="espelho-qr-image"
                 />
               ) : (
                 <div className="espelho-qr-placeholder" aria-hidden="true" />
               )}
               <p className="espelho-qr-hint">
-                Aponte a câmera do celular para abrir a tela pública do espelho em
-                qualquer aparelho.
+                {espelhoUrl
+                  ? 'Aponte a câmera do celular para abrir o espelho deste guichê em qualquer aparelho.'
+                  : station.error ? 'O link deste guichê aparece quando a conexão voltar.' : 'Preparando o link deste guichê…'}
               </p>
             </div>
 
@@ -385,6 +395,7 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
               type="button"
               className="btn-abrir-segunda-tela-primary"
               onClick={handleOpenSecondScreen}
+              disabled={!espelhoUrl}
             >
               ABRIR SEGUNDA TELA
             </button>
@@ -394,7 +405,8 @@ export default function EspelhoModal({ isOpen, onClose, event, columns = [] }) {
               type="button"
               className="btn-copy-link-subtle"
               onClick={handleCopy}
-              title="Copiar link da segunda tela"
+              disabled={!espelhoUrl}
+              title="Copiar link da segunda tela deste guichê"
             >
               <CopyIcon />
               <span>{copied ? 'Link copiado com sucesso!' : 'Copiar link da segunda tela'}</span>

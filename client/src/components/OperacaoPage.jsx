@@ -32,6 +32,7 @@ import {
   mergeAthleteColumnSchemas,
 } from '../utils/athleteTable.js'
 import { publishEspelhoState } from '../utils/espelhoSync.js'
+import useEspelhoStation from '../hooks/useEspelhoStation.js'
 import { getRecentDeliveries } from '../utils/deliveryFeed.js'
 import { cacheEventKits } from '../utils/kitCache.js'
 import {
@@ -1372,16 +1373,18 @@ export default function OperacaoPage({
   const endIndex = Math.min(startIndex + auditPerPage, filteredAudits.length)
   const paginatedAudits = filteredAudits.slice(startIndex, endIndex)
 
-  // Espelho público: publica a ficha aberta/entregue no servidor para
-  // a segunda tela (/espelho/:id) exibir em qualquer aparelho via SSE.
+  // Espelho público: cada aparelho é um guichê com canal próprio; a ficha
+  // aberta/entregue aqui só aparece na segunda tela deste guichê (via SSE).
+  const espelhoStation = useEspelhoStation(currentEvent?.id, user?.id)
+  const espelhoCanalId = espelhoStation.canalId
   const publishEspelho = useCallback((status, atleta = null) => {
-    if (!currentEvent?.id) return
+    if (!currentEvent?.id || !espelhoCanalId) return
     publishEspelhoState(currentEvent.id, {
       status,
       eventName: currentEvent.name,
       atleta,
-    })
-  }, [currentEvent?.id, currentEvent?.name])
+    }, espelhoCanalId)
+  }, [currentEvent?.id, currentEvent?.name, espelhoCanalId])
 
   const espelhoClearedForRef = useRef(null)
 
@@ -4450,6 +4453,7 @@ export default function OperacaoPage({
             onClose={() => setShowEspelhoModal(false)}
             event={currentEvent}
             columns={athleteTableColumns}
+            station={espelhoStation}
           />
         )}
 

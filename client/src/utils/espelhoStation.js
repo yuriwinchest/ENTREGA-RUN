@@ -21,16 +21,32 @@ export async function openEspelhoStation(eventId, { signal } = {}) {
     body: JSON.stringify({ stationId: getEspelhoStationId() }),
   })
   const body = await response.json().catch(() => ({}))
-  if (!response.ok || !body.ok || !/^[a-f0-9]{64}$/.test(body.canalId || '')) {
+  if (!response.ok || !body.ok || !isEspelhoChannelId(body.canalId)) {
     throw new Error(body.message || 'Não foi possível conectar o Espelho deste posto.')
   }
-  return body.canalId
+  return { canalId: body.canalId, numero: Number(body.numero) || 0 }
+}
+
+export function isEspelhoChannelId(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
+}
+
+export function espelhoStationUrl(origin, eventId, canalId) {
+  return `${origin}/espelho/${encodeURIComponent(eventId)}${espelhoChannelQuery(canalId)}`
+}
+
+// Link aberto (QR ou monitor) carrega o canal do guichê em ?canal=; sem ele é o link antigo do evento.
+export function espelhoChannelFromSearch(search) {
+  const canal = new URLSearchParams(search || '').get('canal') || ''
+  return isEspelhoChannelId(canal) ? canal : ''
 }
 
 export function espelhoChannelQuery(canalId) {
   return canalId ? `?canal=${encodeURIComponent(canalId)}` : ''
 }
 
+// O link antigo acompanha qualquer guichê do evento; o do guichê, só o próprio canal.
 export function isEspelhoStationMessage(message, eventId, canalId) {
-  return Boolean(canalId && message?.eventId === eventId && message?.canalId === canalId)
+  if (message?.eventId && message.eventId !== eventId) return false
+  return canalId ? message?.canalId === canalId : true
 }

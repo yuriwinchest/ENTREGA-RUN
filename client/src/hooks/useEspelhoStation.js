@@ -4,7 +4,7 @@ import { publishEspelhoState } from '../utils/espelhoSync.js'
 
 export default function useEspelhoStation(eventId, userId) {
   const context = `${eventId || ''}:${userId || ''}`
-  const [station, setStation] = useState({ context: '', canalId: '', error: '' })
+  const [station, setStation] = useState({ context: '', canalId: '', numero: 0, error: '' })
   const [attempt, setAttempt] = useState(0)
   const retry = useCallback(() => setAttempt((value) => value + 1), [])
   useEffect(() => {
@@ -12,15 +12,15 @@ export default function useEspelhoStation(eventId, userId) {
     let active = true
     let channel = ''
     const controller = new AbortController()
-    setStation({ context, canalId: '', error: '' })
-    openEspelhoStation(eventId, { signal: controller.signal }).then((canalId) => {
+    setStation({ context, canalId: '', numero: 0, error: '' })
+    openEspelhoStation(eventId, { signal: controller.signal }).then(({ canalId, numero }) => {
       if (!active) return
       channel = canalId
       // Reabrir a operação começa disponível; não reutiliza a ficha do cache.
       void publishEspelhoState(eventId, { status: 'LIVRE' }, canalId)
-      setStation({ context, canalId, error: '' })
+      setStation({ context, canalId, numero, error: '' })
     }).catch((error) => {
-      if (active) setStation({ context, canalId: '', error: error.message })
+      if (active) setStation({ context, canalId: '', numero: 0, error: error.message })
     })
     return () => {
       active = false
@@ -28,5 +28,5 @@ export default function useEspelhoStation(eventId, userId) {
       if (channel) void publishEspelhoState(eventId, { status: 'LIVRE' }, channel)
     }
   }, [context, eventId, userId, attempt])
-  return { ...(station.context === context ? station : { canalId: '', error: '' }), retry }
+  return { ...(station.context === context ? station : { canalId: '', numero: 0, error: '' }), retry }
 }
