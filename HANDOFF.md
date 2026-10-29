@@ -10,19 +10,19 @@
 
 ## Última atualização
 
+- **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `0300bb9..55f69fb`.
+- **Pedido:** organizar Usuários em "escadinha": super admin vê os dele e, clicando num Sub-admin, as pessoas que ele cadastrou.
+- **Entrega:** `client/src/utils/userTabs.js` (+teste) e `UsuariosPage`: aba "Meus usuários" + uma por Sub-admin (eventos dele com atletas/entregas/status e sub-abas por evento); "Sem responsável" para equipe órfã. Sub-admin vê as pessoas dele por evento. Só client.
+- **Validação:** client 82/82, lint/build ok; navegador local: dono com 2 abas (3 usuários cada), aba do Carlos com 2 eventos e sub-abas; Carlos logado vê só as sub-abas dele.
+- **Próximo passo:** Yuri conferir em produção; ele avisou que pode querer mais itens nessa tela.
+
+## Penúltima atualização
+
 - **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `2a4363d..e699d91`.
 - **Pedido:** dono quer criar outro Super admin com login próprio (sem emprestar o dele), que suspenda, troque senha e exclua qualquer usuário.
 - **Entrega:** Super admin = ADMIN com `superAdmin` (só o dono cria, opção SUPER ADMIN na tela). Acesso total como o dono; gerencia todos, inclusive outro Super admin; a conta dona (ADMIN_EMAIL) só o próprio dono altera. Sessão/login expõem `isOwner`.
 - **Validação:** servidor 58/58 (novo `superAdmin.http.test.mjs`), client 79/79, lint/build ok; navegador local: dono criou Super admin pela tela; logado como ele, vê tudo e tem botões em todos, menos no dono.
 - **Próximo passo:** Yuri criar o Super admin real em Usuários e entregar o login a quem vai administrar.
-
-## Penúltima atualização
-
-- **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `d1749fb..33934ec`.
-- **Pedido:** tela de perfis confusa. Modelo do Yuri: Super admin = só a conta dona (não se cria pela tela); Sub-admin faz tudo, mas só nos eventos dele e dos usuários dele; "Gerente de evento" desnecessário.
-- **Entrega:** criação mostra Sub-admin (topo), Operador, Supervisor e Médico, com texto explicando Super admin × Sub-admin; "Gerente de evento"/"Admin do principal" só aparecem na edição de quem já os tem. Só client (`UsuariosPage`).
-- **Validação:** client 79/79, lint/build ok; navegador local no celular: lista e texto conferidos.
-- **Próximo passo:** Yuri criar um Sub-admin e entrar com ele para conferir que só vê os próprios eventos.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -44,5 +44,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-28 · Claude Code · Usuários em escadinha: aba por Sub-admin e sub-abas por evento.
 - 2026-10-28 · Claude Code · Dono cria Super admins com login próprio e acesso total.
-- 2026-10-28 · Claude Code · Perfis simplificados: Super admin (dono) e Sub-admin; "Gerente de evento" sai da criação.
