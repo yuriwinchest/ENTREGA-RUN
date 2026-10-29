@@ -10,21 +10,20 @@
 
 ## Última atualização
 
+- **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `c78e7ff..b52d18d`.
+- **Pedido / causa:** sub-admin continuava vendo tudo. O isolamento existia só no perfil novo (TEAM_ADMIN); SUB-ADMIN/ADMIN antigos com "todos os projetos" seguiam globais e não havia conversão.
+- **Entrega:** `POST /api/users/:id/isolar` (só principal) converte o antigo em Sub-admin isolado com os eventos marcados (e usuários deles/criados por ele); tela: "SUB-ADMIN" = isolado, "GERENTE DE EVENTO" = sub-admin de um evento, antigos marcados "VÊ TUDO" com botão ISOLAR.
+- **Validação real:** servidor 51/51 (novo `subadminIsolar.http.test.mjs`), client 75/75, lint/build ok; navegador local: antigo via 3 eventos → isolado pela tela com 2 → vê 2 e seus usuários; principal segue com 3.
+- **Próximo passo:** Yuri, em Usuários, clicar ISOLAR COMO SUB-ADMIN em cada sub-admin antigo e marcar os eventos dele.
+
+## Penúltima atualização
+
 - **Quando / quem / fase:** 2026-10-28 · Codex/Tony, com UI, QA/Crowley e Ulisses/Vitor em subagentes · Fase A/B; código `67352ed..fbc795d`.
 - **Pedido / entrega:** Yuri autorizou publicar equipes e corrigir Usuários do sub-admin; redirecionamento indevido reproduzido/corrigido, recarga entre abas estabilizada, gate de equipes e rollback compatível. Detalhes: `docs/publicacao-admin-equipes-2026-10-28.md`.
 - **Validação real:** servidor 50/50, client 75/75, lint exit0 (4 avisos existentes), build/sintaxe bash/diff ok; navegador local reproduziu falha antiga e Usuários estável no candidato, com evidência sintética.
 - **Publicação:** runtime `fbc795d`, Actions `40789978678` success; dois domínios HTTP200 com bundle `index-Dl7Ksvzp.js`; snapshots/hash e manifesto/API preservaram 1 evento, 16.481 atletas e 865 entregas.
 - **Riscos / continuidade:** backup completo no volume obrigatório para equipes; Appwrite legado sem vínculo. Gate impede equipes durante validação, rollback antigo vetado se houver equipes; AI Memory atualizado em `decisoes/admin-equipes-2026-10-28.md`.
 - **Próximo passo:** Yuri conferir Usuários com sub-admin real e homologar administradores de equipe; sem teste destrutivo/cadastro real em produção; Fase C não iniciada.
-
-## Penúltima atualização
-
-- **Quando / quem / fase:** 2026-10-28 · Codex/Tony (UI, QA/segurança e Ulisses em subagentes) · Fase A; commits `67352ed..d93859b`.
-- **Pedido / entrega:** administrador secundário isolado; `TEAM_ADMIN`, equipe/autoria no servidor, principal global e legado no principal; rotas, sessões e cache protegidos. Arquivos e decisões: `docs/admin-equipes-2026-10-28.md`.
-- **Validação real:** servidor 49/49, client 70/70, lint exit 0 (4 avisos existentes), build final e diff check ok; navegador sintético confirma principal global, Alfa isolada e URL Beta recusada.
-- **Riscos / pendências:** schema Appwrite legado não guarda equipe; eventos de equipe persistem no volume, sem espelhar metadados. Recuperação exige backup local completo; rollback antigo perde isolamento. Sem deploy.
-- **Continuidade:** AI Memory gravado em `decisoes/admin-equipes-2026-10-28.md`; evidência visual em `docs/evidencias/admin-equipe-alfa-2026-10-28.png`.
-- **Próximo passo:** Yuri homologar candidato na branch `codex/admin-equipes`; publicação depende de autorização e plano operacional. Fase C não iniciada.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -46,5 +45,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
-- 2026-10-28 · Codex/Tony · Publicado `fbc795d`: equipes e Usuários do sub-admin; Actions40789978678 success.
-- 2026-10-28 · Codex/Tony · Equipes administrativas isoladas; candidato local `d93859b`, sem deploy.
+- 2026-10-28 · Claude Code · Sub-admin antigo pode ser isolado pela tela; perfis renomeados (Sub-admin / Gerente de evento).
+- 2026-10-28 · Codex/Tony · Administradores de equipe isolados publicados (`d93859b..fbc795d`).
