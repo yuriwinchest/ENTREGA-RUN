@@ -1,0 +1,83 @@
+.visit-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 16px;
+  border: 2px solid #ff5200;
+  border-radius: 999px;
+  background: #0c142c;
+  color: #ffffff;
+  box-shadow: 0 10px 30px rgba(12, 20, 44, 0.35);
+  transform: translateX(-50%);
+  box-sizing: border-box;
+}
+
+.visit-banner-text {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.visit-banner-text strong {
+  color: #ff8a4c;
+}
+
+.visit-banner-back {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #ff5200;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.visit-banner-short {
+  display: none;
+}
+
+.visit-banner-back:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+@media (max-width: 768px) {
+  .visit-banner {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    width: calc(100vw - 32px);
+    border-radius: 16px;
+  }
+
+  .visit-banner-back {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+
+  .visit-banner-long {
+    display: none;
+  }
+
+  .visit-banner-short {
+    display: inline;
+  }
+}
+
+/* Espaço para a faixa não cobrir o fim da página. */
+body:has(.visit-banner) main {
+  padding-bottom: 96px;
+}
+
+@media (max-width: 768px) {
+  body:has(.visit-banner) main {
+    padding-bottom: 160px;
+  }
+}

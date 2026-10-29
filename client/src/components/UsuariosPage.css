@@ -1369,3 +1369,43 @@
   font-size: 11px;
   color: #64748b;
 }
+
+.user-scope-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn-enter-env {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #0c142c;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.btn-enter-env:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.user-name-enter {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: #ff5200;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.user-name-enter:hover {
+  color: #ff5200;
+}

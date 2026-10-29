@@ -63,7 +63,8 @@ export function createSessionStore(file, { flushDelayMs = 300 } = {}) {
     revokeUser(userId) {
       let changed = false
       for (const [key, session] of sessions) {
-        if (session.userId === userId) {
+        // Inclui as visitas que esse usuário (Super admin) abriu em outro ambiente.
+        if (session.userId === userId || session.impersonatedBy === userId) {
           sessions.delete(key)
           changed = true
         }

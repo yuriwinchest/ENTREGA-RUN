@@ -100,9 +100,10 @@ function revokeUserSessions(userId) {
   sessions.revokeUser(userId)
 }
 
-function createSession(user) {
+function createSession(user, extra = {}) {
   const token = crypto.randomBytes(32).toString('hex')
   sessions.set(token, {
+    ...extra,
     userId: user.id,
     email: user.email,
     role: user.role || 'OPERADOR',
@@ -129,6 +130,12 @@ function getSessionFromReq(req) {
   if (current?.teamId) {
     const leader = inMemoryUsers.find((user) => user.role === 'TEAM_ADMIN' && user.teamId === current.teamId)
     if (!leader || leader.status === 'INATIVO') return null
+  }
+  // Visita de Super admin ao ambiente de um Sub-admin: cai junto se quem visita
+  // perder o acesso de Super admin.
+  if (session.impersonatedBy) {
+    const visitor = inMemoryUsers.find((user) => user.id === session.impersonatedBy)
+    if (!visitor || visitor.status === 'INATIVO' || !isPrincipalAdmin(visitor)) return null
   }
   return { token, ...session, ...(current ? {
     role: current.role, teamId: teamOf(current), name: current.name, email: current.email,
@@ -2359,6 +2366,36 @@ app.delete('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   res.json({ ok: true, message: 'Usuário removido com sucesso.' })
 })
 
+// POST /api/users/:id/entrar — Super admin entra no ambiente de um Sub-admin e
+// age como ele (decisão do Yuri, 2026-10-28: só Sub-admin, sem aviso nem trilha
+// de autoria). O cliente guarda o token de origem para voltar.
+app.post('/api/users/:id/entrar', requireAuth, (req, res) => {
+  if (!req.session.isPrincipal || req.session.impersonatedBy) {
+    return res.status(403).json({ ok: false, message: 'Só o Super admin entra no ambiente de um Sub-admin.' })
+  }
+  const target = inMemoryUsers.find((user) => user.id === req.params.id)
+  if (!target || target.role !== 'TEAM_ADMIN' || !teamOf(target)) {
+    return res.status(400).json({ ok: false, message: 'Só dá para entrar no ambiente de um Sub-admin.' })
+  }
+  if (target.status === 'INATIVO') {
+    return res.status(409).json({ ok: false, message: 'Sub-admin desativado. Reative para entrar no ambiente dele.' })
+  }
+  const visitor = inMemoryUsers.find((user) => user.id === req.session.userId)
+  const sessionUser = {
+    id: target.id,
+    name: target.name,
+    email: target.email,
+    role: target.role,
+    teamId: teamOf(target),
+    isPrincipal: false,
+    isOwner: false,
+    eventId: 'all',
+    eventName: target.eventName || 'TODOS OS PROJETOS DA EQUIPE',
+  }
+  const token = createSession(sessionUser, { impersonatedBy: req.session.userId })
+  res.json({ ok: true, token, user: { ...sessionUser, impersonatedBy: { id: req.session.userId, name: visitor?.name || '' } } })
+})
+
 // Autenticação do Administrador Geral, Operadores e Usuários cadastrados
 app.post('/api/login', loginLimiter, (req, res) => {
   const { email, password } = req.body || {}
@@ -2464,6 +2501,9 @@ app.get('/api/session', (req, res) => {
       teamId: teamOf(session),
       isPrincipal: session.isPrincipal === true,
       isOwner: session.isOwner === true,
+      impersonatedBy: session.impersonatedBy
+        ? { id: session.impersonatedBy, name: inMemoryUsers.find((user) => user.id === session.impersonatedBy)?.name || '' }
+        : null,
     },
   })
 })

@@ -11,8 +11,11 @@ import ValidarAtletaPage from './components/ValidarAtletaPage.jsx'
 import TutorialModal from './components/TutorialModal.jsx'
 import UsuariosPage from './components/UsuariosPage.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import VisitBanner from './components/VisitBanner.jsx'
 import { SESSION_EXPIRED_EVENT, apiFetchEvents, apiUpdateEvent } from './utils/eventsApi.js'
 import { readKitDecision } from './utils/kitDecisionLock.js'
+import { apiEnterUserEnvironment } from './utils/usersApi.js'
+import { clearVisitOrigin, readVisitOrigin, saveVisitOrigin } from './utils/visitSession.js'
 import { activateSessionScope, clearPrivateCaches, canManageUsers, isEventBoundUser, credentialStorageChangeRequiresReset } from './utils/sessionScope.js'
 
 const MOCK_EVENT_IDS = [
@@ -26,6 +29,7 @@ export default function App() {
   const [sessionLoading, setSessionLoading] = useState(true)
   const [events, setEvents] = useState([])
   const [eventsLoaded, setEventsLoaded] = useState(false)
+  const [returningFromVisit, setReturningFromVisit] = useState(false)
 
   // Valida o token salvo: restaura a sessão após reload, derruba login expirado
   useEffect(() => {
@@ -87,6 +91,11 @@ export default function App() {
   useEffect(() => {
     if (!user) return undefined
     function handleSessionExpired() {
+      // Visita encerrada pelo servidor: volta ao login de origem, se ainda vale.
+      if (user.impersonatedBy && readVisitOrigin()) {
+        handleReturnFromVisit()
+        return
+      }
       setUser(null)
       setEvents([])
       setEventsLoaded(false)
@@ -354,6 +363,7 @@ export default function App() {
       teamId: userData?.teamId || null,
       isPrincipal: Boolean(userData?.isPrincipal),
       isOwner: Boolean(userData?.isOwner),
+      impersonatedBy: userData?.impersonatedBy || null,
       eventId: userData?.eventId || 'all',
       eventName: userData?.eventName || 'TODOS OS PROJETOS',
     }
@@ -382,18 +392,23 @@ export default function App() {
     }
   }
 
+  function revokeToken(token) {
+    if (!token) return Promise.resolve()
+    return fetch('/api/logout', {
+      method: 'POST',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    }).catch(() => {})
+  }
+
   function handleLogout() {
     try {
-      const token = localStorage.getItem('entregas_run_token') || ''
-      if (token) {
-        fetch('/api/logout', {
-          method: 'POST',
-          headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
-        }).catch(() => {})
-      }
+      revokeToken(localStorage.getItem('entregas_run_token') || '')
     } catch {
       // ignore
     }
+    // Sair durante uma visita encerra também o login de origem.
+    revokeToken(readVisitOrigin()?.token)
+    clearVisitOrigin()
     setUser(null)
     setEvents([])
     setEventsLoaded(false)
@@ -407,6 +422,39 @@ export default function App() {
       // ignore
     }
     navigateTo('login')
+  }
+
+  async function handleEnterEnvironment(target) {
+    let originToken = ''
+    try { originToken = localStorage.getItem('entregas_run_token') || '' } catch {}
+    const data = await apiEnterUserEnvironment(target.id)
+    saveVisitOrigin(originToken, user)
+    handleLoginSuccess(data.user, data.token)
+  }
+
+  async function handleReturnFromVisit() {
+    const origin = readVisitOrigin()
+    setReturningFromVisit(true)
+    let visitToken = ''
+    try { visitToken = localStorage.getItem('entregas_run_token') || '' } catch {}
+    await revokeToken(visitToken)
+    clearVisitOrigin()
+    try {
+      const res = origin ? await fetch('/api/session', {
+        headers: { Accept: 'application/json', Authorization: `Bearer ${origin.token}` },
+      }) : null
+      const data = res ? await res.json().catch(() => ({})) : {}
+      if (res?.ok && data.ok && data.user) {
+        handleLoginSuccess(data.user, origin.token)
+        navigateTo('usuarios')
+        return
+      }
+    } catch {
+      // sem rede: cai no login abaixo
+    } finally {
+      setReturningFromVisit(false)
+    }
+    handleLogout()
   }
 
   function handleOpenTutorial() {
@@ -479,8 +527,14 @@ export default function App() {
     }
   }
 
+  const visitBanner = user.impersonatedBy
+    ? <VisitBanner user={user} onReturn={handleReturnFromVisit} returning={returningFromVisit} />
+    : null
+
   if (currentPage === 'medico' && canManageUsers(user) && effectiveEventId) {
     return (
+      <>
+      {visitBanner}
       <MedicoPage
         key={effectiveEventId}
         user={user}
@@ -488,6 +542,7 @@ export default function App() {
         onLogout={handleLogout}
         onBack={() => navigateTo('eventos')}
       />
+      </>
     )
   }
 
@@ -502,8 +557,10 @@ export default function App() {
   )
 
   return (
-    <ErrorBoundary onNavigate={navigateTo}>
+    // key: entrar/voltar de uma visita troca a pessoa logada; as telas recomeçam do zero.
+    <ErrorBoundary key={user.id} onNavigate={navigateTo}>
       <div className="app-container">
+      {visitBanner}
       {currentPage === 'dashboard' && (
         <DashboardPage
           events={events}
@@ -566,6 +623,7 @@ export default function App() {
           onNavigate={navigateTo}
           onLogout={handleLogout}
           onOpenTutorial={handleOpenTutorial}
+          onEnterEnvironment={handleEnterEnvironment}
         />
       )}
 

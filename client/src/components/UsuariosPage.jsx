@@ -196,6 +196,7 @@ export default function UsuariosPage({
   onNavigate,
   onLogout,
   onOpenTutorial,
+  onEnterEnvironment,
 }) {
   const availableEvents = events
   const manageableEvents = user?.isPrincipal ? availableEvents.filter((event) => !event.teamId) : user?.role === 'SUB_ADMIN' && user.eventId !== 'all'
@@ -236,6 +237,18 @@ export default function UsuariosPage({
   // num dos eventos dele (o servidor herda a equipe do evento escolhido).
   const [addScope, setAddScope] = useState(null)
   const addEvents = addScope ? addScope.events : manageableEvents
+  // Super admin entra no ambiente de um Sub-admin (e volta pela faixa do App).
+  const [enteringId, setEnteringId] = useState('')
+  const canEnter = (target) => Boolean(user?.isPrincipal && onEnterEnvironment && target?.role === 'TEAM_ADMIN' && target.teamId && target.status !== 'INATIVO')
+  async function enterEnvironment(target) {
+    setEnteringId(target.id)
+    try {
+      await onEnterEnvironment(target)
+    } catch (error) {
+      setEnteringId('')
+      alert(error.message || 'Não foi possível entrar no ambiente.')
+    }
+  }
 
   // Remove cache legado que continha senhas em texto puro e sincroniza usuários em tempo real
   useEffect(() => {
@@ -665,11 +678,18 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   {activeTotals.eventos} {activeTotals.eventos === 1 ? 'evento' : 'eventos'} · {activeScope.users.length} {activeScope.users.length === 1 ? 'usuário' : 'usuários'} · {activeTotals.entregues.toLocaleString('pt-BR')} de {activeTotals.atletas.toLocaleString('pt-BR')} kits entregues ({activeTotals.percentual}%)
                 </p>
               </div>
+              <div className="user-scope-actions">
+              {canEnter(activeScope.leader) && (
+                <button type="button" className="btn-enter-env" onClick={() => enterEnvironment(activeScope.leader)} disabled={enteringId !== ''}>
+                  {enteringId === activeScope.leader.id ? 'ENTRANDO…' : `ENTRAR NO AMBIENTE DE ${activeScope.label}`}
+                </button>
+              )}
               {activeScope.events.length > 0 && (
                 <button type="button" className="btn-scope-add" onClick={() => handleOpenAddModal(activeScope)}>
                   <PlusIcon /> <span>USUÁRIO PARA {activeScope.label}</span>
                 </button>
               )}
+              </div>
             </div>
             {activeScope.events.length === 0 ? (
               <p className="user-scope-empty">Ainda não criou nenhum evento.</p>
@@ -714,7 +734,15 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                 <div className="user-avatar">{item.avatar || item.name?.substring(0, 2).toUpperCase() || 'U'}</div>
 
                 <div className="user-details">
-                  <h2 className="user-name">{item.name}</h2>
+                  {canEnter(item) ? (
+                    <h2 className="user-name">
+                      <button type="button" className="user-name-enter" title={`Entrar no ambiente de ${item.name}`} onClick={() => enterEnvironment(item)} disabled={enteringId !== ''}>
+                        {item.name}
+                      </button>
+                    </h2>
+                  ) : (
+                    <h2 className="user-name">{item.name}</h2>
+                  )}
                   <span className="user-email">{item.email}</span>
 
                   <div className="user-badges-row">
@@ -758,6 +786,11 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                 </div>
 
                 <div className="user-card-actions">
+                  {canEnter(item) && (
+                    <button type="button" className="btn-enter-env" onClick={() => enterEnvironment(item)} disabled={enteringId !== ''}>
+                      {enteringId === item.id ? 'ENTRANDO…' : 'ENTRAR NO AMBIENTE'}
+                    </button>
+                  )}
                   {canManageTarget(item) && (
                     <button
                       type="button"

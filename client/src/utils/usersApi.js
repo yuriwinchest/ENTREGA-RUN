@@ -123,3 +123,13 @@ export async function apiDeleteUser(userId) {
     throw err
   }
 }
+
+export async function apiEnterUserEnvironment(userId) {
+  const res = await fetch(`/api/users/${encodeURIComponent(userId)}/entrar`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.ok || !data.token) throw new Error(data.message || `HTTP ${res.status}`)
+  return data
+}
