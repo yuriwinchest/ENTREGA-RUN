@@ -10,19 +10,19 @@
 
 ## Última atualização
 
+- **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `929043b..f1ddaaf`.
+- **Pedido:** Yuri liberou completar a tela de Usuários ("pode fazer, você já sabe").
+- **Entrega:** busca por nome/e-mail/evento em todas as abas (diz em qual aba está); "Cadastrado por" no cartão; resumo do Sub-admin com eventos, usuários e kits entregues (%); botão "Usuário para <Sub-admin>" cria perfil de evento num evento dele (entra na equipe). Cartão sem rolagem lateral no celular. Só client.
+- **Validação:** client 84/84, lint/build ok; navegador local: Médica criada pela aba do Carlos ficou na equipe dele (conferido na API), busca acha em outra aba, celular sem estouro.
+- **Próximo passo:** Yuri conferir em produção.
+
+## Penúltima atualização
+
 - **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `0300bb9..55f69fb`.
 - **Pedido:** organizar Usuários em "escadinha": super admin vê os dele e, clicando num Sub-admin, as pessoas que ele cadastrou.
 - **Entrega:** `client/src/utils/userTabs.js` (+teste) e `UsuariosPage`: aba "Meus usuários" + uma por Sub-admin (eventos dele com atletas/entregas/status e sub-abas por evento); "Sem responsável" para equipe órfã. Sub-admin vê as pessoas dele por evento. Só client.
 - **Validação:** client 82/82, lint/build ok; navegador local: dono com 2 abas (3 usuários cada), aba do Carlos com 2 eventos e sub-abas; Carlos logado vê só as sub-abas dele.
 - **Próximo passo:** Yuri conferir em produção; ele avisou que pode querer mais itens nessa tela.
-
-## Penúltima atualização
-
-- **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `2a4363d..e699d91`.
-- **Pedido:** dono quer criar outro Super admin com login próprio (sem emprestar o dele), que suspenda, troque senha e exclua qualquer usuário.
-- **Entrega:** Super admin = ADMIN com `superAdmin` (só o dono cria, opção SUPER ADMIN na tela). Acesso total como o dono; gerencia todos, inclusive outro Super admin; a conta dona (ADMIN_EMAIL) só o próprio dono altera. Sessão/login expõem `isOwner`.
-- **Validação:** servidor 58/58 (novo `superAdmin.http.test.mjs`), client 79/79, lint/build ok; navegador local: dono criou Super admin pela tela; logado como ele, vê tudo e tem botões em todos, menos no dono.
-- **Próximo passo:** Yuri criar o Super admin real em Usuários e entregar o login a quem vai administrar.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -44,5 +44,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-28 · Claude Code · Usuários: busca, cadastrado por, totais e usuário na aba do Sub-admin.
 - 2026-10-28 · Claude Code · Usuários em escadinha: aba por Sub-admin e sub-abas por evento.
-- 2026-10-28 · Claude Code · Dono cria Super admins com login próprio e acesso total.
