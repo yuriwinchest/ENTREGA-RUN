@@ -38,7 +38,7 @@ jobs:
         run: |
           npm ci
           node --check server.js
-          node --test admin-users.test.mjs team-isolation.http.test.mjs subadminIsolar.http.test.mjs appwriteConfig.test.mjs athleteSync.test.mjs athleteSync.http.test.mjs athleteImport.http.test.mjs dataSnapshot.test.mjs retiradaPhotos.test.mjs retiradaPhotos.http.test.mjs routesAuth.http.test.mjs sessionStore.test.mjs medico.test.mjs medico.http.test.mjs medicoAlert.http.test.mjs medicoRegistro.http.test.mjs espelho.http.test.mjs emergencyLinks.test.mjs emergencyLinks.http.test.mjs
+          node --test admin-users.test.mjs team-isolation.http.test.mjs subadminIsolar.http.test.mjs appwriteConfig.test.mjs athleteSync.test.mjs athleteSync.http.test.mjs athleteImport.http.test.mjs dataSnapshot.test.mjs retiradaPhotos.test.mjs retiradaPhotos.http.test.mjs routesAuth.http.test.mjs sessionStore.test.mjs medico.test.mjs medico.http.test.mjs medicoAlert.http.test.mjs medicoRegistro.http.test.mjs espelho.http.test.mjs espelhoChannels.http.test.mjs emergencyLinks.test.mjs emergencyLinks.http.test.mjs
 
       - name: Validar Script de Deploy
         run: bash -n scripts/deploy-vps.sh

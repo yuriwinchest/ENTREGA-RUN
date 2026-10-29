@@ -99,10 +99,14 @@ test('Espelho por posto: três canais, capacidade pública, dono, configuração
       const first = await open(stationOne, one, 'event-one', { ownerUserId: 'operator-two', canalId: 'forged' })
       assert.equal(first.status, 200)
       assert.match(first.data.canalId, /^[a-f0-9]{64}$/)
-      assert.deepEqual(Object.keys(first.data).sort(), ['canalId', 'ok'])
+      assert.deepEqual(Object.keys(first.data).sort(), ['canalId', 'numero', 'ok'])
+      assert.equal(first.data.numero, 1)
       const second = await open(stationTwo, one)
       const third = await open(stationOne, two)
       channels = [first.data.canalId, second.data.canalId, third.data.canalId]
+      assert.deepEqual([second.data.numero, third.data.numero], [2, 3])
+      // Mesmo usuário em outro aparelho é outro guichê; o mesmo aparelho volta ao seu número.
+      assert.equal((await open(stationOne, one)).data.numero, 1)
       assert.equal(new Set(channels).size, 3)
       assert.equal((await open(stationOne, one)).data.canalId, channels[0])
       const saved = JSON.parse(fs.readFileSync(path.join(dir, 'espelho_canais.json'), 'utf8'))
@@ -119,9 +123,24 @@ test('Espelho por posto: três canais, capacidade pública, dono, configuração
         assert.equal(before.data.state.status, 'LIVRE')
         assert.equal((await request(route(channel), 'POST', { status: 'ATENDENDO', atleta: { nome: `FICHA ${index + 1}`, numero: String(index + 1) } }, index < 2 ? one : two)).status, 200)
       }
+      for (const [index, channel] of channels.entries()) {
+        const state = (await request(route(channel))).data.state
+        assert.equal(state.atleta.nome, `FICHA ${index + 1}`)
+        assert.equal(state.guiche, index + 1)
+      }
+      // Link antigo: mostra o último atendimento de qualquer guichê, sem número nem origem.
+      const legacy = (await request('/api/espelho/event-one/estado')).data.state
+      assert.equal(legacy.atleta.nome, 'FICHA 3')
+      assert.ok(!('guiche' in legacy) && !('source' in legacy))
+      // Guichê 1 fica livre enquanto o 3 ainda atende: o link antigo não apaga a ficha 3.
+      assert.equal((await request(route(channels[0]), 'POST', { status: 'LIVRE' }, one)).status, 200)
+      assert.equal((await request('/api/espelho/event-one/estado')).data.state.atleta.nome, 'FICHA 3')
+      assert.equal((await request(route(channels[0]), 'POST', { status: 'ATENDENDO', atleta: { nome: 'FICHA 1', numero: '1' } }, one)).status, 200)
+      assert.equal((await request('/api/espelho/event-one/estado')).data.state.atleta.nome, 'FICHA 1')
+      // Aba antiga sem canal (bundle anterior ao deploy) ainda publica só no link antigo.
+      assert.equal((await request('/api/espelho/event-one/estado', 'POST', { status: 'ATENDENDO', atleta: { nome: 'LEGADO' } }, one)).status, 200)
+      assert.equal((await request('/api/espelho/event-one/estado')).data.state.atleta.nome, 'LEGADO')
       for (const [index, channel] of channels.entries()) assert.equal((await request(route(channel))).data.state.atleta.nome, `FICHA ${index + 1}`)
-      assert.equal((await request('/api/espelho/event-one/estado')).data.state, null)
-      assert.equal((await request('/api/espelho/event-one/estado', 'POST', { status: 'ATENDENDO', atleta: { nome: 'LEGADO' }, config: { mensagem: 'NAO SALVAR' } }, one)).status, 409)
       assert.equal((await request(route(channels[0]))).data.state.config, null)
     })
 
@@ -154,7 +173,7 @@ test('Espelho por posto: três canais, capacidade pública, dono, configuração
         const get = await request(route(channels[index]))
         assert.deepEqual(get.data.state.config, state.config)
       }
-      assert.equal((await request('/api/espelho/event-one/estado')).data.state.atleta, null)
+      assert.equal((await request('/api/espelho/event-one/estado')).data.state.atleta.nome, 'FICHA 1 ENTREGUE')
       for (const stream of connected) await stream.close()
     })
 

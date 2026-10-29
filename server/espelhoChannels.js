@@ -15,15 +15,17 @@ export function createEspelhoChannels(dataDir) {
     }
     records = saved
   }
+  // O registro só cresce, então a ordem de criação dá ao guichê um número estável.
+  const numbered = (record) => record && { ...record, numero: records.filter((item) => item.eventId === record.eventId).indexOf(record) + 1 }
   return {
     get(eventId, canalId) {
       return typeof canalId === 'string' && CHANNEL_ID.test(canalId)
-        ? records.find((record) => record.eventId === eventId && record.canalId === canalId) || null
+        ? numbered(records.find((record) => record.eventId === eventId && record.canalId === canalId)) || null
         : null
     },
     open(eventId, ownerUserId, stationId) {
       const existing = records.find((record) => record.eventId === eventId && record.ownerUserId === ownerUserId && record.stationId === stationId)
-      if (existing) return existing
+      if (existing) return numbered(existing)
       const record = { eventId, ownerUserId, stationId, canalId: crypto.randomBytes(32).toString('hex'), createdAt: new Date().toISOString() }
       const next = [...records, record]
       const temp = `${file}.${process.pid}.tmp`
@@ -36,7 +38,7 @@ export function createEspelhoChannels(dataDir) {
         throw error
       }
       records = next
-      return record
+      return numbered(record)
     },
     forEvent(eventId) { return records.filter((record) => record.eventId === eventId) },
   }
