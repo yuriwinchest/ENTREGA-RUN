@@ -239,6 +239,8 @@
 /* card footer */
 .user-card-footer {
   display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   align-items: center;
   justify-content: space-between;
   padding-top: 14px;
@@ -269,6 +271,7 @@
 
 .user-card-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -1282,4 +1285,87 @@
   border-color: #ff5200;
   background: rgba(255, 82, 0, 0.08);
   color: #c2410c;
+}
+
+.user-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.user-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  font-size: 14px;
+  color: #0c142c;
+}
+
+.user-search input:focus {
+  outline: none;
+  border-color: #ff5200;
+}
+
+.user-search span {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.user-scope-summary-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.user-scope-summary-head h2 {
+  margin-bottom: 4px;
+}
+
+.user-scope-totals {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0c142c;
+}
+
+.btn-scope-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border: 1.5px solid #ff5200;
+  border-radius: 10px;
+  background: #fff4ed;
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.btn-scope-add span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-scope-add svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.user-origin {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #64748b;
 }

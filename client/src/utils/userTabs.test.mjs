@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildEventTabs, buildUserScopes, usersForEventTab } from './userTabs.js'
+import { buildEventTabs, buildUserScopes, scopeTotals, searchUsers, usersForEventTab } from './userTabs.js'
 
 const users = [
   { id: 'dono', name: 'AGNER', role: 'ADMIN', eventId: 'all', isOwner: true, isPrincipal: true },
@@ -41,4 +41,19 @@ test('sub-abas por evento: todos, administração, eventos e evento sumido', () 
   assert.deepEqual(usersForEventTab(fabio, 'admins').map((u) => u.id), ['fabio'])
   assert.deepEqual(buildEventTabs(orphan).map((t) => [t.id, t.label]), [['all', 'Todos'], ['ev-x', 'EVENTO APAGADO']])
   assert.deepEqual(buildEventTabs(null), [])
+})
+
+test('busca atravessa as abas, ignora acento e diz onde a pessoa está', () => {
+  const scopes = buildUserScopes(users, events, { isPrincipal: true })
+  assert.deepEqual(searchUsers(scopes, 'ana').map((u) => [u.id, u.scopeLabel]), [['sup2', 'Sub-admin FABIO']])
+  assert.deepEqual(searchUsers(scopes, 'BATALHAO').map((u) => u.id), [])
+  assert.deepEqual(searchUsers(scopes, 'super.example').map((u) => u.id), [])
+  assert.deepEqual(searchUsers(scopes, 'apagado').map((u) => [u.id, u.scopeLabel]), [['perdido', 'Sem responsável']])
+  assert.deepEqual(searchUsers(scopes, '   '), [])
+})
+
+test('totais do sub-admin somam os eventos dele', () => {
+  const [, fabio, orphan] = buildUserScopes(users, events, { isPrincipal: true })
+  assert.deepEqual(scopeTotals(fabio), { eventos: 2, atletas: 100, entregues: 40, percentual: 40 })
+  assert.deepEqual(scopeTotals(orphan), { eventos: 0, atletas: 0, entregues: 0, percentual: 0 })
 })

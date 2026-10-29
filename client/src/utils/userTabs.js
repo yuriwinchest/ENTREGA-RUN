@@ -71,3 +71,27 @@ export function usersForEventTab(scope, tabId) {
   if (tabId === 'admins') return scope.users.filter((user) => !user.eventId || user.eventId === 'all')
   return scope.users.filter((user) => user.eventId === tabId)
 }
+
+const fold = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+// Busca em todas as abas de uma vez; cada resultado diz em qual aba a pessoa está.
+export function searchUsers(scopes = [], query = '') {
+  const term = fold(query).trim()
+  if (!term) return []
+  const found = []
+  for (const scope of scopes) {
+    for (const user of scope.users) {
+      if ([user.name, user.email, user.eventName].some((field) => fold(field).includes(term))) {
+        found.push({ ...user, scopeLabel: scope.leader ? `Sub-admin ${scope.label}` : scope.label })
+      }
+    }
+  }
+  return found
+}
+
+export function scopeTotals(scope) {
+  const events = scope?.events || []
+  const atletas = events.reduce((sum, event) => sum + (Number(event.total) || 0), 0)
+  const entregues = events.reduce((sum, event) => sum + (Number(event.entregues) || 0), 0)
+  return { eventos: events.length, atletas, entregues, percentual: atletas > 0 ? Math.round((entregues / atletas) * 100) : 0 }
+}

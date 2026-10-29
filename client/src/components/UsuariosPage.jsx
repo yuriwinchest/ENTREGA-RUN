@@ -7,7 +7,7 @@ import {
   apiIsolarUser,
   apiDeleteUser,
 } from '../utils/usersApi.js'
-import { buildEventTabs, buildUserScopes, usersForEventTab } from '../utils/userTabs.js'
+import { buildEventTabs, buildUserScopes, scopeTotals, searchUsers, usersForEventTab } from '../utils/userTabs.js'
 import './UsuariosPage.css'
 
 function HelpCircleIcon() {
@@ -135,6 +135,8 @@ const SUPER_ADMIN_OPTION = {
   detail: 'Login próprio com acesso total: vê tudo e gerencia todos os usuários, menos a sua conta de dono',
 }
 
+const EVENT_ROLES = ['OPERADOR', 'SUPERVISOR', 'MEDICO']
+
 const ROLE_OPTIONS = [
   {
     value: 'OPERADOR',
@@ -225,7 +227,15 @@ export default function UsuariosPage({
   const activeScope = userScopes.find((scope) => scope.id === scopeId) || userScopes[0]
   const eventTabs = useMemo(() => buildEventTabs(activeScope), [activeScope])
   const activeEventTab = eventTabs.some((tab) => tab.id === eventTabId) ? eventTabId : 'all'
-  const shownUsers = usersForEventTab(activeScope, activeEventTab)
+  const [userSearch, setUserSearch] = useState('')
+  const searching = userSearch.trim() !== ''
+  const shownUsers = searching ? searchUsers(userScopes, userSearch) : usersForEventTab(activeScope, activeEventTab)
+  const activeTotals = scopeTotals(activeScope)
+  const nameById = useMemo(() => new Map(users.map((item) => [item.id, item.name])), [users])
+  // Novo usuário aberto dentro da aba de um Sub-admin: entra na equipe dele,
+  // num dos eventos dele (o servidor herda a equipe do evento escolhido).
+  const [addScope, setAddScope] = useState(null)
+  const addEvents = addScope ? addScope.events : manageableEvents
 
   // Remove cache legado que continha senhas em texto puro e sincroniza usuários em tempo real
   useEffect(() => {
@@ -359,8 +369,9 @@ export default function UsuariosPage({
     }
   }, [isRoleDropdownOpen, isEventDropdownOpen, isEditRoleDropdownOpen, isEditEventDropdownOpen])
 
-  function handleOpenAddModal() {
-    const initialEvent = manageableEvents[0] || (user?.eventId !== 'all' ? { id: user.eventId, name: user.eventName } : null)
+  function handleOpenAddModal(scope = null) {
+    setAddScope(scope)
+    const initialEvent = scope ? scope.events[0] : manageableEvents[0] || (user?.eventId !== 'all' ? { id: user.eventId, name: user.eventName } : null)
     setNewUserForm({
       name: '',
       email: '',
@@ -382,7 +393,7 @@ export default function UsuariosPage({
       return
     }
 
-    if ((['OPERADOR', 'SUPERVISOR', 'MEDICO'].includes(newUserForm.role) || !canPickAllProjects(newUserForm.role)) && (!newUserForm.eventId || newUserForm.eventId === 'all')) {
+    if ((EVENT_ROLES.includes(newUserForm.role) || !canPickAllProjects(newUserForm.role)) && (!newUserForm.eventId || newUserForm.eventId === 'all')) {
       setFormError('Escolha o evento deste usuário. Para um administrador que vê só o que é dele, use o perfil SUB-ADMIN.')
       return
     }
@@ -478,6 +489,8 @@ export default function UsuariosPage({
     if (user?.isOwner) return [SUPER_ADMIN_OPTION, ...ordered]
     return user?.isPrincipal ? ordered : ordered.filter((option) => option.value !== 'TEAM_ADMIN')
   }, [user?.isPrincipal, user?.isOwner])
+  // Dentro da equipe de um Sub-admin só entram perfis de evento.
+  const addRoleOptions = addScope ? availableRoleOptions.filter((option) => EVENT_ROLES.includes(option.value)) : availableRoleOptions
   const editRoleOptions = userToEdit?.superAdmin
     ? [SUPER_ADMIN_OPTION]
     : userToEdit?.role === 'TEAM_ADMIN'
@@ -603,7 +616,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
             <button
               type="button"
               className="btn-primary-user"
-              onClick={handleOpenAddModal}
+              onClick={() => handleOpenAddModal()}
             >
               <PlusIcon />
               <span>ADICIONAR USUÁRIO</span>
@@ -612,7 +625,19 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
         </header>
 
         {loadError && <p role="alert" className="alert-feedback-error">{loadError}</p>}
-        {userScopes.length > 1 && (
+        {users.length > 0 && (
+          <div className="user-search">
+            <input
+              type="search"
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              placeholder={userScopes.length > 1 ? 'Buscar por nome, e-mail ou evento em todas as abas' : 'Buscar por nome, e-mail ou evento'}
+              aria-label="Buscar usuário"
+            />
+            {searching && <span>{shownUsers.length} {shownUsers.length === 1 ? 'encontrado' : 'encontrados'}</span>}
+          </div>
+        )}
+        {!searching && userScopes.length > 1 && (
           <nav className="user-scope-tabs" role="tablist" aria-label="Usuários por administrador">
             {userScopes.map((scope) => (
               <button
@@ -631,9 +656,21 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
           </nav>
         )}
 
-        {activeScope?.leader && (
+        {!searching && activeScope?.leader && (
           <section className="user-scope-summary" aria-label={`Eventos de ${activeScope.label}`}>
-            <h2>Eventos de {activeScope.label}</h2>
+            <div className="user-scope-summary-head">
+              <div>
+                <h2>Eventos de {activeScope.label}</h2>
+                <p className="user-scope-totals">
+                  {activeTotals.eventos} {activeTotals.eventos === 1 ? 'evento' : 'eventos'} · {activeScope.users.length} {activeScope.users.length === 1 ? 'usuário' : 'usuários'} · {activeTotals.entregues.toLocaleString('pt-BR')} de {activeTotals.atletas.toLocaleString('pt-BR')} kits entregues ({activeTotals.percentual}%)
+                </p>
+              </div>
+              {activeScope.events.length > 0 && (
+                <button type="button" className="btn-scope-add" onClick={() => handleOpenAddModal(activeScope)}>
+                  <PlusIcon /> <span>USUÁRIO PARA {activeScope.label}</span>
+                </button>
+              )}
+            </div>
             {activeScope.events.length === 0 ? (
               <p className="user-scope-empty">Ainda não criou nenhum evento.</p>
             ) : (
@@ -649,7 +686,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
           </section>
         )}
 
-        {eventTabs.length > 2 && (
+        {!searching && eventTabs.length > 2 && (
           <nav className="user-event-tabs" role="tablist" aria-label="Usuários por evento">
             {eventTabs.map((tab) => (
               <button
@@ -667,7 +704,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
         )}
 
         {shownUsers.length === 0 && users.length > 0 && (
-          <p className="user-scope-empty">Ninguém cadastrado aqui ainda.</p>
+          <p className="user-scope-empty">{searching ? 'Ninguém encontrado com essa busca.' : 'Ninguém cadastrado aqui ainda.'}</p>
         )}
 
         <section className="users-grid">
@@ -694,6 +731,14 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                       📍 {item.eventId === 'all' ? (item.isPrincipal ? 'TODOS OS PROJETOS DA PLATAFORMA' : projectScopeLabel(item.role, item.teamId)) : item.eventName}
                     </span>
                   </div>
+                  {(item.scopeLabel && userScopes.length > 1) || nameById.get(item.createdBy) ? (
+                    <p className="user-origin">
+                      {[
+                        item.scopeLabel && userScopes.length > 1 ? `Aba: ${item.scopeLabel}` : '',
+                        nameById.get(item.createdBy) ? `Cadastrado por ${nameById.get(item.createdBy)}` : '',
+                      ].filter(Boolean).join(' · ')}
+                    </p>
+                  ) : null}
                   {item.role === 'TEAM_ADMIN' && canManageTarget(item) && (
                     <p className="user-team-note">Vê só os eventos e usuários dele. Desativar suspende o acesso dele e dos usuários dele, sem apagar nada.</p>
                   )}
@@ -835,7 +880,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
               <div className="modal-header">
                 <div className="modal-title-with-badge">
                   <h2 className="modal-title">NOVO USUÁRIO</h2>
-                  <span className="modal-title-desc">{user?.isPrincipal ? 'Crie um Sub-admin ou alguém da equipe de um evento' : 'Crie o acesso para alguém da equipe do evento'}</span>
+                  <span className="modal-title-desc">{addScope ? `Entra na equipe do Sub-admin ${addScope.label}, num evento dele` : user?.isPrincipal ? 'Crie um Sub-admin ou alguém da equipe de um evento' : 'Crie o acesso para alguém da equipe do evento'}</span>
                 </div>
                 <button
                   type="button"
@@ -902,7 +947,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                 <div className="form-group" ref={roleDropdownRef}>
                   <label className="form-label" id="role-select-label">FUNÇÃO</label>
-                  {user?.isPrincipal && (
+                  {user?.isPrincipal && !addScope && (
                     <p className="form-hint role-model-hint">
                       <strong>Super admin</strong>: login próprio com acesso total{user?.isOwner ? ' (só você cria)' : ''}. <strong>Sub-admin</strong>: faz tudo, mas só nos eventos que ele criar e nos que os usuários dele criarem.
                     </p>
@@ -929,7 +974,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                     {isRoleDropdownOpen && (
                       <div className="role-options-list" role="listbox">
-                        {availableRoleOptions.map((opt) => {
+                        {addRoleOptions.map((opt) => {
                           const isSelected = newUserForm.role === opt.value
                           return (
                             <button
@@ -943,7 +988,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                                   ...(canPickAllProjects(opt.value)
                                     ? { eventId: 'all', eventName: allProjectsLabel }
                                     : prev.eventId === 'all'
-                                      ? { eventId: manageableEvents[0]?.id || '', eventName: manageableEvents[0]?.name || '' }
+                                      ? { eventId: addEvents[0]?.id || '', eventName: addEvents[0]?.name || '' }
                                       : {}),
                                 }))
                                 setIsRoleDropdownOpen(false)
@@ -992,7 +1037,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                         <span className="role-trigger-name">
                           {newUserForm.eventId === 'all'
                             ? projectScopeLabel(newUserForm.role, user?.teamId)
-                            : (manageableEvents.find((e) => e.id === newUserForm.eventId)?.name || newUserForm.eventName || 'SELECIONE A CORRIDA')}
+                            : (addEvents.find((e) => e.id === newUserForm.eventId)?.name || newUserForm.eventName || 'SELECIONE A CORRIDA')}
                         </span>
                       </div>
                       <ChevronDownIcon className={`role-chevron ${isEventDropdownOpen ? 'rotated' : ''}`} />
@@ -1030,12 +1075,12 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                           </button>
                         )}
 
-                        {manageableEvents.length === 0 ? (
+                        {addEvents.length === 0 ? (
                           <div className="empty-events-select-msg">
                             Nenhum projeto cadastrado no momento. Cadastre um evento primeiro na aba Eventos.
                           </div>
                         ) : (
-                          manageableEvents.map((ev) => {
+                          addEvents.map((ev) => {
                             const isSelected = newUserForm.eventId === ev.id
                             return (
                               <button
