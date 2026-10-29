@@ -126,6 +126,14 @@ function EyeIcon({ off, size = 16 }) {
   )
 }
 
+// Perfil de tela: o servidor guarda Super admin como ADMIN com superAdmin.
+const SUPER_ADMIN_OPTION = {
+  value: 'SUPER_ADMIN',
+  label: 'SUPER ADMIN',
+  description: 'Acesso total',
+  detail: 'Login próprio com acesso total: vê tudo e gerencia todos os usuários, menos a sua conta de dono',
+}
+
 const ROLE_OPTIONS = [
   {
     value: 'OPERADOR',
@@ -170,6 +178,7 @@ function isLegacyGlobalAdmin(item) {
 }
 
 function roleBadgeLabel(item) {
+  if (item.isOwner) return 'SUPER ADMIN · DONO'
   if (item.isPrincipal) return 'SUPER ADMIN'
   if (item.role === 'TEAM_ADMIN') return 'SUB-ADMIN'
   if (isLegacyGlobalAdmin(item)) return item.role === 'ADMIN' ? 'ADMIN ANTIGO · VÊ TUDO' : 'SUB-ADMIN ANTIGO · VÊ TUDO'
@@ -192,12 +201,15 @@ export default function UsuariosPage({
   const defaultEvent = manageableEvents[0] || (user?.eventId !== 'all' ? { id: user.eventId, name: user.eventName } : null)
 
   const allProjectsLabel = user?.teamId ? 'TODOS OS PROJETOS DA EQUIPE' : 'TODOS OS PROJETOS DO PRINCIPAL'
-  const projectScopeLabel = (role, teamId) => role === 'TEAM_ADMIN' || teamId ? 'TODOS OS PROJETOS DA EQUIPE' : 'TODOS OS PROJETOS DO PRINCIPAL'
+  const projectScopeLabel = (role, teamId) => role === 'SUPER_ADMIN' ? 'TODOS OS PROJETOS DA PLATAFORMA' : role === 'TEAM_ADMIN' || teamId ? 'TODOS OS PROJETOS DA EQUIPE' : 'TODOS OS PROJETOS DO PRINCIPAL'
   // "Todos os projetos" só faz sentido dentro de um âmbito isolado: o sub-admin
   // (TEAM_ADMIN) e o gerente criado por ele. Para o principal, um gerente com
   // todos os projetos seria o sub-admin antigo que vê tudo.
-  const canPickAllProjects = (role) => role === 'TEAM_ADMIN' || role === 'ADMIN' || (role === 'SUB_ADMIN' && user?.role === 'TEAM_ADMIN')
+  const canPickAllProjects = (role) => ['SUPER_ADMIN', 'TEAM_ADMIN', 'ADMIN'].includes(role) || (role === 'SUB_ADMIN' && user?.role === 'TEAM_ADMIN')
+  const roleOption = (value) => (value === 'SUPER_ADMIN' ? SUPER_ADMIN_OPTION : ROLE_OPTIONS.find((r) => r.value === value))
   const canManageTarget = (target) => {
+    // A conta dona só o próprio dono altera; os demais Super admins gerenciam todos.
+    if (target.isOwner) return Boolean(user?.isOwner)
     if (user?.isPrincipal) return true
     if (target.role === 'ADMIN' || target.role === 'TEAM_ADMIN' || target.isPrincipal) return false
     return true
@@ -375,7 +387,8 @@ export default function UsuariosPage({
       name: newUserForm.name.trim().toUpperCase(),
       email: newUserForm.email.trim().toLowerCase(),
       password: newUserForm.password,
-      role: newUserForm.role,
+      role: newUserForm.role === 'SUPER_ADMIN' ? 'ADMIN' : newUserForm.role,
+      ...(newUserForm.role === 'SUPER_ADMIN' ? { superAdmin: true } : {}),
       eventId: newUserForm.eventId,
       eventName: assignedName,
       status: 'ATIVO',
@@ -402,7 +415,7 @@ export default function UsuariosPage({
     setUserToEdit(targetUser)
     setEditUserForm({
       name: targetUser.name || '',
-      role: targetUser.role || 'OPERADOR',
+      role: targetUser.superAdmin ? 'SUPER_ADMIN' : (targetUser.role || 'OPERADOR'),
       eventId: targetUser.eventId || (initialEvent?.id || ''),
       eventName: targetUser.eventId === 'all' ? projectScopeLabel(targetUser.role, targetUser.teamId) : (targetUser.eventName || initialEvent?.name || ''),
     })
@@ -433,7 +446,7 @@ export default function UsuariosPage({
     try {
       const savedUser = await apiUpdateUser(userToEdit.id, {
         name: editUserForm.name.trim().toUpperCase(),
-        role: editUserForm.role,
+        role: editUserForm.role === 'SUPER_ADMIN' ? 'ADMIN' : editUserForm.role,
         eventId: editUserForm.eventId,
         eventName: assignedName,
       })
@@ -453,12 +466,15 @@ export default function UsuariosPage({
   const availableRoleOptions = useMemo(() => {
     const creatable = ROLE_OPTIONS.filter((option) => !['ADMIN', 'SUB_ADMIN'].includes(option.value))
     const ordered = [...creatable.filter((option) => option.value === 'TEAM_ADMIN'), ...creatable.filter((option) => option.value !== 'TEAM_ADMIN')]
+    if (user?.isOwner) return [SUPER_ADMIN_OPTION, ...ordered]
     return user?.isPrincipal ? ordered : ordered.filter((option) => option.value !== 'TEAM_ADMIN')
-  }, [user?.isPrincipal])
-  const editRoleOptions = userToEdit?.role === 'TEAM_ADMIN'
+  }, [user?.isPrincipal, user?.isOwner])
+  const editRoleOptions = userToEdit?.superAdmin
+    ? [SUPER_ADMIN_OPTION]
+    : userToEdit?.role === 'TEAM_ADMIN'
     ? ROLE_OPTIONS.filter((option) => option.value === 'TEAM_ADMIN')
     : [
-      ...availableRoleOptions.filter((option) => option.value !== 'TEAM_ADMIN'),
+      ...availableRoleOptions.filter((option) => !['TEAM_ADMIN', 'SUPER_ADMIN'].includes(option.value)),
       ...ROLE_OPTIONS.filter((option) => ['ADMIN', 'SUB_ADMIN'].includes(option.value) && option.value === userToEdit?.role),
     ]
 
@@ -485,8 +501,8 @@ export default function UsuariosPage({
       alert('Você só pode remover usuários que criou no seu ambiente.')
       return
     }
-    if (userId === user?.id || targetUser?.isPrincipal) {
-      alert('Não é possível remover o administrador principal.')
+    if (userId === user?.id || targetUser?.isOwner) {
+      alert('Não é possível remover a conta dona do sistema nem a sua própria conta.')
       return
     }
     if (!window.confirm('Tem certeza que deseja remover este usuário?')) return
@@ -598,7 +614,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   <span className="user-email">{item.email}</span>
 
                   <div className="user-badges-row">
-                    <span className={`role-pill ${item.role.toLowerCase()}`}>
+                    <span className={`role-pill ${item.isPrincipal ? 'super_admin' : item.role.toLowerCase()}`}>
                       {['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN'].includes(item.role) ? <ShieldIcon /> : <UserIcon />}
                       <span>{roleBadgeLabel(item)}</span>
                     </span>
@@ -662,7 +678,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     </button>
                   )}
 
-                  {canManageTarget(item) && !item.isPrincipal && (
+                  {canManageTarget(item) && !item.isOwner && item.id !== user?.id && (
                     <button
                       type="button"
                       className="btn-deactivate"
@@ -672,7 +688,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     </button>
                   )}
 
-                  {(user?.role === 'ADMIN' || (user?.role === 'TEAM_ADMIN' && canManageTarget(item)) || (user?.role === 'SUB_ADMIN' && item.createdBy === user.id && item.role !== 'ADMIN' && (user.eventId === 'all' || item.eventId === user.eventId))) && item.id !== user?.id && !item.isPrincipal && item.role !== 'TEAM_ADMIN' && (
+                  {(((user?.role === 'ADMIN' || user?.isPrincipal) && canManageTarget(item)) || (user?.role === 'TEAM_ADMIN' && canManageTarget(item)) || (user?.role === 'SUB_ADMIN' && item.createdBy === user.id && item.role !== 'ADMIN' && (user.eventId === 'all' || item.eventId === user.eventId))) && item.id !== user?.id && !item.isOwner && item.role !== 'TEAM_ADMIN' && (
                     <button
                       type="button"
                       className="icon-action-btn"
@@ -821,7 +837,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   <label className="form-label" id="role-select-label">FUNÇÃO</label>
                   {user?.isPrincipal && (
                     <p className="form-hint role-model-hint">
-                      <strong>Super admin</strong> é só você, o dono: vê e faz tudo. <strong>Sub-admin</strong> faz tudo também, mas só nos eventos que ele criar e nos que os usuários dele criarem.
+                      <strong>Super admin</strong>: login próprio com acesso total{user?.isOwner ? ' (só você cria)' : ''}. <strong>Sub-admin</strong>: faz tudo, mas só nos eventos que ele criar e nos que os usuários dele criarem.
                     </p>
                   )}
                   <div className="custom-role-dropdown">
@@ -835,10 +851,10 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     >
                       <div className="role-trigger-text">
                         <span className="role-trigger-name">
-                          {ROLE_OPTIONS.find((r) => r.value === newUserForm.role)?.label || newUserForm.role}
+                          {roleOption(newUserForm.role)?.label || newUserForm.role}
                         </span>
                         <span className="role-trigger-desc">
-                          ({ROLE_OPTIONS.find((r) => r.value === newUserForm.role)?.description || ''})
+                          ({roleOption(newUserForm.role)?.description || ''})
                         </span>
                       </div>
                       <ChevronDownIcon className={`role-chevron ${isRoleDropdownOpen ? 'rotated' : ''}`} />
@@ -896,7 +912,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     <button
                       type="button"
                       className={`custom-role-trigger ${isEventDropdownOpen ? 'open' : ''}`}
-                      disabled={newUserForm.role === 'TEAM_ADMIN'}
+                      disabled={['TEAM_ADMIN', 'SUPER_ADMIN'].includes(newUserForm.role)}
                       onClick={() => {
                         setIsRoleDropdownOpen(false)
                         setIsEventDropdownOpen((prev) => !prev)
@@ -1044,7 +1060,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                   <div className="cred-field-row">
                     <span className="cred-field-label">FUNÇÃO & PROJETO</span>
                     <strong className="cred-field-value role-badge-val">
-                      {ROLE_OPTIONS.find((r) => r.value === createdUserCredentials.role)?.label || createdUserCredentials.role} ({createdUserCredentials.eventName})
+                      {(createdUserCredentials.superAdmin ? SUPER_ADMIN_OPTION.label : roleOption(createdUserCredentials.role)?.label) || createdUserCredentials.role} ({createdUserCredentials.eventName})
                     </strong>
                   </div>
 
@@ -1137,10 +1153,10 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     >
                       <div className="role-trigger-text">
                         <span className="role-trigger-name">
-                          {ROLE_OPTIONS.find((r) => r.value === editUserForm.role)?.label || editUserForm.role}
+                          {roleOption(editUserForm.role)?.label || editUserForm.role}
                         </span>
                         <span className="role-trigger-desc">
-                          ({ROLE_OPTIONS.find((r) => r.value === editUserForm.role)?.description || ''})
+                          ({roleOption(editUserForm.role)?.description || ''})
                         </span>
                       </div>
                       <ChevronDownIcon className={`role-chevron ${isEditRoleDropdownOpen ? 'rotated' : ''}`} />
@@ -1208,7 +1224,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
                     <button
                       type="button"
                       className={`custom-role-trigger ${isEditEventDropdownOpen ? 'open' : ''}`}
-                      disabled={editUserForm.role === 'TEAM_ADMIN'}
+                      disabled={['TEAM_ADMIN', 'SUPER_ADMIN'].includes(editUserForm.role)}
                       onClick={() => {
                         setIsEditRoleDropdownOpen(false)
                         setIsEditEventDropdownOpen((prev) => !prev)

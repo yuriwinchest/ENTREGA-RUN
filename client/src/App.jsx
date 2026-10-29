@@ -353,6 +353,7 @@ export default function App() {
       role: userData?.role || 'OPERADOR',
       teamId: userData?.teamId || null,
       isPrincipal: Boolean(userData?.isPrincipal),
+      isOwner: Boolean(userData?.isOwner),
       eventId: userData?.eventId || 'all',
       eventName: userData?.eventName || 'TODOS OS PROJETOS',
     }

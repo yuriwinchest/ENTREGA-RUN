@@ -242,7 +242,7 @@ export default function Sidebar({ activePage = 'eventos', onNavigate, onLogout, 
             <div className="sidebar-user-text-col">
               <span className="sidebar-user-label">USUÁRIO</span>
               <span className="sidebar-user-name">{userName}</span>
-              <span className="sidebar-user-role">{userRole === 'ADMIN' ? (user?.isPrincipal ? 'SUPER ADMIN PRINCIPAL' : 'ADMIN DO PRINCIPAL') : userRole === 'TEAM_ADMIN' ? 'ADMIN DE EQUIPE' : userRole === 'SUB_ADMIN' ? 'SUB-ADMIN' : userRole}</span>
+              <span className="sidebar-user-role">{user?.isOwner ? 'SUPER ADMIN · DONO' : user?.isPrincipal ? 'SUPER ADMIN' : userRole === 'ADMIN' ? 'ADMIN ANTIGO' : userRole === 'TEAM_ADMIN' ? 'SUB-ADMIN' : userRole === 'SUB_ADMIN' ? 'GERENTE DE EVENTO' : userRole === 'MEDICO' ? 'MÉDICO' : userRole}</span>
             </div>
           </div>
 

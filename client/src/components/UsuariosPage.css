@@ -1126,3 +1126,14 @@
   line-height: 1.45;
   color: #475569;
 }
+
+.role-pill.super_admin {
+  background: #0c142c;
+  border: 1px solid #0c142c;
+  color: #ffffff;
+}
+
+.role-tag-badge.super_admin {
+  background: #0c142c;
+  color: #ffffff;
+}
