@@ -446,14 +446,21 @@ export default function UsuariosPage({
     }
   }
 
-  // Perfis de administrador visíveis: Super admin (principal) e Sub-admin isolado.
-  // "ADMIN DO PRINCIPAL" e o sub-admin geral antigo não são mais criados.
-  const availableRoleOptions = useMemo(() => user?.isPrincipal
-    ? ROLE_OPTIONS.filter((option) => option.value !== 'ADMIN')
-    : ROLE_OPTIONS.filter((option) => !['ADMIN', 'TEAM_ADMIN'].includes(option.value)), [user?.isPrincipal])
+  // Modelo do Yuri (2026-10-28): Super admin é só a conta dona (não se cria pela
+  // tela); Sub-admin vê só o que é dele; os demais são perfis de um evento.
+  // "Admin do principal" e "Gerente de evento" não são mais criados; os que já
+  // existem continuam funcionando e aparecem na edição só para quem já os tem.
+  const availableRoleOptions = useMemo(() => {
+    const creatable = ROLE_OPTIONS.filter((option) => !['ADMIN', 'SUB_ADMIN'].includes(option.value))
+    const ordered = [...creatable.filter((option) => option.value === 'TEAM_ADMIN'), ...creatable.filter((option) => option.value !== 'TEAM_ADMIN')]
+    return user?.isPrincipal ? ordered : ordered.filter((option) => option.value !== 'TEAM_ADMIN')
+  }, [user?.isPrincipal])
   const editRoleOptions = userToEdit?.role === 'TEAM_ADMIN'
     ? ROLE_OPTIONS.filter((option) => option.value === 'TEAM_ADMIN')
-    : availableRoleOptions.filter((option) => option.value !== 'TEAM_ADMIN' && (!userToEdit?.teamId || option.value !== 'ADMIN'))
+    : [
+      ...availableRoleOptions.filter((option) => option.value !== 'TEAM_ADMIN'),
+      ...ROLE_OPTIONS.filter((option) => ['ADMIN', 'SUB_ADMIN'].includes(option.value) && option.value === userToEdit?.role),
+    ]
 
   async function handleToggleStatus(userId) {
     const target = users.find((u) => u.id === userId)
@@ -745,7 +752,7 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
               <div className="modal-header">
                 <div className="modal-title-with-badge">
                   <h2 className="modal-title">NOVO USUÁRIO</h2>
-                  <span className="modal-title-desc">Crie o acesso para o operador ou supervisor</span>
+                  <span className="modal-title-desc">{user?.isPrincipal ? 'Crie um Sub-admin ou alguém da equipe de um evento' : 'Crie o acesso para alguém da equipe do evento'}</span>
                 </div>
                 <button
                   type="button"
@@ -812,6 +819,11 @@ Guarde esta senha para acessar a operação de kits no celular ou computador.`
 
                 <div className="form-group" ref={roleDropdownRef}>
                   <label className="form-label" id="role-select-label">FUNÇÃO</label>
+                  {user?.isPrincipal && (
+                    <p className="form-hint role-model-hint">
+                      <strong>Super admin</strong> é só você, o dono: vê e faz tudo. <strong>Sub-admin</strong> faz tudo também, mas só nos eventos que ele criar e nos que os usuários dele criarem.
+                    </p>
+                  )}
                   <div className="custom-role-dropdown">
                     <button
                       type="button"
