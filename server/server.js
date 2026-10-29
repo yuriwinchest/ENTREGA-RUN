@@ -79,15 +79,21 @@ function sanitizeUser(user) {
   return safe
 }
 
-// Administrador principal = conta de emergência definida por ADMIN_EMAIL no .env.
-// Não pode ser removido, desativado nem rebaixado: garante que sempre sobre um
-// acesso capaz de destravar o sistema. Trocar ADMIN_EMAIL transfere o papel.
-function isPrincipalAdmin(user) {
+// Dono = conta de emergência definida por ADMIN_EMAIL no .env. Não pode ser
+// removido, desativado nem rebaixado: garante que sempre sobre um acesso capaz
+// de destravar o sistema. Trocar ADMIN_EMAIL transfere o papel.
+function isOwnerAdmin(user) {
   return Boolean(user && String(user.email || '').toLowerCase().trim() === ADMIN_EMAIL)
 }
 
+// Acesso total ("principal"): o dono e os Super admins que o dono criar
+// (ADMIN com superAdmin, fora de equipe). Só o dono gerencia Super admins.
+function isPrincipalAdmin(user) {
+  return isOwnerAdmin(user) || Boolean(user && user.role === 'ADMIN' && user.superAdmin === true && !teamOf(user))
+}
+
 function publicUser(user) {
-  return { ...sanitizeUser(user), isPrincipal: isPrincipalAdmin(user) }
+  return { ...sanitizeUser(user), isPrincipal: isPrincipalAdmin(user), isOwner: isOwnerAdmin(user) }
 }
 
 function revokeUserSessions(userId) {
@@ -127,7 +133,7 @@ function getSessionFromReq(req) {
   return { token, ...session, ...(current ? {
     role: current.role, teamId: teamOf(current), name: current.name, email: current.email,
     eventId: current.eventId && current.eventId !== 'all' ? current.eventId : session.eventId,
-  } : {}), isPrincipal: isPrincipalAdmin(current) }
+  } : {}), isPrincipal: isPrincipalAdmin(current), isOwner: isOwnerAdmin(current) }
 }
 
 function requireEventScope(req, res, session) {
@@ -2123,6 +2129,13 @@ app.post('/api/users', requireAdminOrSubAdmin, (req, res) => {
   if (['ADMIN', 'TEAM_ADMIN'].includes(role) && !req.session.isPrincipal) {
     return res.status(403).json({ ok: false, message: 'Somente o principal pode criar administradores.' })
   }
+  const superAdmin = role === 'ADMIN' && body.superAdmin === true
+  if (superAdmin && !req.session.isOwner) {
+    return res.status(403).json({ ok: false, message: 'Somente o dono do sistema pode criar Super admins.' })
+  }
+  if (superAdmin && eventId !== 'all') {
+    return res.status(400).json({ ok: false, message: 'Super admin tem acesso a todos os projetos.' })
+  }
   // O rollback da imagem candidata não pode receber uma equipe que só a versão nova entende.
   if (role === 'TEAM_ADMIN' && fs.existsSync(path.join(DATA_DIR, '.emergency-links-release-pending'))) {
     return res.status(503).json({ ok: false, message: 'Atualização em validação. Aguarde alguns instantes e tente novamente.' })
@@ -2171,7 +2184,8 @@ app.post('/api/users', requireAdminOrSubAdmin, (req, res) => {
     status: body.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
     deliveries: Number(body.deliveries || 0),
     avatar: name.substring(0, 2).toUpperCase(),
-    teamId: role === 'TEAM_ADMIN' ? `team-${crypto.randomUUID()}`
+    ...(superAdmin ? { superAdmin: true } : {}),
+    teamId: superAdmin ? '' : role === 'TEAM_ADMIN' ? `team-${crypto.randomUUID()}`
       : req.session.isPrincipal && eventId !== 'all'
         ? teamOf(inMemoryEvents.find((event) => event.id === eventId)) : teamOf(req.session),
     createdBy: req.session.userId,
@@ -2196,6 +2210,9 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   const current = inMemoryUsers[idx]
   if (!canManageUser(req.session, publicUser(current))) return res.status(403).json({ ok: false, message: 'Usuário fora da sua administração.' })
   if (body.teamId !== undefined && body.teamId !== teamOf(current)) return res.status(400).json({ ok: false, message: 'Transferência de equipe não permitida.' })
+  if (current.superAdmin === true && body.role && body.role !== 'ADMIN') {
+    return res.status(400).json({ ok: false, message: 'Para tirar o acesso de um Super admin, desative ou remova o usuário.' })
+  }
   if (body.role && body.role !== current.role && (['ADMIN', 'TEAM_ADMIN'].includes(body.role) || current.role === 'TEAM_ADMIN')) return res.status(400).json({ ok: false, message: 'Crie um administrador de equipe separado; conversão de perfil não permitida.' })
   const targetRole = body.role && USER_ROLES.includes(body.role) ? body.role : current.role
   const targetEventId = body.eventId !== undefined ? String(body.eventId).trim() : current.eventId
@@ -2213,8 +2230,8 @@ app.put('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
     }
   }
 
-  if (isPrincipalAdmin(current) && ((body.status && body.status !== 'ATIVO') || (body.role && body.role !== 'ADMIN'))) {
-    return res.status(400).json({ ok: false, message: 'O administrador principal não pode ser desativado nem rebaixado.' })
+  if (isOwnerAdmin(current) && ((body.status && body.status !== 'ATIVO') || (body.role && body.role !== 'ADMIN'))) {
+    return res.status(400).json({ ok: false, message: 'O dono do sistema não pode ser desativado nem rebaixado.' })
   }
 
   if (req.session?.role === 'SUB_ADMIN') {
@@ -2329,8 +2346,8 @@ app.delete('/api/users/:id', requireAdminOrSubAdmin, (req, res) => {
   const target = inMemoryUsers[idx]
   if (!canManageUser(req.session, publicUser(target))) return res.status(403).json({ ok: false, message: 'Usuário fora da sua administração.' })
   if (target.role === 'TEAM_ADMIN') return res.status(409).json({ ok: false, message: 'Desative o administrador para suspender a equipe; exclusão não permitida.' })
-  if (isPrincipalAdmin(target)) {
-    return res.status(400).json({ ok: false, message: 'Não é possível remover o administrador principal.' })
+  if (isOwnerAdmin(target)) {
+    return res.status(400).json({ ok: false, message: 'Não é possível remover o dono do sistema.' })
   }
   if (req.session.role === 'SUB_ADMIN' && (target.role === 'ADMIN' || target.createdBy !== req.session.userId || (req.session.eventId !== 'all' && target.eventId !== req.session.eventId))) {
     return res.status(403).json({ ok: false, message: 'Sub-Admin só pode remover usuários que criou no próprio evento.' })
@@ -2393,6 +2410,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
       role: foundUser.role || 'OPERADOR',
       teamId: teamOf(foundUser),
       isPrincipal: isPrincipalAdmin(foundUser),
+      isOwner: isOwnerAdmin(foundUser),
       eventId: finalEventId,
       eventName: finalEventName,
     }
@@ -2445,6 +2463,7 @@ app.get('/api/session', (req, res) => {
       eventName: session.eventName,
       teamId: teamOf(session),
       isPrincipal: session.isPrincipal === true,
+      isOwner: session.isOwner === true,
     },
   })
 })

@@ -23,8 +23,10 @@ export function canCreateEvent(actor) {
 
 export function canManageUser(actor, target) {
   if (!sameScope(actor, target)) return false
+  // Super admins gerenciam todos (suspender, senha, excluir), inclusive outros
+  // Super admins; a conta dona só o próprio dono altera, para nunca perder o acesso.
+  if (target.isOwner) return actor.isOwner === true
   if (actor.isPrincipal) return true
-  if (target.isPrincipal) return false
   if (actor.role === 'ADMIN') return target.role !== 'TEAM_ADMIN'
   if (['ADMIN', 'TEAM_ADMIN'].includes(target.role) || target.isPrincipal) return false
   if (actor.role === 'TEAM_ADMIN') return true
