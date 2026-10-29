@@ -10,19 +10,19 @@
 
 ## Última atualização
 
+- **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `d72f6ba..07d9a90`.
+- **Pedido:** Super admin clicar no Sub-admin, entrar no ambiente dele, ver/editar tudo e voltar ao próprio. Respostas do Yuri: só Sub-admin; ações ficam em nome do Sub-admin, sem trilha; ele não é avisado; sem limite além da sessão normal.
+- **Entrega:** `POST /api/users/:id/entrar` (sessão como o Sub-admin com `impersonatedBy`; cai se quem visita perder o acesso); nome clicável e botão "Entrar no ambiente" em Usuários; faixa "Voltar ao meu ambiente" (`VisitBanner`, `visitSession.js`).
+- **Validação:** servidor 59/59 (novo `entrarAmbiente.http.test.mjs`), client 86/86, build ok; navegador local: entrou no Carlos, viu só os 2 eventos e os usuários dele, recarregou com a faixa, voltou ao dono com a lista completa; celular ok.
+- **Risco/próximo:** sem trilha de quem agiu na visita (decisão do Yuri). Yuri conferir em produção.
+
+## Penúltima atualização
+
 - **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `929043b..f1ddaaf`.
 - **Pedido:** Yuri liberou completar a tela de Usuários ("pode fazer, você já sabe").
 - **Entrega:** busca por nome/e-mail/evento em todas as abas (diz em qual aba está); "Cadastrado por" no cartão; resumo do Sub-admin com eventos, usuários e kits entregues (%); botão "Usuário para <Sub-admin>" cria perfil de evento num evento dele (entra na equipe). Cartão sem rolagem lateral no celular. Só client.
 - **Validação:** client 84/84, lint/build ok; navegador local: Médica criada pela aba do Carlos ficou na equipe dele (conferido na API), busca acha em outra aba, celular sem estouro.
 - **Próximo passo:** Yuri conferir em produção.
-
-## Penúltima atualização
-
-- **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `0300bb9..55f69fb`.
-- **Pedido:** organizar Usuários em "escadinha": super admin vê os dele e, clicando num Sub-admin, as pessoas que ele cadastrou.
-- **Entrega:** `client/src/utils/userTabs.js` (+teste) e `UsuariosPage`: aba "Meus usuários" + uma por Sub-admin (eventos dele com atletas/entregas/status e sub-abas por evento); "Sem responsável" para equipe órfã. Sub-admin vê as pessoas dele por evento. Só client.
-- **Validação:** client 82/82, lint/build ok; navegador local: dono com 2 abas (3 usuários cada), aba do Carlos com 2 eventos e sub-abas; Carlos logado vê só as sub-abas dele.
-- **Próximo passo:** Yuri conferir em produção; ele avisou que pode querer mais itens nessa tela.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -44,5 +44,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-28 · Claude Code · Super admin entra no ambiente do Sub-admin e volta.
 - 2026-10-28 · Claude Code · Usuários: busca, cadastrado por, totais e usuário na aba do Sub-admin.
-- 2026-10-28 · Claude Code · Usuários em escadinha: aba por Sub-admin e sub-abas por evento.
