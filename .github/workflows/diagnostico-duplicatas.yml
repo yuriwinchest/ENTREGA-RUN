@@ -36,9 +36,4 @@ jobs:
             }
             run_node /work/duplicatas.mjs /app/data
 
-            # Último backup de dados feito antes da entrega duplicada (29/10 19:03 UTC).
-            EVENT=event-1792586257737
-            BACKUP="$(ls backups/data-before-*.tar.gz | awk -F- '{ts=$NF; sub(/\.tar\.gz$/,"",ts); if (ts < "20261029T190330Z") print ts" "$0}' | sort | tail -1 | cut -d' ' -f2)"
-            echo "Backup comparado: ${BACKUP##*/}"
-            tar -xzf "$BACKUP" -C "$WORK" "data/athletes_$EVENT.json"
-            run_node /work/comparar.mjs "/work/data/athletes_$EVENT.json" "/app/data/athletes_$EVENT.json" 447
+            run_node /work/comparar.mjs /app/data/athletes_event-1792586257737.json 447 714
