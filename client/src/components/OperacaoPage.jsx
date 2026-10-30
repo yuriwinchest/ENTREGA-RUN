@@ -1701,15 +1701,35 @@ export default function OperacaoPage({
       return null
     }
 
-    setAthletes((prev) => {
+    // Kit já entregue: o servidor ignora cópias de atleta entregue (proteção contra
+    // aba antiga), então a correção vai explícita, com o id marcado como edição.
+    if (normalized.status === 'ENTREGUE') {
       let found = false
-      const updated = prev.map((athlete) => {
+      const nextAthletes = athletes.map((athlete) => {
         if (!matchesAthleteReference(athlete, selectedAthlete)) return athlete
         found = true
         return normalized
       })
-      return found ? updated : [normalized, ...updated]
-    })
+      if (!found) nextAthletes.unshift(normalized)
+      skipNextAthletesAutosaveRef.current = true
+      setAthletes(nextAthletes)
+      if (currentEvent?.id) {
+        setAthletesSync({ state: 'saving', at: Date.now() })
+        saveAthletesInOrder(currentEvent.id, nextAthletes, athleteColumnSchema, Array.isArray(kits) ? kits : undefined, originalSheet, { editAthleteId: String(normalized.id || '') })
+          .then((saved) => setAthletesSync({ state: saved ? 'ok' : 'error', at: Date.now() }))
+          .catch(() => setAthletesSync({ state: 'error', at: Date.now() }))
+      }
+    } else {
+      setAthletes((prev) => {
+        let found = false
+        const updated = prev.map((athlete) => {
+          if (!matchesAthleteReference(athlete, selectedAthlete)) return athlete
+          found = true
+          return normalized
+        })
+        return found ? updated : [normalized, ...updated]
+      })
+    }
 
     setDeliveries((prev) => {
       const updated = prev.map((delivery) => {
@@ -2488,6 +2508,18 @@ export default function OperacaoPage({
                 <div className="athlete-detail-actions-bar">
                   {detailForm.status === 'ENTREGUE' ? (
                     <>
+                      {canEditAthlete && detailHasChanges && (
+                        <button
+                          type="button"
+                          className="btn-detail-save btn-detail-save-active"
+                          onClick={handleSaveDetail}
+                          disabled={detailActionInProgress}
+                          title="Salvar a correção do cadastro (ex.: troca de camisa) mantendo a entrega"
+                        >
+                          <SaveIcon />
+                          <span>SALVAR ALTERAÇÕES</span>
+                        </button>
+                      )}
                       {canUndo && (
                         <button
                           type="button"
@@ -3054,6 +3086,21 @@ export default function OperacaoPage({
                     />
                   </div>
                 </div>
+
+                {detailForm.status === 'ENTREGUE' && canEditAthlete && detailHasChanges && (
+                  <div className="athlete-detail-bottom-actions">
+                    <button
+                      type="button"
+                      className="btn-detail-save btn-detail-save-active"
+                      onClick={handleSaveDetail}
+                      disabled={detailActionInProgress}
+                      title="Salvar a correção do cadastro (ex.: troca de camisa) mantendo a entrega"
+                    >
+                      <SaveIcon />
+                      <span>SALVAR ALTERAÇÕES</span>
+                    </button>
+                  </div>
+                )}
 
                 {detailForm.status !== 'ENTREGUE' && !canAssociateAthleteKit(detailForm) && (
                   <div ref={detailBottomActionsRef} className="athlete-detail-bottom-actions">

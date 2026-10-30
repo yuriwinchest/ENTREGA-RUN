@@ -9,9 +9,25 @@ function athleteKey(athlete) {
   return `numero:${String(athlete?.numero || '').trim()}`
 }
 
+// Correção pedida para kit já entregue (ex.: camisa G trocada por GG): aceita o
+// cadastro novo, mas a entrega em si (status, quando, quem) continua a do servidor.
+function editDeliveredAthlete(saved, incoming) {
+  return {
+    ...incoming,
+    status: saved.status,
+    entregueEm: saved.entregueEm,
+    entreguePor: saved.entreguePor,
+  }
+}
+
 // Old browser tabs send an entire cached spreadsheet on every delivery. During
 // an active event, a stale copy must never roll a delivered kit back to pending.
-export function mergeActiveAthletes(current, incoming, { undoAthleteId = '', canUndoDelivery = false } = {}) {
+export function mergeActiveAthletes(current, incoming, {
+  undoAthleteId = '',
+  canUndoDelivery = false,
+  editAthleteId = '',
+  canEditDelivered = false,
+} = {}) {
   if (!Array.isArray(current) || current.length === 0) return incoming
   const byKey = new Map(current.map((athlete) => [athleteKey(athlete), athlete]))
   const seen = new Set()
@@ -22,6 +38,8 @@ export function mergeActiveAthletes(current, incoming, { undoAthleteId = '', can
     if (!saved) return athlete
     if (String(saved.id || '') === String(undoAthleteId) &&
       (!isDelivered(saved) || canUndoDelivery)) return athlete
+    if (isDelivered(saved) && canEditDelivered && editAthleteId &&
+      String(saved.id || '') === String(editAthleteId)) return editDeliveredAthlete(saved, athlete)
     if (isDelivered(saved)) return saved
     if (hasBinding(saved) && (!hasBinding(athlete) ||
       String(saved.numero) !== String(athlete.numero) || String(saved.chip) !== String(athlete.chip))) {

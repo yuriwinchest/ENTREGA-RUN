@@ -43,3 +43,22 @@ test('delivery undo needs an explicit authorized intent', () => {
   assert.deepEqual(mergeActiveAthletes(saved, undone, { undoAthleteId: 'a' }), saved)
   assert.deepEqual(mergeActiveAthletes(saved, undone, { undoAthleteId: 'a', canUndoDelivery: true }), undone)
 })
+
+test('a delivered athlete can be corrected only with an explicit authorized edit', () => {
+  const saved = [
+    { id: 'a', numero: '500', chip: '7775', camiseta: 'G', status: 'ENTREGUE', entregueEm: '29/10 10:00', entreguePor: 'Ana' },
+    { id: 'b', numero: '501', chip: '7776', camiseta: 'M', status: 'ENTREGUE', entregueEm: '29/10 10:05', entreguePor: 'Ana' },
+  ]
+  const edited = [
+    { ...saved[0], camiseta: 'GG', status: 'PENDENTE', entregueEm: '', entreguePor: 'Outro' },
+    { ...saved[1], camiseta: 'P' },
+  ]
+  assert.deepEqual(mergeActiveAthletes(saved, edited), saved)
+  assert.deepEqual(mergeActiveAthletes(saved, edited, { editAthleteId: 'a' }), saved)
+  const merged = mergeActiveAthletes(saved, edited, { editAthleteId: 'a', canEditDelivered: true })
+  assert.equal(merged[0].camiseta, 'GG')
+  assert.equal(merged[0].status, 'ENTREGUE')
+  assert.equal(merged[0].entregueEm, '29/10 10:00')
+  assert.equal(merged[0].entreguePor, 'Ana')
+  assert.deepEqual(merged[1], saved[1])
+})

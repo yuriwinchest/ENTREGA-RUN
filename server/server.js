@@ -1258,6 +1258,9 @@ app.get('/api/events/:eventId/athletes', requireAuthOrDeployCheck, async (req, r
   })
 })
 
+// Mesmos papéis que veem o cadastro editável na tela de entrega.
+const EDIT_DELIVERED_ROLES = ['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN', 'SUPERVISOR']
+
 // POST /api/events/:eventId/athletes — Sincroniza/persiste lista de atletas
 // Kits inválidos NÃO derrubam mais a lista: atletas são salvos e o aviso
 // volta em kitsWarning (causa raiz da divergência total x lista zerada).
@@ -1273,7 +1276,7 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
     }
   }
 
-  const { athletes, schema, kits, originalSheet, undoAthleteId, healthFields, importMode, listRevision } = req.body || {}
+  const { athletes, schema, kits, originalSheet, undoAthleteId, editAthleteId, healthFields, importMode, listRevision } = req.body || {}
 
   if (!Array.isArray(athletes)) {
     return res.status(400).json({ ok: false, message: 'Lista de atletas inválida.' })
@@ -1305,7 +1308,12 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
     return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
   }
   const safeAthletes = importMode !== 'replace' && (protectExisting || importMode === 'add')
-    ? mergeActiveAthletes(existing?.athletes, athletes, { undoAthleteId: safeUndoId, canUndoDelivery })
+    ? mergeActiveAthletes(existing?.athletes, athletes, {
+      undoAthleteId: safeUndoId,
+      canUndoDelivery,
+      editAthleteId: String(editAthleteId || '').slice(0, 64),
+      canEditDelivered: EDIT_DELIVERED_ROLES.includes(session.role),
+    })
     : athletes
   const safeSchema = importMode === 'add' ? mergeImportMetadata(existing?.schema, schema, 'key')
     : importMode !== 'replace' && protectExisting && existing?.schema?.length ? existing.schema : schema
@@ -1341,7 +1349,7 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
     }
   }
 
-  const { uploadId, chunkIndex, totalChunks, athletesChunk, schema, kits, originalSheet, undoAthleteId, healthFields, importMode, listRevision } = req.body || {}
+  const { uploadId, chunkIndex, totalChunks, athletesChunk, schema, kits, originalSheet, undoAthleteId, editAthleteId, healthFields, importMode, listRevision } = req.body || {}
   const safeUploadId = String(uploadId || '').replace(/[^\w-]/g, '').slice(0, 64)
   const idx = Number(chunkIndex)
   const total = Number(totalChunks)
@@ -1355,7 +1363,7 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
 
   let upload = athleteChunkUploads.get(`${safeEventId}:${safeUploadId}`)
   if (!upload) {
-    upload = { chunks: new Array(total).fill(null), totalChunks: total, schema: [], kits: undefined, originalSheet: undefined, healthFields: undefined, undoAthleteId: '', importMode, listRevision: listRevision ?? 0, received: 0, updatedAt: Date.now() }
+    upload = { chunks: new Array(total).fill(null), totalChunks: total, schema: [], kits: undefined, originalSheet: undefined, healthFields: undefined, undoAthleteId: '', editAthleteId: '', importMode, listRevision: listRevision ?? 0, received: 0, updatedAt: Date.now() }
     athleteChunkUploads.set(`${safeEventId}:${safeUploadId}`, upload)
   }
   if ((importMode !== undefined && importMode !== upload.importMode) ||
@@ -1387,6 +1395,7 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
   }
   if (healthFields !== undefined) upload.healthFields = healthFields
   if (undoAthleteId !== undefined) upload.undoAthleteId = String(undoAthleteId || '').slice(0, 64)
+  if (editAthleteId !== undefined) upload.editAthleteId = String(editAthleteId || '').slice(0, 64)
 
   if (upload.received < upload.totalChunks) {
     return res.json({ ok: true, received: upload.received, totalChunks: upload.totalChunks, done: false })
@@ -1404,7 +1413,12 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
     return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
   }
   const safeMerged = upload.importMode !== 'replace' && (protectExistingChunk || upload.importMode === 'add')
-    ? mergeActiveAthletes(existingChunk?.athletes, merged, { undoAthleteId: upload.undoAthleteId, canUndoDelivery })
+    ? mergeActiveAthletes(existingChunk?.athletes, merged, {
+      undoAthleteId: upload.undoAthleteId,
+      canUndoDelivery,
+      editAthleteId: upload.editAthleteId,
+      canEditDelivered: EDIT_DELIVERED_ROLES.includes(session.role),
+    })
     : merged
   const safeSchema = upload.importMode === 'add' ? mergeImportMetadata(existingChunk?.schema, upload.schema, 'key')
     : upload.importMode !== 'replace' && protectExistingChunk && existingChunk?.schema?.length ? existingChunk.schema : upload.schema
