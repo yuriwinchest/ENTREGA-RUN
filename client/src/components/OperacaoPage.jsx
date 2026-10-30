@@ -1509,6 +1509,14 @@ export default function OperacaoPage({
       setScanFeedback('Este kit exato (mesmo número e chip) já foi associado a outro atleta. Atualize a tela e tente novamente.')
       return
     }
+    const numberOwner = athletes.find((a) =>
+      !matchesAthleteReference(a, source) &&
+      String(a.numero || '').trim() === String(scannedKit.numero).trim()
+    )
+    if (numberOwner) {
+      setScanFeedback(`O nº ${scannedKit.numero} já pertence a ${numberOwner.nome || 'outro atleta'}. Confira o kit antes de associar.`)
+      return
+    }
     const updated = {
       ...source,
       _kitPreviousNumero: String(source.numero || ''),
@@ -1907,6 +1915,12 @@ export default function OperacaoPage({
       return
     }
 
+    const numberOwner = athletes.find((a) => String(a.numero || '').trim() === num)
+    if (numberOwner) {
+      window.alert(`O número ${num} já pertence a ${numberOwner.nome || 'outro atleta'}. Informe outro número.`)
+      return
+    }
+
     if (addAthleteChipCollision) {
       window.alert(
         `O chip "${athleteForm.chip}" já está associado ao atleta "${addAthleteChipCollision.nome}" (Nº ${addAthleteChipCollision.numero}). Por favor, informe outro chip.`
@@ -2006,7 +2020,7 @@ export default function OperacaoPage({
     // Mark athlete as ENTREGUE
     setAthletes((prev) =>
       prev.map((a) =>
-        matchesAthleteReference(a, sourceAthlete) || String(a.numero) === String(athlete.numero)
+        matchesAthleteReference(a, sourceAthlete)
           ? {
               ...a,
               ...athlete,

@@ -132,9 +132,11 @@ export function hasCadastralChanges(initialDraft, currentDraft) {
 export function matchesAthleteReference(record, reference) {
   if (!record || !reference) return false
 
-  if (reference.id != null && record.id != null && String(record.id) === String(reference.id)) {
-    return true
-  }
+  const recordId = String(record.id ?? '').trim()
+  const referenceId = String(reference.id ?? '').trim()
+  if (recordId && referenceId) return recordId === referenceId
+  // Número só identifica quando falta id: dois atletas com o mesmo nº (nº 447 em
+  // 29/10) não podem virar um só — a entrega de um sobrescrevia o outro.
 
   return (
     reference.numero != null &&

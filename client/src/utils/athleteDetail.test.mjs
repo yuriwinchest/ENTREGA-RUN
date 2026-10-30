@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { hasAthleteDetailChanges, hasCadastralChanges, undoDeliveryChanges, wasAssociatedInApp } from './athleteDetail.js'
+import { hasAthleteDetailChanges, hasCadastralChanges, matchesAthleteReference, undoDeliveryChanges, wasAssociatedInApp } from './athleteDetail.js'
 
 const base = { numero: '777', nome: 'ADRIANA', chip: '7771', entreguePara: '' }
 
@@ -36,4 +36,13 @@ test('DESFAZER de associação feita no sistema desfaz entrega e associação', 
   assert.deepEqual([resultado.status, resultado.numero, resultado.chip, resultado.qrCode], ['PENDENTE', '', '', ''])
   assert.equal('_kitPreviousNumero' in resultado, false)
   assert.equal(undoDeliveryChanges({ ...associado, _kitPreviousNumero: '12' }).numero, '12')
+})
+
+test('athletes with different ids never match by a shared number', () => {
+  const imported = { id: 'import-1-154', numero: '447' }
+  const manual = { id: 'ath-1', numero: '447' }
+  assert.equal(matchesAthleteReference(manual, imported), false)
+  assert.equal(matchesAthleteReference({ ...imported }, imported), true)
+  assert.equal(matchesAthleteReference({ numero: '447' }, imported), true)
+  assert.equal(matchesAthleteReference({ id: '', numero: '447' }, { id: '', numero: '448' }), false)
 })
