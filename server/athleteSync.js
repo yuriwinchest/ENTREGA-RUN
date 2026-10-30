@@ -31,7 +31,8 @@ export function mergeActiveAthletes(current, incoming, {
   if (!Array.isArray(current) || current.length === 0) return incoming
   const byKey = new Map(current.map((athlete) => [athleteKey(athlete), athlete]))
   const seen = new Set()
-  const merged = incoming.map((athlete) => {
+  const keptSaved = new Set()
+  const resolve = (athlete) => {
     const key = athleteKey(athlete)
     seen.add(key)
     const saved = byKey.get(key)
@@ -46,7 +47,18 @@ export function mergeActiveAthletes(current, incoming, {
       return saved
     }
     return athlete
-  })
+  }
+  // Duas linhas da lista recebida que caem no mesmo registro salvo viravam duas
+  // cópias da mesma entrega (nº 447 em 29/10); fica só a primeira.
+  const merged = []
+  for (const athlete of incoming) {
+    const result = resolve(athlete)
+    if (byKey.get(athleteKey(athlete)) === result) {
+      if (keptSaved.has(result)) continue
+      keptSaved.add(result)
+    }
+    merged.push(result)
+  }
   for (const saved of current) {
     if (!seen.has(athleteKey(saved))) merged.push(saved)
   }

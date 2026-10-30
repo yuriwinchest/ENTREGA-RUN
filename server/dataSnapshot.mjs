@@ -26,16 +26,25 @@ export function deliveredContentHash(athlete) {
   return crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex')
 }
 
+// Cópia exata de uma entrega (mesma identidade e mesma prova) não é ambígua: conta
+// uma vez, e o servidor a descarta no próximo salvamento. Prova divergente barra.
 function deliveredProofs(athletes) {
   const confirmed = athletes.filter(delivered)
   const content = {}
+  let duplicateCopies = 0
   for (const athlete of confirmed) {
     const id = athleteIdentity(athlete)
-    if (content[id]) throw new Error('Identidade duplicada entre atletas entregues.')
-    content[id] = deliveredContentHash(athlete)
+    const proof = deliveredContentHash(athlete)
+    if (content[id]) {
+      if (content[id] !== proof) throw new Error('Identidade duplicada entre atletas entregues.')
+      duplicateCopies += 1
+      continue
+    }
+    content[id] = proof
   }
   return {
-    deliveredCount: confirmed.length,
+    duplicateCopies,
+    deliveredCount: confirmed.length - duplicateCopies,
     deliveredIds: Object.keys(content).sort(),
     deliveredContent: content,
   }
@@ -58,9 +67,9 @@ export function captureSnapshot(dataDir) {
   for (const file of files) {
     const data = readJson(path.join(dataDir, file))
     if (!Array.isArray(data?.athletes)) throw new Error(`Lista de atletas inválida: ${file}`)
-    const proofs = deliveredProofs(data.athletes)
+    const { duplicateCopies, ...proofs } = deliveredProofs(data.athletes)
     athletesByFile[file] = {
-      total: data.athletes.length,
+      total: data.athletes.length - duplicateCopies,
       ...proofs,
     }
   }
@@ -121,7 +130,7 @@ export async function verifyApiSnapshot(before, baseUrl = 'http://127.0.0.1:3001
     if (!Array.isArray(body.athletes)) throw new Error(`Resposta de atletas inválida: ${eventId}`)
     const proofs = deliveredProofs(body.athletes)
     const deliveredIds = new Set(proofs.deliveredIds)
-    if (body.athletes.length < previous.total || proofs.deliveredCount < previous.deliveredCount ||
+    if (body.athletes.length - proofs.duplicateCopies < previous.total || proofs.deliveredCount < previous.deliveredCount ||
       !previous.deliveredIds.every((id) => deliveredIds.has(id))) {
       throw new Error(`API perdeu atletas ou entregas confirmadas: ${eventId}`)
     }

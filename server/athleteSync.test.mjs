@@ -62,3 +62,19 @@ test('a delivered athlete can be corrected only with an explicit authorized edit
   assert.equal(merged[0].entreguePor, 'Ana')
   assert.deepEqual(merged[1], saved[1])
 })
+
+test('two incoming rows for the same saved delivery keep a single copy', () => {
+  const delivered = { id: 'a', numero: '447', chip: '9', status: 'ENTREGUE', entregueEm: '29/10 16:03' }
+  const saved = [delivered, { id: 'b', numero: '448', status: 'PENDENTE' }, { ...delivered }]
+  const incoming = [{ ...delivered }, { id: 'b', numero: '448', status: 'PENDENTE' }, { ...delivered }]
+  const merged = mergeActiveAthletes(saved, incoming)
+  assert.equal(merged.filter((a) => a.id === 'a').length, 1)
+  assert.equal(merged.length, 2)
+  const fromCleanTab = mergeActiveAthletes(saved, [{ ...delivered }, { id: 'b', numero: '448', status: 'PENDENTE' }])
+  assert.equal(fromCleanTab.length, 2)
+})
+
+test('pending athletes sharing a document without id are not merged away', () => {
+  const saved = [{ doc: '111', numero: '1', status: 'PENDENTE' }, { doc: '111', numero: '2', status: 'PENDENTE' }]
+  assert.equal(mergeActiveAthletes(saved, saved.map((a) => ({ ...a }))).length, 2)
+})

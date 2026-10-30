@@ -92,3 +92,23 @@ test('deploy gate verifies that the API still exposes confirmed deliveries', asy
     await new Promise((resolve) => server.close(resolve))
   }
 })
+
+test('deploy gate accepts an exact copy of a delivery and the cleanup that removes it', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'entregas-deploy-dup-'))
+  const file = path.join(dataDir, 'athletes_event-dup.json')
+  const delivered = { id: 'a', numero: '447', chip: '9', status: 'ENTREGUE', entregueEm: '29/10 16:03', entreguePor: 'op' }
+  const pending = { id: 'b', numero: '448', status: 'PENDENTE' }
+  try {
+    fs.writeFileSync(path.join(dataDir, 'events.json'), JSON.stringify([{ id: 'event-dup', status: 'EM OPERAÇÃO', total: 3 }]))
+    fs.writeFileSync(file, JSON.stringify({ athletes: [delivered, pending, { ...delivered }] }))
+    const before = captureSnapshot(dataDir)
+    assert.equal(before.athletesByFile['athletes_event-dup.json'].deliveredCount, 1)
+    assert.equal(before.athletesByFile['athletes_event-dup.json'].total, 2)
+    fs.writeFileSync(file, JSON.stringify({ athletes: [delivered, pending] }))
+    assert.doesNotThrow(() => verifySnapshot(before, dataDir))
+    fs.writeFileSync(file, JSON.stringify({ athletes: [delivered, pending, { ...delivered, entreguePor: 'outro' }] }))
+    assert.throws(() => captureSnapshot(dataDir), /Identidade duplicada/)
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true })
+  }
+})
