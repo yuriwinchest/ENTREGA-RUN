@@ -1,0 +1,27 @@
+name: Diagnóstico (só leitura) de atletas entregues duplicados
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: entregas-run-deploy
+  cancel-in-progress: false
+
+jobs:
+  diagnosticar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ler dados na VPS sem alterar nada
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -eu
+            cd /opt/entregas-run
+            git fetch --quiet origin main
+            git show '${{ github.sha }}:scripts/diagnostico-duplicatas.mjs' > /tmp/entregas-run-diagnostico-${{ github.sha }}.mjs
+            node /tmp/entregas-run-diagnostico-${{ github.sha }}.mjs /opt/entregas-run/data
+            rm -f /tmp/entregas-run-diagnostico-${{ github.sha }}.mjs
