@@ -9,7 +9,7 @@ import express from 'express'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { hashPassword, verifyPassword } from './passwords.js'
-import { eventMetrics, mergeActiveAthletes } from './athleteSync.js'
+import { eventMetrics, mergeActiveAthletes, newNumberCollisions } from './athleteSync.js'
 import { createSessionStore } from './sessionStore.js'
 import { deployCheckTokenFile } from './deployCheck.js'
 import { createEmergencyLinksStore, EMERGENCY_CODE } from './emergencyLinks.js'
@@ -1258,6 +1258,13 @@ app.get('/api/events/:eventId/athletes', requireAuthOrDeployCheck, async (req, r
   })
 })
 
+function numberCollisionMessage(numbers) {
+  const list = numbers.slice(0, 5).join(', ')
+  return numbers.length === 1
+    ? `O nº ${list} já pertence a outro atleta deste evento. Atualize a tela e confira o número.`
+    : `Os nºs ${list} já pertencem a outros atletas deste evento. Atualize a tela e confira os números.`
+}
+
 // Mesmos papéis que veem o cadastro editável na tela de entrega.
 const EDIT_DELIVERED_ROLES = ['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN', 'SUPERVISOR']
 
@@ -1315,6 +1322,10 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
       canEditDelivered: EDIT_DELIVERED_ROLES.includes(session.role),
     })
     : athletes
+  const repeatedNumbers = newNumberCollisions(importMode === 'replace' ? [] : existing?.athletes, safeAthletes)
+  if (repeatedNumbers.length) {
+    return res.status(409).json({ ok: false, message: numberCollisionMessage(repeatedNumbers) })
+  }
   const safeSchema = importMode === 'add' ? mergeImportMetadata(existing?.schema, schema, 'key')
     : importMode !== 'replace' && protectExisting && existing?.schema?.length ? existing.schema : schema
   if (importMode === 'add') kitsToSave = mergeImportMetadata(existing?.kits, kitsToSave, 'numero')
@@ -1420,6 +1431,11 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
       canEditDelivered: EDIT_DELIVERED_ROLES.includes(session.role),
     })
     : merged
+  const repeatedNumbers = newNumberCollisions(upload.importMode === 'replace' ? [] : existingChunk?.athletes, safeMerged)
+  if (repeatedNumbers.length) {
+    athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
+    return res.status(409).json({ ok: false, message: numberCollisionMessage(repeatedNumbers) })
+  }
   const safeSchema = upload.importMode === 'add' ? mergeImportMetadata(existingChunk?.schema, upload.schema, 'key')
     : upload.importMode !== 'replace' && protectExistingChunk && existingChunk?.schema?.length ? existingChunk.schema : upload.schema
   const safeKits = upload.importMode === 'replace' ? (upload.kits || [])

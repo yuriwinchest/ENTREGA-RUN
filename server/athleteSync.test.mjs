@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { eventMetrics, mergeActiveAthletes } from './athleteSync.js'
+import { eventMetrics, mergeActiveAthletes, newNumberCollisions } from './athleteSync.js'
 
 test('an old browser cannot roll back a delivery from another browser', () => {
   const first = [
@@ -77,4 +77,13 @@ test('two incoming rows for the same saved delivery keep a single copy', () => {
 test('pending athletes sharing a document without id are not merged away', () => {
   const saved = [{ doc: '111', numero: '1', status: 'PENDENTE' }, { doc: '111', numero: '2', status: 'PENDENTE' }]
   assert.equal(mergeActiveAthletes(saved, saved.map((a) => ({ ...a }))).length, 2)
+})
+
+test('only a new repeated bib number is refused; an old repetition keeps working', () => {
+  const before = [{ numero: '447' }, { numero: '447' }, { numero: '448' }, { numero: '' }]
+  assert.deepEqual(newNumberCollisions(before, before), [])
+  assert.deepEqual(newNumberCollisions(before, [...before, { numero: '' }, { numero: '—' }]), [])
+  assert.deepEqual(newNumberCollisions(before, [...before, { numero: '448' }]), ['448'])
+  assert.deepEqual(newNumberCollisions(before, [...before, { numero: '447' }]), ['447'])
+  assert.deepEqual(newNumberCollisions([], [{ numero: '1' }, { numero: ' 1 ' }]), ['1'])
 })

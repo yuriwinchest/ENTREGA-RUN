@@ -413,6 +413,12 @@ export default function ImportarAtletasModal({
     const warnings = []
     const importedAthletes = []
     const existingMap = new Set(existingAthletes.map((a) => String(a.id)))
+    // Um nº de peito por pessoa: em "Adicionar", os números do evento já contam.
+    const bibNumber = (value) => {
+      const numero = String(value ?? '').trim()
+      return numero === '-' || numero === '—' ? '' : numero
+    }
+    const usedNumbers = new Set(importMode === 'add' ? existingAthletes.map((a) => bibNumber(a.numero)).filter(Boolean) : [])
     const importId = `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
     parsedRows.forEach((row, rowIdx) => {
@@ -480,6 +486,13 @@ export default function ImportarAtletasModal({
         warnings.push(`Linha ${lineNum}: identificador de atleta duplicado — ignorada.`)
         return
       }
+
+      const numero = bibNumber(athlete.numero)
+      if (numero && usedNumbers.has(numero)) {
+        warnings.push(`Linha ${lineNum}: nº ${numero} já pertence a outro atleta — ignorada.`)
+        return
+      }
+      if (numero) usedNumbers.add(numero)
 
       existingMap.add(athlete.id)
       importedAthletes.push(athlete)

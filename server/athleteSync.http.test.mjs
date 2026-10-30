@@ -107,6 +107,17 @@ test('two old clients can deliver without erasing each other, including chunk up
     assert.equal(undoResponse.status, 200)
     assert.equal((await request('GET', route)).body.athletes[2].chip, '')
 
+    const repeated = structuredClone((await request('GET', route)).body.athletes)
+    repeated[2] = { ...repeated[2], numero: '5', chip: '9005' }
+    const refused = await request('POST', route, { athletes: repeated })
+    assert.equal(refused.status, 409)
+    assert.match(refused.body.message, /nº 5 já pertence a outro atleta/)
+    const refusedChunk = await request('POST', `${route}/chunks`, {
+      uploadId: 'repeated-number', chunkIndex: 0, totalChunks: 1, athletesChunk: repeated,
+    })
+    assert.equal(refusedChunk.status, 409)
+    assert.equal((await request('GET', route)).body.athletes[2].numero, '')
+
     await request('PUT', `/api/events/${eventId}`, { entregues: 0, pendentes: 301 })
     const afterStaleMetadata = await request('GET', '/api/events')
     assert.equal(afterStaleMetadata.body.events.find((item) => item.id === eventId).entregues, 2)

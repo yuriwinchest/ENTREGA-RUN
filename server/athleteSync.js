@@ -65,6 +65,26 @@ export function mergeActiveAthletes(current, incoming, {
   return merged
 }
 
+const EMPTY_NUMBERS = new Set(['', '-', '—'])
+
+function countNumbers(athletes) {
+  const count = new Map()
+  for (const athlete of Array.isArray(athletes) ? athletes : []) {
+    const numero = String(athlete?.numero ?? '').trim()
+    if (!EMPTY_NUMBERS.has(numero)) count.set(numero, (count.get(numero) || 0) + 1)
+  }
+  return count
+}
+
+// Um nº de peito por pessoa. Repetição que já existia (nº 447 de 29/10) não trava
+// a operação; só é recusado o salvamento que cria uma repetição nova.
+export function newNumberCollisions(before, after) {
+  const previous = countNumbers(before)
+  return [...countNumbers(after)]
+    .filter(([numero, total]) => total > Math.max(1, previous.get(numero) || 0))
+    .map(([numero]) => numero)
+}
+
 export function eventMetrics(athletes) {
   const total = Array.isArray(athletes) ? athletes.length : 0
   const deliveredList = Array.isArray(athletes) ? athletes.filter(isDelivered) : []
