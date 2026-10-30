@@ -10,19 +10,20 @@
 
 ## Última atualização
 
+- **Quando / quem / fase:** 2026-10-30 · Claude Code (Opus 5.5) · Fase B; código `2b7378f..8bfdeef` + diagnóstico `43d3256..16e0a8f`.
+- **Pedido:** deploy barrado por "Identidade duplicada entre atletas entregues"; Yuri autorizou leitura na VPS e pediu a causa antes de publicar.
+- **Causa:** `event-1792586257737`: atleta manual criado às 13:23 com nº 447; às 16:03 outro, importado, associado pelo QR ao kit 447 (trava só barrava nº+chip iguais) e entregue; a entrega marcava todo atleta do mesmo nº (`matchesAthleteReference` casava ids diferentes pelo nº) e o manual virou cópia; o servidor preservou o manual. Nada perdido.
+- **Entrega:** comparação por id; QR e cadastro manual recusam nº de outro atleta; entrega marca só o próprio; trava do snapshot aceita cópia idêntica; servidor descarta linhas que caem no mesmo registro. Workflow manual `diagnostico-duplicatas.yml` (só leitura, contêiner sem rede, log sem dado pessoal — repo é público).
+- **Validação:** server 63/63, client 87/87, build ok; navegador local barrou associação e cadastro com nº 447 repetido; deploy run 41075411561 ok, health 200; diagnóstico pós-deploy: nenhuma duplicata, os dois atletas 447 intactos.
+- **Risco/próximo:** **dois atletas reais com nº 447** no evento — operação conferir quem ficou com o kit 447 (cronometragem). Causa de o operador digitar 447 à mão não investigada.
+
+## Penúltima atualização
+
 - **Quando / quem / fase:** 2026-10-30 · Claude Code (Opus 5.5) · Fase B; código `91b4673`.
 - **Pedido:** kit entregue com camisa errada (G → GG): dava para mudar a camisa, mas não havia botão para salvar; e na entrega também precisa salvar.
 - **Entrega:** ficha com kit já entregue ganha SALVAR ALTERAÇÕES (topo e rodapé). O servidor descartava toda alteração de atleta entregue (proteção contra aba antiga); agora aceita quando o client manda `editAthleteId` e o papel é Admin/Sub-admin/Supervisor, mantendo status, data e operador da entrega. Antes da entrega o botão já existia (inalterado).
 - **Validação:** servidor 60/60 (teste novo em `athleteSync.test.mjs`), client 86/86, lint sem erro, build ok; navegador local: atleta entregue G → M, salvou, arquivo do servidor com camisa nova e entrega intacta.
-- **Risco/próximo:** **NÃO publicado.** Código na `main`, mas o deploy (run 41072057787) parou na trava de snapshot da VPS: "Identidade duplicada entre atletas entregues" (`server/dataSnapshot.mjs:34`) — os dados de produção já têm dois atletas entregues com o mesmo id/documento/número. Produção segue na versão anterior (health 200). Todo deploy fica bloqueado até achar e corrigir essa duplicata (Vitor; precisa do "sim" do Yuri). Diagnóstico só leitura (workflow manual `diagnostico-duplicatas.yml`, run 41073058059): 1 caso, `event-1792586257737`, nº 447, entregue 29/10 16:03, duas cópias idênticas. Causa (backup 29/10 02:06 × atual): atleta cadastrado à mão às 13:23 com nº 447 (`ath-1793290985387`); às 16:03 outro atleta, importado, foi associado pelo QR ao kit 447 (a trava só barrava nº+chip iguais) e entregue; a entrega marcava todo atleta com o mesmo nº (`matchesAthleteReference` casava ids diferentes pelo nº) e virou o manual em cópia do importado; o servidor preservou o manual no fim da lista. Nada perdido, mas **dois atletas reais com nº 447** — operação conferir quem ficou com o kit 447. Correção no branch `claude/kit-salvar-edicao` (nº igual barra associação e cadastro manual; comparação só por id; trava aceita cópia idêntica; servidor descarta a cópia), aguardando o sim do Yuri para publicar.
-
-## Penúltima atualização
-
-- **Quando / quem / fase:** 2026-10-28 · Claude Code (Opus 5.5) · Fase B; código `d72f6ba..07d9a90`.
-- **Pedido:** Super admin clicar no Sub-admin, entrar no ambiente dele, ver/editar tudo e voltar ao próprio. Respostas do Yuri: só Sub-admin; ações ficam em nome do Sub-admin, sem trilha; ele não é avisado; sem limite além da sessão normal.
-- **Entrega:** `POST /api/users/:id/entrar` (sessão como o Sub-admin com `impersonatedBy`; cai se quem visita perder o acesso); nome clicável e botão "Entrar no ambiente" em Usuários; faixa "Voltar ao meu ambiente" (`VisitBanner`, `visitSession.js`).
-- **Validação:** servidor 59/59 (novo `entrarAmbiente.http.test.mjs`), client 86/86, build ok; navegador local: entrou no Carlos, viu só os 2 eventos e os usuários dele, recarregou com a faixa, voltou ao dono com a lista completa; celular ok.
-- **Risco/próximo:** sem trilha de quem agiu na visita (decisão do Yuri). Yuri conferir em produção.
+- **Risco/próximo:** publicado em 30/10 (run 41075411561, junto com a correção do nº 447). Operador não vê o botão (campos travados para ele, como antes). Yuri conferir trocando a camisa de um kit entregue.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -44,5 +45,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-30 · Claude Code · Deploy destravado: causa do nº 447 duplicado corrigida (nº igual não junta atletas).
 - 2026-10-30 · Claude Code · Entrega: salvar troca de camisa/cadastro com kit já entregue.
-- 2026-10-28 · Claude Code · Super admin entra no ambiente do Sub-admin e volta.
