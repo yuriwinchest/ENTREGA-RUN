@@ -22,10 +22,23 @@ jobs:
             set -eu
             cd /opt/entregas-run
             git fetch --quiet origin main
-            git show '${{ github.sha }}:scripts/diagnostico-duplicatas.mjs' > /tmp/entregas-run-diagnostico-${{ github.sha }}.mjs
-            # Mesmo padrão da trava do deploy: contêiner descartável, sem rede, dados só leitura.
-            docker run --rm --network none --read-only \
-              --mount "type=bind,src=/opt/entregas-run/data,dst=/app/data,readonly" \
-              --mount "type=bind,src=/tmp/entregas-run-diagnostico-${{ github.sha }}.mjs,dst=/tmp/diagnostico.mjs,readonly" \
-              --entrypoint node "$(docker inspect -f '{{.Image}}' entregas-run-web)" /tmp/diagnostico.mjs /app/data
-            rm -f /tmp/entregas-run-diagnostico-${{ github.sha }}.mjs
+            WORK="$(mktemp -d /tmp/entregas-run-diagnostico-XXXXXX)"
+            trap 'rm -rf "$WORK"' EXIT
+            git show '${{ github.sha }}:scripts/diagnostico-duplicatas.mjs' > "$WORK/duplicatas.mjs"
+            git show '${{ github.sha }}:scripts/diagnostico-comparar.mjs' > "$WORK/comparar.mjs"
+            IMAGE="$(docker inspect -f '{{.Image}}' entregas-run-web)"
+            # Mesmo padrão da trava do deploy: contêiner descartável, sem rede, tudo só leitura.
+            run_node() {
+              docker run --rm --network none --read-only --user "$(id -u):$(id -g)" \
+                --mount "type=bind,src=/opt/entregas-run/data,dst=/app/data,readonly" \
+                --mount "type=bind,src=$WORK,dst=/work,readonly" \
+                --entrypoint node "$IMAGE" "$@"
+            }
+            run_node /work/duplicatas.mjs /app/data
+
+            # Último backup de dados feito antes da entrega duplicada (29/10 19:03 UTC).
+            EVENT=event-1792586257737
+            BACKUP="$(ls backups/data-before-*.tar.gz | awk -F- '{ts=$NF; sub(/\.tar\.gz$/,"",ts); if (ts < "20261029T190330Z") print ts" "$0}' | sort | tail -1 | cut -d' ' -f2)"
+            echo "Backup comparado: ${BACKUP##*/}"
+            tar -xzf "$BACKUP" -C "$WORK" "data/athletes_$EVENT.json"
+            run_node /work/comparar.mjs "/work/data/athletes_$EVENT.json" "/app/data/athletes_$EVENT.json" 447
