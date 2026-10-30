@@ -23,5 +23,9 @@ jobs:
             cd /opt/entregas-run
             git fetch --quiet origin main
             git show '${{ github.sha }}:scripts/diagnostico-duplicatas.mjs' > /tmp/entregas-run-diagnostico-${{ github.sha }}.mjs
-            node /tmp/entregas-run-diagnostico-${{ github.sha }}.mjs /opt/entregas-run/data
+            # Mesmo padrão da trava do deploy: contêiner descartável, sem rede, dados só leitura.
+            docker run --rm --network none --read-only \
+              --mount "type=bind,src=/opt/entregas-run/data,dst=/app/data,readonly" \
+              --mount "type=bind,src=/tmp/entregas-run-diagnostico-${{ github.sha }}.mjs,dst=/tmp/diagnostico.mjs,readonly" \
+              --entrypoint node "$(docker inspect -f '{{.Image}}' entregas-run-web)" /tmp/diagnostico.mjs /app/data
             rm -f /tmp/entregas-run-diagnostico-${{ github.sha }}.mjs
