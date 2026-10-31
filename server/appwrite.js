@@ -219,6 +219,7 @@ export async function deleteEventFromAppwrite(eventId) {
 
   const { databaseId, eventsCol, athletesCol } = getEnv()
   const docId = getEventDocId(eventId)
+  sentAthletes.delete(String(eventId).trim())
 
   try {
     await api(
@@ -363,10 +364,23 @@ function mapAppwriteDocToLocalAthlete(doc) {
 }
 
 /**
- * Sincroniza a lista completa de atletas para o Appwrite.
- * Utiliza pool concorrente de 10 requisições simultâneas para
- * manter performance excelente sem saturar a rede.
+ * Sincroniza para o Appwrite só os atletas que mudaram desde o último envio.
+ * Utiliza pool concorrente de 10 requisições simultâneas.
  */
+// Último conteúdo gravado de cada documento, por evento. Sem isso cada entrega
+// regravava o evento inteiro (~800 PATCH a cada 30 s em 30/10/2026). Ao reiniciar
+// o servidor o registro zera e o primeiro envio volta a ser completo.
+const sentAthletes = new Map()
+
+function sentFor(eventId) {
+  let sent = sentAthletes.get(eventId)
+  if (!sent) {
+    sent = new Map()
+    sentAthletes.set(eventId, sent)
+  }
+  return sent
+}
+
 export async function persistAthletesToAppwrite(eventId, athletes) {
   if (!isAppwriteEnabled() || !eventId || !Array.isArray(athletes) || athletes.length === 0) {
     return { ok: false, skipped: true }
@@ -374,21 +388,34 @@ export async function persistAthletesToAppwrite(eventId, athletes) {
 
   const { databaseId, athletesCol } = getEnv()
   const safeEventId = String(eventId || '').trim()
+  const sent = sentFor(safeEventId)
 
-  console.log(`[appwrite] Iniciando sincronização de ${athletes.length} atletas para o evento ${safeEventId}...`)
+  // Mesmo nº de peito gera o mesmo documento: vale o último, como já valia no Appwrite.
+  const latest = new Map()
+  for (const atleta of athletes) {
+    const payload = mapLocalAthleteToAppwrite(safeEventId, atleta)
+    const docId = getAthleteDocId(safeEventId, payload.bib_number)
+    latest.delete(docId)
+    latest.set(docId, { docId, payload, hash: JSON.stringify(payload) })
+  }
+  const pending = [...latest.values()].filter((item) => sent.get(item.docId) !== item.hash)
+  if (pending.length === 0) return { ok: true, total: athletes.length, successCount: 0, errorCount: 0 }
+
+  console.log(`[appwrite] Sincronizando ${pending.length} de ${athletes.length} atletas do evento ${safeEventId}...`)
 
   let successCount = 0
   let errorCount = 0
   const CONCURRENCY = 10
 
-  for (let i = 0; i < athletes.length; i += CONCURRENCY) {
-    const chunk = athletes.slice(i, i + CONCURRENCY)
+  for (let i = 0; i < pending.length; i += CONCURRENCY) {
+    const chunk = pending.slice(i, i + CONCURRENCY)
 
     await Promise.all(
-      chunk.map(async (atleta) => {
-        const payload = mapLocalAthleteToAppwrite(safeEventId, atleta)
-        const docId = getAthleteDocId(safeEventId, payload.bib_number)
-
+      chunk.map(async ({ docId, payload, hash }) => {
+        const saved = () => {
+          sent.set(docId, hash)
+          successCount++
+        }
         try {
           // Tenta atualizar registro existente
           const patchRes = await api(
@@ -397,7 +424,7 @@ export async function persistAthletesToAppwrite(eventId, athletes) {
           )
 
           if (patchRes.status === 200) {
-            successCount++
+            saved()
             return
           }
 
@@ -411,13 +438,16 @@ export async function persistAthletesToAppwrite(eventId, athletes) {
               }
             )
             if (createRes.status === 201) {
-              successCount++
+              saved()
               return
             }
           }
 
+          // Fica fora do registro: o próximo envio tenta de novo.
+          sent.delete(docId)
           errorCount++
         } catch {
+          sent.delete(docId)
           errorCount++
         }
       })
@@ -438,6 +468,8 @@ export async function updateAthleteStatusInAppwrite(eventId, bibNumber, updates 
   const safeEventId = String(eventId || '').trim()
   const safeBib = String(bibNumber || '').trim()
   const docId = getAthleteDocId(safeEventId, safeBib)
+  // Grava só parte do documento: o próximo envio completo não pode pular este atleta.
+  sentFor(safeEventId).delete(docId)
 
   const payload = {
     status: updates.status || 'ENTREGUE',
