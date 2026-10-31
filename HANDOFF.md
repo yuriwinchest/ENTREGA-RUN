@@ -10,20 +10,20 @@
 
 ## Última atualização
 
+- **Quando / quem / fase:** 2026-10-31 · Claude Code (Opus 5.5) · Fase B; código `7483e4b`.
+- **Pedido:** Yuri avaliando trocar a VPS por uma maior/mais barata; pediu medir a VPS antes. A medição mostrou o espelho Appwrite regravando o evento inteiro a cada entrega; Yuri: "Sim, corrigir".
+- **Diagnóstico [verificado, MCP Hostinger, só leitura]:** KVM 2 (2 vCPU/8 GB/100 GB, Campinas), mensal R$ 141,98, renova 14/11. RAM ~5 GB, dos quais ~3,5 GB são o Appwrite (32 contêineres; MongoDB 1,9 GB); disco 39 GB. Logs de 30/10 19h51–23h06: ~800 atletas regravados a cada ~30 s sem parar.
+- **Entrega:** `persistAthletesToAppwrite` guarda o último conteúdo gravado por documento e envia só o que mudou; falha volta no próximo envio; `updateAthleteStatusInAppwrite` e exclusão do evento invalidam o registro. Reinício do servidor → primeiro envio completo.
+- **Validação:** server 68/68 (4 testes novos em `appwriteMirror.test.mjs`, falham no código antigo); deploy run 41166763024 ok, health 200, contêiner `release-7483e4b16599` saudável; efeito real só medível no próximo evento (madrugada sem uso).
+- **Risco/próximo:** medir CPU no próximo evento antes de decidir a VPS; se KVM 2 bastar, Yuri avaliar ciclo anual (R$ 599,88 no 1º ano). Compra é do Yuri.
+
+## Penúltima atualização
+
 - **Quando / quem / fase:** 2026-10-30 · Claude Code (Opus 5.5) · Fase B; código `f556d5d`.
 - **Pedido:** Yuri: "não pode deixar duas pessoas usarem o mesmo número" — fechar as brechas que sobraram após a correção do nº 447.
 - **Entrega:** servidor recusa (409) salvamento que cria nº repetido novo, nas rotas única e fatiada (`newNumberCollisions` em `server/athleteSync.js`); repetição antiga (os dois 447) não trava a operação. Importação ignora com aviso linha de nº repetido na planilha ou, em "Adicionar", já existente no evento.
 - **Validação:** server 64/64 (unitário + HTTP: aba velha dando nº 5 a outro atleta → 409, nada gravado), client 87/87, build ok; navegador local: importação com 447/500/500/501 entrou 500 e 501 com 2 avisos; deploy run 41077679734 ok, health 200.
 - **Risco/próximo:** aba com código antigo que tentar repetir nº recebe erro de sincronização genérico até recarregar. Continua: conferir com a operação os dois atletas com nº 447.
-
-## Penúltima atualização
-
-- **Quando / quem / fase:** 2026-10-30 · Claude Code (Opus 5.5) · Fase B; código `2b7378f..8bfdeef` + diagnóstico `43d3256..16e0a8f`.
-- **Pedido:** deploy barrado por "Identidade duplicada entre atletas entregues"; Yuri autorizou leitura na VPS e pediu a causa antes de publicar.
-- **Causa:** `event-1792586257737`: atleta manual criado às 13:23 com nº 447; às 16:03 outro, importado, associado pelo QR ao kit 447 (trava só barrava nº+chip iguais) e entregue; a entrega marcava todo atleta do mesmo nº (`matchesAthleteReference` casava ids diferentes pelo nº) e o manual virou cópia; o servidor preservou o manual. Nada perdido.
-- **Entrega:** comparação por id; QR e cadastro manual recusam nº de outro atleta; entrega marca só o próprio; trava do snapshot aceita cópia idêntica; servidor descarta linhas que caem no mesmo registro. Workflow manual `diagnostico-duplicatas.yml` (só leitura, contêiner sem rede, log sem dado pessoal — repo é público).
-- **Validação:** server 63/63, client 87/87, build ok; navegador local barrou associação e cadastro com nº 447 repetido; deploy run 41075411561 ok, health 200; diagnóstico pós-deploy: nenhuma duplicata, os dois atletas 447 intactos.
-- **Risco/próximo:** **dois atletas reais com nº 447** no evento — operação conferir quem ficou com o kit 447 (cronometragem). Causa de o operador digitar 447 à mão não investigada.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -45,5 +45,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-31 · Claude Code · Espelho Appwrite envia só os atletas alterados (antes regravava o evento inteiro a cada entrega).
 - 2026-10-30 · Claude Code · Nº de peito único também no servidor e na importação.
-- 2026-10-30 · Claude Code · Deploy destravado: causa do nº 447 duplicado corrigida (nº igual não junta atletas).
