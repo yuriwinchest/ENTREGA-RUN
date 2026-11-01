@@ -13,6 +13,7 @@ import { eventMetrics, mergeActiveAthletes, newNumberCollisions } from './athlet
 import { createSessionStore } from './sessionStore.js'
 import { deployCheckTokenFile } from './deployCheck.js'
 import { createEmergencyLinksStore, EMERGENCY_CODE } from './emergencyLinks.js'
+import { preserveDeletedEventAthletes } from './clientBase.js'
 import {
   athleteKey,
   athleteRef,
@@ -944,9 +945,10 @@ app.delete('/api/events/:eventId', requireAuth, (req, res) => {
   if (req.body?.confirmQrInvalidation !== true) return res.status(409).json({ ok: false, message: 'A exclusão desativa os QR Codes vinculados e apaga os dados de saúde. Prefira arquivar ou confirme esse efeito.' })
   try {
     emergencyLinks.issue(eventId, req.session.userId)
+    preserveDeletedEventAthletes(DATA_DIR, inMemoryEvents.find((e) => e.id === eventId), loadAthletesForEvent(eventId))
     fs.rmSync(getAthletesFilePath(eventId), { force: true })
   } catch {
-    return res.status(503).json({ ok: false, message: 'Não foi possível preservar o QR e remover a planilha. Evento não excluído.' })
+    return res.status(503).json({ ok: false, message: 'Não foi possível guardar os atletas na base de clientes. Evento não excluído.' })
   }
   athletesCache.delete(eventId)
   inMemoryEvents = inMemoryEvents.filter((e) => e.id !== eventId)

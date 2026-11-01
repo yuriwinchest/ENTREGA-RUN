@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { persistAthletesToAppwrite, updateAthleteStatusInAppwrite } from './appwrite.js'
+import { deleteEventFromAppwrite, persistAthletesToAppwrite, updateAthleteStatusInAppwrite } from './appwrite.js'
 
 const keys = ['APPWRITE_ENDPOINT', 'APPWRITE_PROJECT_ID', 'APPWRITE_API_KEY', 'APPWRITE_ENABLED']
 
@@ -80,5 +80,17 @@ test('dois atletas com o mesmo nº gravam um documento só, o último da lista',
     assert.ok(calls.some((call) => call.body.data?.name === 'QUATRO'))
     await persistAthletesToAppwrite('ev-repetido', list)
     assert.equal(patches(calls), 3)
+  })
+})
+
+test('excluir evento no Appwrite apaga só o evento: atletas ficam na base de clientes', async () => {
+  await withFakeAppwrite(() => 200, async (calls) => {
+    await persistAthletesToAppwrite('ev-cliente', athletes())
+    calls.length = 0
+    assert.equal((await deleteEventFromAppwrite('ev-cliente')).ok, true)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.deepEqual(calls.map((call) => call.method), ['DELETE'])
+    assert.match(calls[0].url, /\/collections\/events\/documents\//)
+    assert.equal(calls.some((call) => /\/collections\/athletes\//.test(call.url)), false)
   })
 })

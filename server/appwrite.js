@@ -217,52 +217,20 @@ export async function persistEventToAppwrite(event) {
 export async function deleteEventFromAppwrite(eventId) {
   if (!isAppwriteEnabled() || !eventId) return { ok: false, skipped: true }
 
-  const { databaseId, eventsCol, athletesCol } = getEnv()
+  const { databaseId, eventsCol } = getEnv()
   const docId = getEventDocId(eventId)
   sentAthletes.delete(String(eventId).trim())
 
+  // Só o evento sai. Os atletas ficam: são a base de clientes (decisão do PO, 2026-10-31).
   try {
     await api(
       `/databases/${encodeURIComponent(databaseId)}/collections/${encodeURIComponent(eventsCol)}/documents/${encodeURIComponent(docId)}`,
       { method: 'DELETE' }
     )
-
-    // Remove atletas associados ao evento em background
-    void deleteEventAthletesFromAppwrite(eventId)
     return { ok: true }
   } catch (err) {
     console.warn(`[appwrite] Falha ao excluir evento ${eventId}:`, err.message)
     return { ok: false, error: err.message }
-  }
-}
-
-async function deleteEventAthletesFromAppwrite(eventId) {
-  const { databaseId, athletesCol } = getEnv()
-  const safeId = String(eventId || '').trim()
-
-  try {
-    const qDel = formatQueries([
-      { method: 'equal', attribute: 'event_id', values: [safeId] },
-      { method: 'limit', values: [100] },
-    ])
-    while (true) {
-      const res = await api(
-        `/databases/${encodeURIComponent(databaseId)}/collections/${encodeURIComponent(athletesCol)}/documents${qDel}`
-      )
-      const docs = res?.data?.documents || []
-      if (!Array.isArray(docs) || docs.length === 0) break
-
-      await Promise.all(
-        docs.map((d) =>
-          api(
-            `/databases/${encodeURIComponent(databaseId)}/collections/${encodeURIComponent(athletesCol)}/documents/${encodeURIComponent(d.$id)}`,
-            { method: 'DELETE' }
-          )
-        )
-      )
-    }
-  } catch (err) {
-    console.warn('[appwrite] Erro na limpeza de atletas de evento excluído:', err.message)
   }
 }
 
