@@ -10,11 +10,11 @@
 
 ## Última atualização
 
-- **Quando / quem / fase:** 2026-10-31 · Claude Code (Opus 5.5) · Fase A; código `dd1d596` (branch `claude/unruffled-cannon-cee8d6`, não publicado).
+- **Quando / quem / fase:** 2026-10-31 · Claude Code (Opus 5.5) · Fase A; código `dd1d596`, publicado.
 - **Pedido:** Yuri: cada atleta fica no banco como base de clientes; excluir evento não pode apagar atleta nem contato ("Sim, corrigir lá"). Medição antes: 1.563 dos 2.411 atletas do Appwrite são de eventos apagados — não apagar nenhum.
 - **Entrega:** `deleteEventFromAppwrite` apaga só o evento (atletas ficam). Na exclusão, `preserveDeletedEventAthletes` (`server/clientBase.js`) guarda cadastro + contato + campos não-saúde em `data/clientes/` antes de remover a planilha ativa; saúde e planilha bruta saem como antes. Arquivar igual. `data/clientes` entra no backup de dados do deploy.
-- **Validação:** server 71/71 (3 testes novos; os 2 de exclusão falham no código antigo). Sem teste em produção.
-- **Risco/próximo:** publicar só com autorização do Yuri (merge na `main` → deploy). Fora do escopo: fundir duplicados, preencher contato antigo, apagar qualquer coisa — só com backup e novo "sim".
+- **Validação:** server 71/71 (3 testes novos; os 2 de exclusão falham no código antigo). Yuri: "Sim, publicar" → deploy run 41266986637 ok (validate/preflight/deploy), release `dd1d5962621d` saudável, integridade preservada (2 eventos, 16.850 atletas, 1.704 entregas); health 200 nos dois domínios. Exclusão real não testada em produção.
+- **Risco/próximo:** volta = `git revert dd1d596` + push na `main` (arquivos em `data/clientes/` ficam). Fora do escopo: fundir duplicados, preencher contato antigo, apagar qualquer coisa — só com backup e novo "sim".
 
 ## Penúltima atualização
 
