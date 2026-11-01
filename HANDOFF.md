@@ -10,20 +10,20 @@
 
 ## Última atualização
 
+- **Quando / quem / fase:** 2026-10-31 · Claude Code (Opus 5.5) · Fase A; código `dd1d596` (branch `claude/unruffled-cannon-cee8d6`, não publicado).
+- **Pedido:** Yuri: cada atleta fica no banco como base de clientes; excluir evento não pode apagar atleta nem contato ("Sim, corrigir lá"). Medição antes: 1.563 dos 2.411 atletas do Appwrite são de eventos apagados — não apagar nenhum.
+- **Entrega:** `deleteEventFromAppwrite` apaga só o evento (atletas ficam). Na exclusão, `preserveDeletedEventAthletes` (`server/clientBase.js`) guarda cadastro + contato + campos não-saúde em `data/clientes/` antes de remover a planilha ativa; saúde e planilha bruta saem como antes. Arquivar igual. `data/clientes` entra no backup de dados do deploy.
+- **Validação:** server 71/71 (3 testes novos; os 2 de exclusão falham no código antigo). Sem teste em produção.
+- **Risco/próximo:** publicar só com autorização do Yuri (merge na `main` → deploy). Fora do escopo: fundir duplicados, preencher contato antigo, apagar qualquer coisa — só com backup e novo "sim".
+
+## Penúltima atualização
+
 - **Quando / quem / fase:** 2026-10-31 · Claude Code (Opus 5.5) · Fase B; código `7483e4b`.
 - **Pedido:** Yuri avaliando trocar a VPS por uma maior/mais barata; pediu medir a VPS antes. A medição mostrou o espelho Appwrite regravando o evento inteiro a cada entrega; Yuri: "Sim, corrigir".
 - **Diagnóstico [verificado, MCP Hostinger, só leitura]:** KVM 2 (2 vCPU/8 GB/100 GB, Campinas), mensal R$ 141,98, renova 14/11. RAM ~5 GB, dos quais ~3,5 GB são o Appwrite (32 contêineres; MongoDB 1,9 GB); disco 39 GB. Logs de 30/10 19h51–23h06: ~800 atletas regravados a cada ~30 s sem parar.
 - **Entrega:** `persistAthletesToAppwrite` guarda o último conteúdo gravado por documento e envia só o que mudou; falha volta no próximo envio; `updateAthleteStatusInAppwrite` e exclusão do evento invalidam o registro. Reinício do servidor → primeiro envio completo.
 - **Validação:** server 68/68 (4 testes novos em `appwriteMirror.test.mjs`, falham no código antigo); deploy run 41166763024 ok, health 200, contêiner `release-7483e4b16599` saudável; efeito real só medível no próximo evento (madrugada sem uso).
 - **Risco/próximo:** medir CPU no próximo evento antes de decidir a VPS; se KVM 2 bastar, Yuri avaliar ciclo anual (R$ 599,88 no 1º ano). Compra é do Yuri.
-
-## Penúltima atualização
-
-- **Quando / quem / fase:** 2026-10-30 · Claude Code (Opus 5.5) · Fase B; código `f556d5d`.
-- **Pedido:** Yuri: "não pode deixar duas pessoas usarem o mesmo número" — fechar as brechas que sobraram após a correção do nº 447.
-- **Entrega:** servidor recusa (409) salvamento que cria nº repetido novo, nas rotas única e fatiada (`newNumberCollisions` em `server/athleteSync.js`); repetição antiga (os dois 447) não trava a operação. Importação ignora com aviso linha de nº repetido na planilha ou, em "Adicionar", já existente no evento.
-- **Validação:** server 64/64 (unitário + HTTP: aba velha dando nº 5 a outro atleta → 409, nada gravado), client 87/87, build ok; navegador local: importação com 447/500/500/501 entrou 500 e 501 com 2 avisos; deploy run 41077679734 ok, health 200.
-- **Risco/próximo:** aba com código antigo que tentar repetir nº recebe erro de sincronização genérico até recarregar. Continua: conferir com a operação os dois atletas com nº 447.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -45,5 +45,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-10-31 · Claude Code · Excluir evento não apaga mais atleta nem contato (base de clientes).
 - 2026-10-31 · Claude Code · Espelho Appwrite envia só os atletas alterados (antes regravava o evento inteiro a cada entrega).
-- 2026-10-30 · Claude Code · Nº de peito único também no servidor e na importação.
