@@ -10,10 +10,10 @@
 
 ## Última atualização
 
-- **Quando / quem / fase:** 2026-11-03 · Claude Code (Opus 5.5) · Fase B; código `99cfc2b`.
+- **Quando / quem / fase:** 2026-11-03 · Claude Code (Opus 5.5) · Fase B; código `99cfc2b`, publicado.
 - **Pedido:** Yuri (fotos da tela): no NOVO ATLETA o número não deve ser obrigatório; na busca da aba Atletas, poder excluir o atleta.
 - **Entrega:** número opcional (só o nome é exigido; nº repetido continua recusado). Botão de lixeira na coluna AÇÕES (supervisor/admin) → `DELETE /api/events/:id/athletes/:athleteId`: kit entregue recusa ("desfaça a entrega"); cadastro sem saúde vai para `data/clientes/atleta-excluido_*`; id fica em `deletedAthleteIds` para aba antiga não ressuscitar (merge em operação devolvia quem faltava). Doc no Appwrite fica (base de clientes).
-- **Validação:** server 72/72 (teste novo `athleteDelete.http.test.mjs`, com reinício), client 82/82, lint sem erro, build ok. Navegador local com dados fictícios: entregue recusado, pendente saiu da tela e do servidor, atleta sem número salvo. Sem teste no celular.
+- **Validação:** server 72/72 (teste novo `athleteDelete.http.test.mjs`, com reinício), client 82/82, lint sem erro, build ok. Navegador local com dados fictícios: entregue recusado, pendente saiu da tela e do servidor, atleta sem número salvo. Deploy run 41635253917 ok na 2ª tentativa (1ª: SSH da Actions à VPS com timeout no preflight, nada alterado); release `acd68dc39fd6` saudável, integridade preservada (3 eventos, 17.659 atletas, 1.718 entregas); health 200 nos dois domínios. Sem teste no celular.
 - **Risco/próximo:** volta = `git revert 99cfc2b`. Yuri homologar o botão e o cadastro sem número.
 
 ## Penúltima atualização
