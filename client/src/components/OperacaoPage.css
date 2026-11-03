@@ -1601,6 +1601,29 @@
   transform: scale(1.04);
 }
 
+.btn-table-delete-athlete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  width: 28px;
+  height: 26px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 6px;
+  color: #be123c;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.btn-table-delete-athlete:hover,
+.btn-table-delete-athlete:focus-visible {
+  background: #be123c;
+  border-color: #be123c;
+  color: #ffffff;
+}
+
 /* Botão de QR Code na Barra de Ações dos Detalhes */
 .btn-detail-qr-action {
   height: 40px;

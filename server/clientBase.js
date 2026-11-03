@@ -28,9 +28,27 @@ export function preserveDeletedEventAthletes(dataDir, event, data, now = Date.no
       customFields: withoutHealthFields(athlete.customFields, data.healthFields),
     })),
   }
+  return writeRecord(dataDir, `evento-excluido_${safeId}_${now}.json`, record)
+}
+
+// Mesma regra para o atleta excluído sozinho pela aba Atletas.
+export function preserveDeletedAthlete(dataDir, event, athlete, healthFields, now = Date.now()) {
+  const safeId = String(event?.id || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const athleteId = String(athlete?.id || '').replace(/[^\w-]/g, '').slice(0, 120)
+  if (!safeId || !athleteId) throw new Error('Atleta sem id para guardar na base de clientes.')
+  return writeRecord(dataDir, `atleta-excluido_${safeId}_${athleteId}_${now}.json`, {
+    eventId: safeId,
+    eventName: String(event?.name || ''),
+    eventDate: String(event?.date || ''),
+    deletedAt: now,
+    athletes: [{ ...athlete, customFields: withoutHealthFields(athlete.customFields, healthFields) }],
+  })
+}
+
+function writeRecord(dataDir, name, record) {
   const dir = clientBaseDir(dataDir)
   fs.mkdirSync(dir, { recursive: true })
-  const file = path.join(dir, `evento-excluido_${safeId}_${now}.json`)
+  const file = path.join(dir, name)
   const temp = `${file}.tmp`
   fs.writeFileSync(temp, JSON.stringify(record), 'utf-8')
   fs.renameSync(temp, file)

@@ -65,6 +65,13 @@ export function mergeActiveAthletes(current, incoming, {
   return merged
 }
 
+// Atleta excluído pela aba Atletas não volta pela lista de uma aba antiga.
+export function withoutDeletedAthletes(athletes, deletedIds) {
+  if (!Array.isArray(athletes) || !Array.isArray(deletedIds) || deletedIds.length === 0) return athletes
+  const deleted = new Set(deletedIds.map(String))
+  return athletes.filter((athlete) => !deleted.has(String(athlete?.id ?? '')))
+}
+
 const EMPTY_NUMBERS = new Set(['', '-', '—'])
 
 function countNumbers(athletes) {

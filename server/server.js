@@ -9,11 +9,11 @@ import express from 'express'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { hashPassword, verifyPassword } from './passwords.js'
-import { eventMetrics, mergeActiveAthletes, newNumberCollisions } from './athleteSync.js'
+import { eventMetrics, mergeActiveAthletes, newNumberCollisions, withoutDeletedAthletes } from './athleteSync.js'
 import { createSessionStore } from './sessionStore.js'
 import { deployCheckTokenFile } from './deployCheck.js'
 import { createEmergencyLinksStore, EMERGENCY_CODE } from './emergencyLinks.js'
-import { preserveDeletedEventAthletes } from './clientBase.js'
+import { preserveDeletedAthlete, preserveDeletedEventAthletes } from './clientBase.js'
 import {
   athleteKey,
   athleteRef,
@@ -1129,7 +1129,8 @@ function loadAthletesForEvent(eventId) {
 
 // healthFields: colunas da planilha marcadas como saúde (e quais são públicas na
 // emergência). Ausente = mantém a escolha anterior, inclusive ao reimportar.
-function saveAthletesForEvent(eventId, athletes, schema = [], kits, originalSheet, healthFields, listRevision) {
+// deletedAthleteIds: excluídos pela aba Atletas; ausente = mantém, [] = lista nova.
+function saveAthletesForEvent(eventId, athletes, schema = [], kits, originalSheet, healthFields, listRevision, deletedAthleteIds) {
   const safeId = String(eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
   if (!safeId) return false
 
@@ -1143,6 +1144,7 @@ function saveAthletesForEvent(eventId, athletes, schema = [], kits, originalShee
     originalSheet: originalSheet !== undefined ? originalSheet : (existing?.originalSheet || null),
     healthFields: healthFields !== undefined ? sanitizeHealthFields(healthFields) : (existing?.healthFields || []),
     listRevision: listRevision ?? existing?.listRevision ?? 0,
+    deletedAthleteIds: deletedAthleteIds ?? existing?.deletedAthleteIds ?? [],
     updatedAt: Date.now(),
   }
 
@@ -1316,14 +1318,15 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
   if (undoTarget?.status === 'ENTREGUE' && !canUndoDelivery) {
     return res.status(403).json({ ok: false, message: 'Somente supervisores podem desfazer uma entrega.' })
   }
+  const incoming = importMode === 'replace' ? athletes : withoutDeletedAthletes(athletes, existing?.deletedAthleteIds)
   const safeAthletes = importMode !== 'replace' && (protectExisting || importMode === 'add')
-    ? mergeActiveAthletes(existing?.athletes, athletes, {
+    ? mergeActiveAthletes(existing?.athletes, incoming, {
       undoAthleteId: safeUndoId,
       canUndoDelivery,
       editAthleteId: String(editAthleteId || '').slice(0, 64),
       canEditDelivered: EDIT_DELIVERED_ROLES.includes(session.role),
     })
-    : athletes
+    : incoming
   const repeatedNumbers = newNumberCollisions(importMode === 'replace' ? [] : existing?.athletes, safeAthletes)
   if (repeatedNumbers.length) {
     return res.status(409).json({ ok: false, message: numberCollisionMessage(repeatedNumbers) })
@@ -1333,7 +1336,7 @@ app.post('/api/events/:eventId/athletes', requireAuth, athletesJsonParser, (req,
   if (importMode === 'add') kitsToSave = mergeImportMetadata(existing?.kits, kitsToSave, 'numero')
   const safeHealthFields = importMode === 'add' ? mergeImportMetadata(existing?.healthFields, healthFields, 'key') : healthFields
   const nextRevision = (existing?.listRevision || 0) + (importMode === 'replace' ? 1 : 0)
-  const success = saveAthletesForEvent(safeEventId, safeAthletes, safeSchema, kitsToSave, originalSheet, safeHealthFields, nextRevision)
+  const success = saveAthletesForEvent(safeEventId, safeAthletes, safeSchema, kitsToSave, originalSheet, safeHealthFields, nextRevision, importMode === 'replace' ? [] : undefined)
   if (!success) {
     return res.status(500).json({ ok: false, message: 'Erro ao persistir atletas.' })
   }
@@ -1414,9 +1417,10 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
     return res.json({ ok: true, received: upload.received, totalChunks: upload.totalChunks, done: false })
   }
 
-  const merged = upload.chunks.flat()
   const curEvChunk = inMemoryEvents.find((e) => e.id === safeEventId)
   const existingChunk = loadAthletesForEvent(safeEventId)
+  const merged = upload.importMode === 'replace' ? upload.chunks.flat()
+    : withoutDeletedAthletes(upload.chunks.flat(), existingChunk?.deletedAthleteIds)
   const protectExistingChunk = curEvChunk?.status === 'EM OPERAÇÃO' ||
     existingChunk?.athletes?.some((athlete) => String(athlete.status || '').toUpperCase() === 'ENTREGUE')
   const undoTargetChunk = existingChunk?.athletes?.find((athlete) => String(athlete.id) === upload.undoAthleteId)
@@ -1444,7 +1448,7 @@ app.post('/api/events/:eventId/athletes/chunks', requireAuth, athletesJsonParser
     : upload.importMode === 'add' ? mergeImportMetadata(existingChunk?.kits, upload.kits, 'numero') : upload.kits
   const safeHealthFields = upload.importMode === 'add' ? mergeImportMetadata(existingChunk?.healthFields, upload.healthFields, 'key') : upload.healthFields
   const nextRevision = (existingChunk?.listRevision || 0) + (upload.importMode === 'replace' ? 1 : 0)
-  const success = saveAthletesForEvent(safeEventId, safeMerged, safeSchema, safeKits, upload.originalSheet, safeHealthFields, nextRevision)
+  const success = saveAthletesForEvent(safeEventId, safeMerged, safeSchema, safeKits, upload.originalSheet, safeHealthFields, nextRevision, upload.importMode === 'replace' ? [] : undefined)
   athleteChunkUploads.delete(`${safeEventId}:${safeUploadId}`)
   if (!success) {
     return res.status(500).json({ ok: false, message: 'Erro ao persistir atletas fatiados.' })
@@ -1560,6 +1564,45 @@ function runPhotoSweep() {
 }
 setTimeout(runPhotoSweep, 30 * 1000).unref?.()
 setInterval(runPhotoSweep, 60 * 60 * 1000).unref?.()
+
+// DELETE /api/events/:eventId/athletes/:athleteId — Exclui um atleta (aba Atletas).
+// Rota própria porque, em operação, o merge da lista devolve quem falta nela.
+app.delete('/api/events/:eventId/athletes/:athleteId', requireAuth, (req, res) => {
+  const safeEventId = String(req.params.eventId || '').replace(/[^\w-]/g, '').slice(0, 64)
+  const athleteId = String(req.params.athleteId || '').trim().slice(0, 120)
+  const session = req.session
+  if (session.role !== 'ADMIN' && session.eventId && session.eventId !== 'all' && session.eventId !== safeEventId) {
+    return res.status(403).json({ ok: false, message: 'Sem permissão para este evento.' })
+  }
+  if (!EDIT_DELIVERED_ROLES.includes(session.role)) {
+    return res.status(403).json({ ok: false, message: 'Somente supervisores e administradores podem excluir atletas.' })
+  }
+  const existing = loadAthletesForEvent(safeEventId)
+  const target = athleteId && existing?.athletes?.find((athlete) => String(athlete.id ?? '') === athleteId)
+  if (!target) return res.status(404).json({ ok: false, message: 'Atleta não encontrado neste evento.' })
+  if (String(target.status || '').toUpperCase() === 'ENTREGUE') {
+    return res.status(409).json({ ok: false, message: 'Kit já entregue: desfaça a entrega antes de excluir o atleta.' })
+  }
+  const curEv = inMemoryEvents.find((e) => e.id === safeEventId)
+  try {
+    preserveDeletedAthlete(DATA_DIR, curEv || { id: safeEventId }, target, existing.healthFields)
+  } catch {
+    return res.status(503).json({ ok: false, message: 'Não foi possível guardar o atleta na base de clientes. Atleta não excluído.' })
+  }
+  const remaining = existing.athletes.filter((athlete) => athlete !== target)
+  const deletedIds = [...(existing.deletedAthleteIds || []), athleteId].slice(-5000)
+  if (!saveAthletesForEvent(safeEventId, remaining, existing.schema, undefined, undefined, undefined, undefined, deletedIds)) {
+    return res.status(500).json({ ok: false, message: 'Erro ao excluir o atleta.' })
+  }
+  deletePhoto(PHOTO_ROOT, safeEventId, athleteId)
+  mirrorAthletesToAppwrite(safeEventId, remaining)
+  if (curEv) {
+    Object.assign(curEv, eventMetrics(remaining))
+    writeEventsToDisk(inMemoryEvents)
+    mirrorEventToAppwrite(curEv)
+  }
+  res.json({ ok: true, count: remaining.length })
+})
 
 // PUT /api/events/:eventId/athletes/:numero/status — Atualiza status da entrega
 app.put('/api/events/:eventId/athletes/:numero/status', requireAuth, express.json(), (req, res) => {

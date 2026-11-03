@@ -47,7 +47,7 @@ import { RetiradaCameraButton, RetiradaPhotoThumb } from './RetiradaPhoto.jsx'
 import useRetiradaPhoto from '../hooks/useRetiradaPhoto.js'
 import { deleteRetiradaPhoto } from '../utils/retiradaPhotoApi.js'
 import { projectTable } from '../utils/exportColumns.js'
-import { apiFetchAthletes, apiGetAthleteListRevision, apiSaveAthletes } from '../utils/eventsApi.js'
+import { apiDeleteAthlete, apiFetchAthletes, apiGetAthleteListRevision, apiSaveAthletes } from '../utils/eventsApi.js'
 import { apiFetchEventOperators } from '../utils/usersApi.js'
 import './OperacaoPage.css'
 
@@ -253,6 +253,16 @@ function CloseIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
     </svg>
   )
 }
@@ -1910,12 +1920,13 @@ export default function OperacaoPage({
     const num = String(athleteForm.numero || '').trim()
     const nome = String(athleteForm.nome || '').trim().toUpperCase()
 
-    if (!num || !nome) {
-      alert('Por favor, informe ao menos o Número e o Nome do atleta.')
+    if (!nome) {
+      alert('Por favor, informe ao menos o Nome do atleta.')
       return
     }
 
-    const numberOwner = athletes.find((a) => String(a.numero || '').trim() === num)
+    // Número é opcional: o peito pode ser associado depois, na entrega do kit.
+    const numberOwner = num && athletes.find((a) => String(a.numero || '').trim() === num)
     if (numberOwner) {
       window.alert(`O número ${num} já pertence a ${numberOwner.nome || 'outro atleta'}. Informe outro número.`)
       return
@@ -1986,6 +1997,35 @@ export default function OperacaoPage({
     }
 
     setShowAddAthleteModal(false)
+  }
+
+  async function handleDeleteAthlete(athlete) {
+    if (!canEditAthlete || !athlete?.id || !currentEvent?.id) return
+    const label = `${athlete.nome || 'este atleta'}${athlete.numero ? ` (Nº ${athlete.numero})` : ''}`
+    if (athlete.status === 'ENTREGUE') {
+      window.alert(`O kit de ${label} já foi entregue. Desfaça a entrega antes de excluir o atleta.`)
+      return
+    }
+    if (!window.confirm(`Excluir ${label} deste evento?
+
+O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`)) return
+    const result = await apiDeleteAthlete(currentEvent.id, athlete.id)
+    if (!result.ok) {
+      window.alert(result.message || 'Não foi possível excluir o atleta. Verifique a conexão e tente de novo.')
+      return
+    }
+    const remaining = athletes.filter((a) => a.id !== athlete.id)
+    setAthletes(remaining)
+    if (selectedAthlete?.id === athlete.id) setSelectedAthlete(null)
+    if (onUpdateEvent) {
+      const entregues = remaining.filter((a) => a.status === 'ENTREGUE').length
+      onUpdateEvent({
+        ...currentEvent,
+        total: remaining.length,
+        pendentes: remaining.length - entregues,
+        concl: remaining.length > 0 ? ((entregues / remaining.length) * 100).toFixed(1) + '%' : '0.0%',
+      })
+    }
   }
 
   // Deliver kit to an athlete directly
@@ -3383,7 +3423,7 @@ export default function OperacaoPage({
                 >
                   <thead>
                     <tr>
-                      <th style={{ width: '110px', textAlign: 'center' }}>LEITURA</th>
+                      <th style={{ width: '110px', textAlign: 'center' }}>{canEditAthlete ? 'AÇÕES' : 'LEITURA'}</th>
                       {visibleAthleteTableColumns.map((column) => (
                         <th
                           key={column.key}
@@ -3422,6 +3462,18 @@ export default function OperacaoPage({
                             >
                               <QrCodeIcon size={14} />
                               <span>LER</span>
+                            </button>}
+                            {canEditAthlete && a.id && <button
+                              type="button"
+                              className="btn-table-delete-athlete"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteAthlete(a)
+                              }}
+                              title={`Excluir ${a.nome}`}
+                              aria-label={`Excluir ${a.nome}`}
+                            >
+                              <TrashIcon />
                             </button>}
                           </td>
                           {visibleAthleteTableColumns.map((column) => {
@@ -4163,11 +4215,10 @@ export default function OperacaoPage({
                 <div className="athlete-dynamic-grid-3">
                   <div className="athlete-form-group">
                     <label className="athlete-form-label">
-                      NÚMERO <span className="required-star">*</span>
+                      NÚMERO
                     </label>
                     <input
                       type="text"
-                      required
                       className="athlete-form-input highlight-number"
                       placeholder="Ex.: 1050"
                       value={athleteForm.numero || ''}

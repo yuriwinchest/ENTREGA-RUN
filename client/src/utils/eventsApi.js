@@ -128,6 +128,22 @@ export async function apiDeleteEvent(eventId, confirmQrInvalidation = false) {
   }
 }
 
+// Devolve { ok, message } para a tela explicar a recusa (ex.: kit já entregue).
+export async function apiDeleteAthlete(eventId, athleteId) {
+  try {
+    const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/athletes/${encodeURIComponent(athleteId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+    flagExpiredSession(res)
+    const data = await res.json().catch(() => ({}))
+    return { ok: res.ok && Boolean(data.ok), message: data.message || '' }
+  } catch (err) {
+    console.error(`[eventsApi] Erro ao excluir atleta ${athleteId} do evento ${eventId}:`, err)
+    return { ok: false, message: '' }
+  }
+}
+
 export async function apiSyncEvents(localEvents) {
   if (!Array.isArray(localEvents) || localEvents.length === 0) return []
   try {
