@@ -10,20 +10,19 @@
 
 ## Última atualização
 
+- **Quando / quem / fase:** 2026-11-03 · Claude Code (Opus 5.5) · Fase B; código `99cfc2b`.
+- **Pedido:** Yuri (fotos da tela): no NOVO ATLETA o número não deve ser obrigatório; na busca da aba Atletas, poder excluir o atleta.
+- **Entrega:** número opcional (só o nome é exigido; nº repetido continua recusado). Botão de lixeira na coluna AÇÕES (supervisor/admin) → `DELETE /api/events/:id/athletes/:athleteId`: kit entregue recusa ("desfaça a entrega"); cadastro sem saúde vai para `data/clientes/atleta-excluido_*`; id fica em `deletedAthleteIds` para aba antiga não ressuscitar (merge em operação devolvia quem faltava). Doc no Appwrite fica (base de clientes).
+- **Validação:** server 72/72 (teste novo `athleteDelete.http.test.mjs`, com reinício), client 82/82, lint sem erro, build ok. Navegador local com dados fictícios: entregue recusado, pendente saiu da tela e do servidor, atleta sem número salvo. Sem teste no celular.
+- **Risco/próximo:** volta = `git revert 99cfc2b`. Yuri homologar o botão e o cadastro sem número.
+
+## Penúltima atualização
+
 - **Quando / quem / fase:** 2026-10-31 · Claude Code (Opus 5.5) · Fase A; código `dd1d596`, publicado.
 - **Pedido:** Yuri: cada atleta fica no banco como base de clientes; excluir evento não pode apagar atleta nem contato ("Sim, corrigir lá"). Medição antes: 1.563 dos 2.411 atletas do Appwrite são de eventos apagados — não apagar nenhum.
 - **Entrega:** `deleteEventFromAppwrite` apaga só o evento (atletas ficam). Na exclusão, `preserveDeletedEventAthletes` (`server/clientBase.js`) guarda cadastro + contato + campos não-saúde em `data/clientes/` antes de remover a planilha ativa; saúde e planilha bruta saem como antes. Arquivar igual. `data/clientes` entra no backup de dados do deploy.
 - **Validação:** server 71/71 (3 testes novos; os 2 de exclusão falham no código antigo). Yuri: "Sim, publicar" → deploy run 41266986637 ok (validate/preflight/deploy), release `dd1d5962621d` saudável, integridade preservada (2 eventos, 16.850 atletas, 1.704 entregas); health 200 nos dois domínios. Exclusão real não testada em produção.
 - **Risco/próximo:** volta = `git revert dd1d596` + push na `main` (arquivos em `data/clientes/` ficam). Fora do escopo: fundir duplicados, preencher contato antigo, apagar qualquer coisa — só com backup e novo "sim".
-
-## Penúltima atualização
-
-- **Quando / quem / fase:** 2026-10-31 · Claude Code (Opus 5.5) · Fase B; código `7483e4b`.
-- **Pedido:** Yuri avaliando trocar a VPS por uma maior/mais barata; pediu medir a VPS antes. A medição mostrou o espelho Appwrite regravando o evento inteiro a cada entrega; Yuri: "Sim, corrigir".
-- **Diagnóstico [verificado, MCP Hostinger, só leitura]:** KVM 2 (2 vCPU/8 GB/100 GB, Campinas), mensal R$ 141,98, renova 14/11. RAM ~5 GB, dos quais ~3,5 GB são o Appwrite (32 contêineres; MongoDB 1,9 GB); disco 39 GB. Logs de 30/10 19h51–23h06: ~800 atletas regravados a cada ~30 s sem parar.
-- **Entrega:** `persistAthletesToAppwrite` guarda o último conteúdo gravado por documento e envia só o que mudou; falha volta no próximo envio; `updateAthleteStatusInAppwrite` e exclusão do evento invalidam o registro. Reinício do servidor → primeiro envio completo.
-- **Validação:** server 68/68 (4 testes novos em `appwriteMirror.test.mjs`, falham no código antigo); deploy run 41166763024 ok, health 200, contêiner `release-7483e4b16599` saudável; efeito real só medível no próximo evento (madrugada sem uso).
-- **Risco/próximo:** medir CPU no próximo evento antes de decidir a VPS; se KVM 2 bastar, Yuri avaliar ciclo anual (R$ 599,88 no 1º ano). Compra é do Yuri.
 
 ## Estado atual (verificado em 2026-09-28)
 
@@ -45,5 +44,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-11-03 · Claude Code · Novo atleta sem número obrigatório; excluir atleta na aba Atletas.
 - 2026-10-31 · Claude Code · Excluir evento não apaga mais atleta nem contato (base de clientes).
-- 2026-10-31 · Claude Code · Espelho Appwrite envia só os atletas alterados (antes regravava o evento inteiro a cada entrega).
