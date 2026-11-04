@@ -130,7 +130,7 @@ DATA_BACKUP="$BACKUP_DIR/data-before-$SHORT_SHA-$(date -u +%Y%m%dT%H%M%SZ).tar.g
 tar -C "$APP_DIR" --exclude='data/fotos-retirada' --exclude='data/sessions.json' -czf "$DATA_BACKUP" data
 tar -tzf "$DATA_BACKUP" >/dev/null
 verify_backup_hashes() {
-  for file in "$APP_DIR/data/users.json" "$APP_DIR/data/events.json" "$APP_DIR"/data/athletes_*.json; do
+  for file in "$APP_DIR/data/users.json" "$APP_DIR/data/events.json" "$APP_DIR/data/registration_options.json" "$APP_DIR"/data/athletes_*.json; do
     [[ -f "$file" ]] || continue
     archive_path="data/${file##*/}"
     source_hash="$(sha256sum "$file" | awk '{print $1}')"

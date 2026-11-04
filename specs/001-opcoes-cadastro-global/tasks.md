@@ -8,26 +8,26 @@ Input: spec.md, plan.md, research.md, data-model.md, contracts/ e quickstart.md.
 - [x] T003 Esclarecer escopo e registrar specs/001-opcoes-cadastro-global/spec.md e plano.
 
 ## Phase 2: Foundation
-- [ ] T004 Implementar store normalizado/atômico em server/registrationOptions.js.
-- [ ] T005 [P] Implementar cliente API e merge em client/src/utils/registrationOptions*.js.
+- [x] T004 Implementar store normalizado/atômico em server/registrationOptions.js.
+- [x] T005 [P] Implementar cliente API e merge em client/src/utils/registrationOptions*.js.
 
 ## Phase 3: US1 — criação no campo
-- [ ] T006 [US1] Criar componente inline acessível client/src/components/CreatableSelect.jsx e CSS.
-- [ ] T007 [US1] Integrar listas padrão e custom elegíveis em client/src/components/OperacaoPage.jsx.
-- [ ] T008 [US1] Verificar persistência atleta/tabela e payload Appwrite padrão em server/registrationOptions.http.test.mjs.
+- [x] T006 [US1] Criar componente inline acessível client/src/components/CreatableSelect.jsx e CSS.
+- [x] T007 [US1] Integrar listas padrão e custom elegíveis em client/src/components/OperacaoPage.jsx.
+- [x] T008 [US1] Verificar persistência atleta/tabela e payload Appwrite padrão em server/registrationOptions.http.test.mjs.
 
 ## Phase 4: US2 — reuso e persistência
-- [ ] T009 [US2] Conectar GET/POST server/server.js ao catálogo por organização.
-- [ ] T010 [US2] Implementar refresh do catálogo em client/src/hooks/useRegistrationOptions.js.
-- [ ] T011 [US2] Testar dedup, concorrência, falha e reinício em server/registrationOptions*.test.mjs.
+- [x] T009 [US2] Conectar GET/POST server/server.js ao catálogo por organização.
+- [x] T010 [US2] Implementar refresh do catálogo em client/src/hooks/useRegistrationOptions.js.
+- [x] T011 [US2] Testar dedup, concorrência, falha e reinício em server/registrationOptions*.test.mjs.
 
 ## Phase 5: US3 — fronteiras
-- [ ] T012 [US3] Validar roles/schema/saúde/enums/escopo no servidor.
-- [ ] T013 [US3] Testar autorização, isolamento e rejeições em server/registrationOptions.http.test.mjs.
+- [x] T012 [US3] Validar roles/schema/saúde/enums/escopo no servidor.
+- [x] T013 [US3] Testar autorização, isolamento e rejeições em server/registrationOptions.http.test.mjs.
 
 ## Phase 6: validação e entrega
-- [ ] T014 [P] Cobrir merge client em client/src/utils/registrationOptions.test.mjs.
-- [ ] T015 [P] Incluir testes CI e hash catálogo em .github/workflows/deploy.yml e scripts/deploy-vps.sh.
+- [x] T014 [P] Cobrir merge client em client/src/utils/registrationOptions.test.mjs.
+- [x] T015 [P] Incluir testes CI e hash catálogo em .github/workflows/deploy.yml e scripts/deploy-vps.sh.
 - [ ] T016 Executar suítes, lint/build e navegador sintético; registrar evidências em docs/opcoes-cadastro-global-2026-11-04.md.
 - [ ] T017 Atualizar HANDOFF.md/AI Memory e commitar marcos; preparar publicação posterior sem deploy.
 

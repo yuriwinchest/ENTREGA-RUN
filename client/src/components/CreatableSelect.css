@@ -1,0 +1,16 @@
+.creatable-select { width: 100%; min-width: 0; }
+.creatable-select > select { width: 100%; }
+.creatable-select-add { display: block; border: 0; background: transparent; color: #a83809; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; padding: 8px 0; text-align: left; }
+.creatable-select-add[hidden] { display: none; }
+.creatable-select-editor { margin-top: 8px; padding: 12px; border: 1px solid #d7c9bd; border-radius: 8px; background: #fffaf4; }
+.creatable-select-editor > label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: #46372e; }
+.creatable-select-editor .athlete-form-input { width: 100%; min-width: 0; box-sizing: border-box; }
+.creatable-select-help, .creatable-select-error { font-size: 12px; line-height: 1.45; margin: 8px 0; overflow-wrap: anywhere; }
+.creatable-select-help { color: #64574e; }
+.creatable-select-error { color: #a32119; }
+.creatable-select-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.creatable-select-actions button { padding: 8px 10px; border: 1px solid #b9a99b; border-radius: 5px; background: #fff; color: #49362a; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.creatable-select-actions button:first-child { background: #a83809; border-color: #a83809; color: #fff; }
+.creatable-select-actions button:disabled { opacity: .55; cursor: wait; }
+.creatable-select button:focus-visible, .creatable-select input:focus-visible { outline: 2px solid #a83809; outline-offset: 3px; }
+.creatable-select-notice { display: block; font-size: 12px; color: #34613a; }

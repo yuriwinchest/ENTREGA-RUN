@@ -14,6 +14,7 @@ import { createSessionStore } from './sessionStore.js'
 import { deployCheckTokenFile } from './deployCheck.js'
 import { createEmergencyLinksStore, EMERGENCY_CODE } from './emergencyLinks.js'
 import { preserveDeletedAthlete, preserveDeletedEventAthletes } from './clientBase.js'
+import { createRegistrationOptionsStore, eligibleCustomOptionFields, RegistrationOptionError, STANDARD_OPTION_LIMITS } from './registrationOptions.js'
 import {
   athleteKey,
   athleteRef,
@@ -72,6 +73,7 @@ if (!process.env.ADMIN_PASSWORD) {
 // exigido nas rotas /api/users. Senha nunca volta em resposta.
 // ============================================================
 const sessions = createSessionStore(path.join(DATA_DIR, 'sessions.json'))
+const registrationOptions = createRegistrationOptionsStore(DATA_DIR)
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 function sanitizeUser(user) {
@@ -1271,6 +1273,72 @@ function numberCollisionMessage(numbers) {
 
 // Mesmos papéis que veem o cadastro editável na tela de entrega.
 const EDIT_DELIVERED_ROLES = ['ADMIN', 'TEAM_ADMIN', 'SUB_ADMIN', 'SUPERVISOR']
+
+function registrationOptionsContext(req, res) {
+  const event = inMemoryEvents.find((item) => item.id === req.params.eventId)
+  if (!event) {
+    res.status(404).json({ ok: false, message: 'Evento não encontrado.' })
+    return null
+  }
+  if (!canAccessEvent(req.session, event)) {
+    res.status(403).json({ ok: false, message: 'Projeto fora do seu acesso.' })
+    return null
+  }
+  const customFields = eligibleCustomOptionFields(loadAthletesForEvent(event.id) || {})
+  return {
+    event,
+    scope: teamOf(event),
+    customFields,
+    fields: [...Object.keys(STANDARD_OPTION_LIMITS), ...customFields.map((key) => `custom:${key}`)],
+  }
+}
+
+function registrationOptionsFailure(res, error) {
+  const known = error instanceof RegistrationOptionError
+  return res.status(known ? error.status : 503).json({
+    ok: false,
+    message: known ? error.message : 'Não foi possível acessar o catálogo de opções. Tente novamente.',
+  })
+}
+
+app.get('/api/events/:eventId/registration-options', requireAuth, (req, res) => {
+  const context = registrationOptionsContext(req, res)
+  if (!context) return
+  try {
+    res.json({
+      ok: true,
+      options: registrationOptions.list(context.scope, context.fields),
+      customFields: context.customFields,
+    })
+  } catch (error) {
+    return registrationOptionsFailure(res, error)
+  }
+})
+
+app.post('/api/events/:eventId/registration-options', requireAuth, (req, res) => {
+  const context = registrationOptionsContext(req, res)
+  if (!context) return
+  if (!EDIT_DELIVERED_ROLES.includes(req.session.role)) {
+    return res.status(403).json({ ok: false, message: 'Somente quem pode editar o cadastro pode adicionar opções.' })
+  }
+  if (context.event.status === 'ARQUIVADO') {
+    return res.status(409).json({ ok: false, message: 'Evento arquivado. Restaure-o antes de adicionar opções.' })
+  }
+  const { field, value } = req.body || {}
+  if (!context.fields.includes(field)) {
+    return res.status(400).json({ ok: false, message: 'Este campo não permite cadastrar opções compartilhadas.' })
+  }
+  try {
+    const result = registrationOptions.add(context.scope, field, value)
+    return res.status(result.created ? 201 : 200).json({
+      ok: true,
+      ...result,
+      options: registrationOptions.list(context.scope, context.fields),
+    })
+  } catch (error) {
+    return registrationOptionsFailure(res, error)
+  }
+})
 
 // POST /api/events/:eventId/athletes — Sincroniza/persiste lista de atletas
 // Kits inválidos NÃO derrubam mais a lista: atletas são salvos e o aviso

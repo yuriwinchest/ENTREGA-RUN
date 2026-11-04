@@ -4,6 +4,9 @@ import EspelhoModal from './EspelhoModal.jsx'
 import ImportarAtletasModal from './ImportarAtletasModal.jsx'
 import AssociarPlanilhasModal from './AssociarPlanilhasModal.jsx'
 import CustomSelect from './CustomSelect.jsx'
+import CreatableSelect from './CreatableSelect.jsx'
+import useRegistrationOptions from '../hooks/useRegistrationOptions.js'
+import { mergeRegistrationOptions, optionValueLimit } from '../utils/registrationOptions.js'
 import {
   buildAthleteCsvData,
   buildAuditCsvData,
@@ -560,6 +563,11 @@ export default function OperacaoPage({
   // Colunas da planilha marcadas como saúde (emergência médica); vêm do servidor
   // e voltam pré-marcadas ao reimportar.
   const [healthFields, setHealthFields] = useState([])
+  const registrationCatalog = useRegistrationOptions(currentEvent.id)
+
+  useEffect(() => {
+    if (showAddAthleteModal || selectedAthlete) registrationCatalog.refresh()
+  }, [showAddAthleteModal, selectedAthlete?.id, registrationCatalog.refresh])
 
   const associationLockRef = useRef(false)
   const [associationSaving, setAssociationSaving] = useState(false)
@@ -716,10 +724,10 @@ export default function OperacaoPage({
       }
     })
     if (unique.size === 0) {
-      return ['PP', 'P', 'M', 'G', 'GG', 'XG', 'INFANTIL', 'BABY LOOK M']
+      return mergeRegistrationOptions(['PP', 'P', 'M', 'G', 'GG', 'XG', 'INFANTIL', 'BABY LOOK M'], registrationCatalog.options.camiseta || [])
     }
-    return Array.from(unique)
-  }, [athletes])
+    return mergeRegistrationOptions(Array.from(unique), registrationCatalog.options.camiseta || [])
+  }, [athletes, registrationCatalog.options.camiseta])
 
   const modalidadeOptions = useMemo(() => {
     const unique = new Set()
@@ -727,9 +735,9 @@ export default function OperacaoPage({
       const val = String(a.modalidade || '').trim()
       if (val && val !== '—') unique.add(val)
     })
-    if (unique.size === 0) return ['5 KM', '10 KM', '21 KM', '42 KM', 'KIDS']
-    return Array.from(unique)
-  }, [athletes])
+    if (unique.size === 0) return mergeRegistrationOptions(['5 KM', '10 KM', '21 KM', '42 KM', 'KIDS'], registrationCatalog.options.modalidade || [])
+    return mergeRegistrationOptions(Array.from(unique), registrationCatalog.options.modalidade || [])
+  }, [athletes, registrationCatalog.options.modalidade])
 
   const categoriaOptions = useMemo(() => {
     const unique = new Set()
@@ -737,9 +745,9 @@ export default function OperacaoPage({
       const val = String(a.categoria || '').trim()
       if (val && val !== '—') unique.add(val)
     })
-    if (unique.size === 0) return ['GERAL']
-    return Array.from(unique)
-  }, [athletes])
+    if (unique.size === 0) return mergeRegistrationOptions(['GERAL'], registrationCatalog.options.categoria || [])
+    return mergeRegistrationOptions(Array.from(unique), registrationCatalog.options.categoria || [])
+  }, [athletes, registrationCatalog.options.categoria])
 
   const kitOptions = useMemo(() => {
     const unique = new Set()
@@ -747,8 +755,8 @@ export default function OperacaoPage({
       const val = String(a.kit || '').trim()
       if (val && val !== '—') unique.add(val)
     })
-    return Array.from(unique)
-  }, [athletes])
+    return mergeRegistrationOptions(Array.from(unique), registrationCatalog.options.kit || [])
+  }, [athletes, registrationCatalog.options.kit])
 
   const equipeOptions = useMemo(() => {
     const unique = new Set()
@@ -756,8 +764,8 @@ export default function OperacaoPage({
       const val = String(a.equipe || '').trim()
       if (val && val !== '—' && val !== 'SEM EQUIPE') unique.add(val)
     })
-    return Array.from(unique)
-  }, [athletes])
+    return mergeRegistrationOptions(Array.from(unique), registrationCatalog.options.equipe || [])
+  }, [athletes, registrationCatalog.options.equipe])
 
   const availableStandardColumns = useMemo(() => {
     // Número, Nome e Chip são campos fixos de destaque no bloco principal do modal NOVO ATLETA
@@ -780,10 +788,10 @@ export default function OperacaoPage({
         const val = String(a.customFields?.[k] || a[k] || '').trim()
         if (val && val !== '—') unique.add(val)
       })
-      map[k] = Array.from(unique)
+      map[k] = mergeRegistrationOptions(Array.from(unique), registrationCatalog.options[`custom:${k}`] || [])
     })
     return map
-  }, [availableCustomColumns, athletes])
+  }, [availableCustomColumns, athletes, registrationCatalog.options])
 
   // Validação em tempo real de colisão de chip para o modal NOVO ATLETA
   const addAthleteChipCollision = useMemo(() => {
@@ -823,6 +831,7 @@ export default function OperacaoPage({
       equipe: '',
       cidade: '',
       morador: 'Morador',
+      nacionalidade: 'BRASIL',
       contato: '',
       nome_peito: '',
       customFields: initialCustom,
@@ -1695,7 +1704,7 @@ export default function OperacaoPage({
   }
 
   function persistDetailDraft({ showFeedback = true } = {}) {
-    if (!canEditAthlete || !detailForm || !selectedAthlete) return null
+    if (!canEditAthlete || !detailForm || !selectedAthlete || registrationCatalog.isPending()) return null
 
     const normalized = normalizeAthleteDetail(selectedAthlete, detailForm)
     if (!normalized.nome) {
@@ -1804,7 +1813,7 @@ export default function OperacaoPage({
   // Save changes from Detail View without recording a kit delivery.
   function handleSaveDetail(e) {
     if (e) e.preventDefault()
-    if (detailActionLockRef.current || !detailHasChanges) return
+    if (detailActionLockRef.current || !detailHasChanges || registrationCatalog.isPending()) return
 
     detailActionLockRef.current = true
     setDetailActionInProgress(true)
@@ -1916,7 +1925,7 @@ export default function OperacaoPage({
   // Handle Add Athlete Submission (Dinâmico para Tabela Importada / Associada)
   function handleCreateAthlete(e) {
     e.preventDefault()
-    if (!canEditAthlete) return
+    if (!canEditAthlete || registrationCatalog.isPending()) return
     const num = String(athleteForm.numero || '').trim()
     const nome = String(athleteForm.nome || '').trim().toUpperCase()
 
@@ -1954,6 +1963,7 @@ export default function OperacaoPage({
       chip: (athleteForm.chip || '').trim(),
       cidade: (athleteForm.cidade || '').trim(),
       morador: (athleteForm.morador || 'Morador').trim(),
+      nacionalidade: (athleteForm.nacionalidade || 'BRASIL').trim(),
       contato: (athleteForm.contato || '').trim(),
       nome_peito: (athleteForm.nome_peito || '').trim(),
       customFields: { ...(athleteForm.customFields || {}) },
@@ -2136,7 +2146,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
   }
 
   function handleSaveAndDeliver({ recipientOverride } = {}) {
-    if (detailActionLockRef.current || !selectedAthlete) return null
+    if (detailActionLockRef.current || !selectedAthlete || registrationCatalog.isPending()) return null
 
     detailActionLockRef.current = true
     setDetailActionInProgress(true)
@@ -2557,7 +2567,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
           <div className="operacao-tab-content">
             {/* VIEW A: DETALHE / MODAL DO ATLETA SELECIONADO (FOTO ENVIADA PELO PO) */}
             {selectedAthlete && detailForm ? (
-              <div className="athlete-detail-view-container">
+              <div className="athlete-detail-view-container" key={selectedAthlete.id || selectedAthlete.numero}>
                 {/* 1. Barra de Ações Superior */}
                 <div className="athlete-detail-actions-bar">
                   {detailForm.status === 'ENTREGUE' ? (
@@ -2567,7 +2577,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                           type="button"
                           className="btn-detail-save btn-detail-save-active"
                           onClick={handleSaveDetail}
-                          disabled={detailActionInProgress}
+                          disabled={detailActionInProgress || registrationCatalog.pending}
                           title="Salvar a correção do cadastro (ex.: troca de camisa) mantendo a entrega"
                         >
                           <SaveIcon />
@@ -2593,7 +2603,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                           type="button"
                           className="btn-detail-save btn-detail-save-active"
                           onClick={handleSaveDetail}
-                          disabled={detailActionInProgress}
+                          disabled={detailActionInProgress || registrationCatalog.pending}
                           title="Salvar alterações cadastrais sem entregar"
                         >
                           <SaveIcon />
@@ -2618,7 +2628,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                               type="button"
                               className={`btn-detail-entregar ${deliverBlockedByEdits || !isKitAssociated ? 'btn-detail-blocked' : ''}`}
                               onClick={() => handleSaveAndDeliver()}
-                              disabled={detailActionInProgress || deliverBlockedByEdits || !isKitAssociated}
+                              disabled={detailActionInProgress || registrationCatalog.pending || deliverBlockedByEdits || !isKitAssociated}
                               title={
                                 !isKitAssociated
                                   ? 'Kit ainda não associado — use ASSOCIAR KIT primeiro'
@@ -2754,6 +2764,8 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                 )}
                 {/* 4. Formulário Completo de Dados do Atleta */}
                 <form className="athlete-detail-form-card" onSubmit={handleSaveDetail}>
+                  {registrationCatalog.error && canEditAthlete && <p className="creatable-select-error" role="alert">{registrationCatalog.error} <button type="button" onClick={() => registrationCatalog.refresh()}>Tentar carregar opções</button></p>}
+                  {registrationCatalog.pending && <p className="creatable-select-help" role="status">Aguarde a gravação da opção antes de salvar ou entregar o kit.</p>}
                   <fieldset disabled={!canEditAthlete} className="athlete-detail-fieldset">
                   {/* Linha 1: NÚMERO, NOME, DOCUMENTO, SEXO */}
                   <div className="detail-form-row-4">
@@ -2851,7 +2863,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                     {(activeColumnKeys.has('modalidade') || Boolean(detailForm.modalidade)) && (
                       <div className="athlete-form-group">
                         <label className="athlete-form-label">MODALIDADE</label>
-                        <select
+                        <CreatableSelect label="MODALIDADE" maxLength={optionValueLimit('modalidade')} onCreate={canEditAthlete ? (value) => registrationCatalog.create('modalidade', value) : undefined}
                           className="athlete-form-select"
                           value={detailForm.modalidade}
                           onChange={(e) =>
@@ -2864,14 +2876,14 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                           {Array.from(new Set([...modalidadeOptions, detailForm.modalidade].filter(Boolean))).map((m) => (
                             <option key={m} value={m}>{m}</option>
                           ))}
-                        </select>
+                        </CreatableSelect>
                       </div>
                     )}
 
                     {(activeColumnKeys.has('categoria') || Boolean(detailForm.categoria)) && (
                       <div className="athlete-form-group">
                         <label className="athlete-form-label">CATEGORIA</label>
-                        <select
+                        <CreatableSelect label="CATEGORIA" maxLength={optionValueLimit('categoria')} onCreate={canEditAthlete ? (value) => registrationCatalog.create('categoria', value) : undefined}
                           className="athlete-form-select"
                           value={detailForm.categoria}
                           onChange={(e) =>
@@ -2884,7 +2896,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                           {Array.from(new Set([...categoriaOptions, detailForm.categoria].filter(Boolean))).map((c) => (
                             <option key={c} value={c}>{c}</option>
                           ))}
-                        </select>
+                        </CreatableSelect>
                       </div>
                     )}
 
@@ -2892,7 +2904,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                       <div className="athlete-form-group">
                         <label className="athlete-form-label">EQUIPE</label>
                         <div className="input-with-action-wrap">
-                          <select
+                          <CreatableSelect label="EQUIPE" maxLength={optionValueLimit('equipe')} onCreate={canEditAthlete ? (value) => registrationCatalog.create('equipe', value) : undefined}
                             className="athlete-form-select"
                             value={detailForm.equipe}
                             onChange={(e) =>
@@ -2904,7 +2916,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                             {Array.from(new Set([...equipeOptions, detailForm.equipe].filter((eq) => eq && eq !== '—' && eq !== 'SEM EQUIPE'))).map((eq) => (
                               <option key={eq} value={eq}>{eq}</option>
                             ))}
-                          </select>
+                          </CreatableSelect>
                         </div>
                       </div>
                     )}
@@ -2912,19 +2924,13 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                     {activeColumnKeys.has('nacionalidade') && (
                       <div className="athlete-form-group">
                         <label className="athlete-form-label">NACIONALIDADE</label>
-                        <select
+                        <CreatableSelect label="NACIONALIDADE" maxLength={optionValueLimit('nacionalidade')} onCreate={canEditAthlete ? (value) => registrationCatalog.create('nacionalidade', value) : undefined}
                           className="athlete-form-select"
                           value={detailForm.nacionalidade}
-                          onChange={(e) =>
-                            setDetailForm({
-                              ...detailForm,
-                              nacionalidade: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setDetailForm((prev) => ({ ...prev, nacionalidade: e.target.value }))}
                         >
-                          <option value="BRASIL">BRASIL</option>
-                          <option value="OUTRO">OUTRO</option>
-                        </select>
+                          {mergeRegistrationOptions(['BRASIL', 'OUTRO'], registrationCatalog.options.nacionalidade || [], athletes.map((a) => a.nacionalidade || '')).map((value) => <option key={value} value={value}>{value}</option>)}
+                        </CreatableSelect>
                       </div>
                     )}
                   </div>
@@ -2934,7 +2940,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                     {(activeColumnKeys.has('kit') || Boolean(detailForm.kit && detailForm.kit !== '—' && String(detailForm.kit).trim() !== '')) && (
                       <div className="athlete-form-group">
                         <label className="athlete-form-label">KIT</label>
-                        <select
+                        <CreatableSelect label="KIT" maxLength={optionValueLimit('kit')} onCreate={canEditAthlete ? (value) => registrationCatalog.create('kit', value) : undefined}
                           className="athlete-form-select"
                           value={detailForm.kit}
                           onChange={(e) =>
@@ -2945,14 +2951,14 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                           {Array.from(new Set([...kitOptions, detailForm.kit].filter(Boolean))).map((k) => (
                             <option key={k} value={k}>{k}</option>
                           ))}
-                        </select>
+                        </CreatableSelect>
                       </div>
                     )}
 
                     {(activeColumnKeys.has('camiseta') || Boolean(detailForm.camiseta)) && (
                       <div className="athlete-form-group">
                         <label className="athlete-form-label">CAMISETA</label>
-                        <select
+                        <CreatableSelect label="CAMISETA" maxLength={optionValueLimit('camiseta')} onCreate={canEditAthlete ? (value) => registrationCatalog.create('camiseta', value) : undefined}
                           className="athlete-form-select"
                           value={detailForm.camiseta}
                           onChange={(e) =>
@@ -2965,7 +2971,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                           {Array.from(new Set([...shirtOptions, detailForm.camiseta].filter(Boolean))).map((s) => (
                             <option key={s} value={s}>{s}</option>
                           ))}
-                        </select>
+                        </CreatableSelect>
                       </div>
                     )}
 
@@ -3065,8 +3071,8 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                         return (
                           <div key={k} className="athlete-form-group">
                             <label className="athlete-form-label">{k.toLocaleUpperCase('pt-BR')}</label>
-                            {finalOpts.length > 0 ? (
-                              <select
+                            {finalOpts.length > 0 || registrationCatalog.customFields.includes(k) ? (
+                              <CreatableSelect label={k} maxLength={128} onCreate={canEditAthlete && registrationCatalog.customFields.includes(k) ? (value) => registrationCatalog.create(`custom:${k}`, value) : undefined}
                                 className="athlete-form-select"
                                 disabled={!canEditAthlete}
                                 value={v || ''}
@@ -3086,7 +3092,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                                 {Array.from(new Set([...finalOpts, v].filter(Boolean))).map((opt) => (
                                   <option key={opt} value={opt}>{opt}</option>
                                 ))}
-                              </select>
+                              </CreatableSelect>
                             ) : (
                               <input
                                 type="text"
@@ -3147,7 +3153,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                       type="button"
                       className="btn-detail-save btn-detail-save-active"
                       onClick={handleSaveDetail}
-                      disabled={detailActionInProgress}
+                      disabled={detailActionInProgress || registrationCatalog.pending}
                       title="Salvar a correção do cadastro (ex.: troca de camisa) mantendo a entrega"
                     >
                       <SaveIcon />
@@ -3163,7 +3169,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                         type="button"
                         className="btn-detail-save btn-detail-save-active"
                         onClick={handleSaveDetail}
-                        disabled={detailActionInProgress}
+                        disabled={detailActionInProgress || registrationCatalog.pending}
                         title="Salvar as alterações para liberar a entrega do kit"
                       >
                         <SaveIcon />
@@ -3174,7 +3180,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                       type="button"
                       className={`btn-detail-entregar ${deliverBlockedByEdits ? 'btn-detail-blocked' : ''}`}
                       onClick={() => handleSaveAndDeliver()}
-                      disabled={detailActionInProgress || deliverBlockedByEdits}
+                      disabled={detailActionInProgress || registrationCatalog.pending || deliverBlockedByEdits}
                       title={deliverBlockedByEdits
                         ? 'Existem alterações não salvas — clique em SALVAR ALTERAÇÕES para liberar a entrega'
                         : 'Entregar o kit com os dados salvos'}
@@ -4275,7 +4281,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                         return (
                           <div key={col.key} className="athlete-form-group">
                             <label className="athlete-form-label">{col.label}</label>
-                            <select
+                            <CreatableSelect label="CAMISETA" maxLength={optionValueLimit('camiseta')} onCreate={canEditAthlete ? (value) => registrationCatalog.create('camiseta', value) : undefined}
                               className="athlete-form-select"
                               value={athleteForm.camiseta || shirtOptions[0] || 'M'}
                               onChange={(e) =>
@@ -4287,7 +4293,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                                   {opt}
                                 </option>
                               ))}
-                            </select>
+                            </CreatableSelect>
                           </div>
                         )
                       }
@@ -4335,7 +4341,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                         return (
                           <div key={col.key} className="athlete-form-group">
                             <label className="athlete-form-label">{col.label}</label>
-                            <select
+                            <CreatableSelect label="MODALIDADE" maxLength={optionValueLimit('modalidade')} onCreate={canEditAthlete ? (value) => registrationCatalog.create('modalidade', value) : undefined}
                               className="athlete-form-select"
                               value={athleteForm.modalidade || modalidadeOptions[0] || '5 KM'}
                               onChange={(e) =>
@@ -4345,7 +4351,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                               {modalidadeOptions.map((opt) => (
                                 <option key={opt} value={opt}>{opt}</option>
                               ))}
-                            </select>
+                            </CreatableSelect>
                           </div>
                         )
                       }
@@ -4355,7 +4361,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                         return (
                           <div key={col.key} className="athlete-form-group">
                             <label className="athlete-form-label">{col.label}</label>
-                            <select
+                            <CreatableSelect label="CATEGORIA" maxLength={optionValueLimit('categoria')} onCreate={canEditAthlete ? (value) => registrationCatalog.create('categoria', value) : undefined}
                               className="athlete-form-select"
                               value={athleteForm.categoria || categoriaOptions[0] || 'GERAL'}
                               onChange={(e) =>
@@ -4365,7 +4371,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                               {categoriaOptions.map((opt) => (
                                 <option key={opt} value={opt}>{opt}</option>
                               ))}
-                            </select>
+                            </CreatableSelect>
                           </div>
                         )
                       }
@@ -4375,7 +4381,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                         return (
                           <div key={col.key} className="athlete-form-group">
                             <label className="athlete-form-label">{col.label}</label>
-                            <select
+                            <CreatableSelect label="KIT" maxLength={optionValueLimit('kit')} onCreate={canEditAthlete ? (value) => registrationCatalog.create('kit', value) : undefined}
                               className="athlete-form-select"
                               value={athleteForm.kit || ''}
                               onChange={(e) =>
@@ -4386,7 +4392,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                               {kitOptions.map((opt) => (
                                 <option key={opt} value={opt}>{opt}</option>
                               ))}
-                            </select>
+                            </CreatableSelect>
                           </div>
                         )
                       }
@@ -4396,8 +4402,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                         return (
                           <div key={col.key} className="athlete-form-group">
                             <label className="athlete-form-label">{col.label}</label>
-                            {equipeOptions.length > 0 ? (
-                              <select
+                            <CreatableSelect label="EQUIPE" maxLength={optionValueLimit('equipe')} onCreate={canEditAthlete ? (value) => registrationCatalog.create('equipe', value) : undefined}
                                 className="athlete-form-select"
                                 value={athleteForm.equipe || ''}
                                 onChange={(e) =>
@@ -4408,18 +4413,18 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                                 {equipeOptions.map((opt) => (
                                   <option key={opt} value={opt}>{opt}</option>
                                 ))}
-                              </select>
-                            ) : (
-                              <input
-                                type="text"
-                                className="athlete-form-input"
-                                placeholder="Preencher equipe"
-                                value={athleteForm.equipe || ''}
-                                onChange={(e) =>
-                                  setAthleteForm((prev) => ({ ...prev, equipe: e.target.value }))
-                                }
-                              />
-                            )}
+                              </CreatableSelect>
+                          </div>
+                        )
+                      }
+
+                      if (col.key === 'nacionalidade') {
+                        return (
+                          <div key={col.key} className="athlete-form-group">
+                            <label className="athlete-form-label">{col.label}</label>
+                            <CreatableSelect label="NACIONALIDADE" maxLength={64} onCreate={(value) => registrationCatalog.create('nacionalidade', value)} className="athlete-form-select" value={athleteForm.nacionalidade || 'BRASIL'} onChange={(e) => setAthleteForm((prev) => ({ ...prev, nacionalidade: e.target.value }))}>
+                              {mergeRegistrationOptions(['BRASIL', 'OUTRO'], registrationCatalog.options.nacionalidade || [], athletes.map((a) => a.nacionalidade || '')).map((value) => <option key={value} value={value}>{value}</option>)}
+                            </CreatableSelect>
                           </div>
                         )
                       }
@@ -4469,6 +4474,8 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                   </div>
                 )}
 
+                {registrationCatalog.error && <p className="creatable-select-error" role="alert">{registrationCatalog.error} <button type="button" onClick={() => registrationCatalog.refresh()}>Tentar carregar opções</button></p>}
+
                 {/* 3. CAMPOS EXTRAS E PERSONALIZADOS DA TABELA ASSOCIADA (PCD, TAMANHO TÊNIS, PAÍS, ETC.) */}
                 {availableCustomColumns.length > 0 && (
                   <div className="athlete-dynamic-grid" style={{ marginTop: '14px' }}>
@@ -4482,8 +4489,8 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                       return (
                         <div key={col.key} className="athlete-form-group">
                           <label className="athlete-form-label">{col.label}</label>
-                          {finalOpts.length > 0 ? (
-                            <select
+                          {finalOpts.length > 0 || registrationCatalog.customFields.includes(col.customKey) ? (
+                            <CreatableSelect label={col.label} maxLength={128} onCreate={registrationCatalog.customFields.includes(col.customKey) ? (value) => registrationCatalog.create(`custom:${col.customKey}`, value) : undefined}
                               className="athlete-form-select"
                               value={athleteForm.customFields?.[col.customKey] || ''}
                               onChange={(e) =>
@@ -4501,7 +4508,7 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                               {finalOpts.map((opt) => (
                                 <option key={opt} value={opt}>{opt}</option>
                               ))}
-                            </select>
+                            </CreatableSelect>
                           ) : (
                             <input
                               type="text"
@@ -4534,9 +4541,9 @@ O atleta sai da lista de entrega. O cadastro fica guardado na base de clientes.`
                   >
                     CANCELAR
                   </button>
-                  <button type="submit" className="btn-athlete-submit">
+                  <button type="submit" className="btn-athlete-submit" disabled={registrationCatalog.pending}>
                     <UserPlusIcon />
-                    <span>CADASTRAR ATLETA</span>
+                    <span>{registrationCatalog.pending ? 'AGUARDE SALVAR A OPÇÃO…' : 'CADASTRAR ATLETA'}</span>
                   </button>
                 </div>
               </form>
