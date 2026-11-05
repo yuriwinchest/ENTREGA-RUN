@@ -88,3 +88,15 @@ test('falha de escrita não confirma a opção nem altera o catálogo em memóri
   assert.deepEqual(store.list('', ['equipe']), { equipe: ['ANTERIOR', 'GRAVADA'] })
   assert.equal(fs.readdirSync(path.dirname(file)).some((name) => name.endsWith('.tmp')), false)
 })
+
+test('reidratação mescla lote remoto sem apagar adições locais ou outra organização', (t) => {
+  const { store, file } = fixture(t)
+  store.add('org-a', 'equipe', 'LOCAL')
+  store.add('org-b', 'equipe', 'OUTRA ORGANIZAÇÃO')
+  assert.equal(store.merge('org-a', [{ field: 'equipe', value: 'REMOTA' }, { field: 'equipe', value: ' remota ' }, { field: 'categoria', value: 'MASTER' }]), 2)
+  assert.deepEqual(store.list('org-a', ['equipe', 'categoria']), { equipe: ['LOCAL', 'REMOTA'], categoria: ['MASTER'] })
+  assert.deepEqual(store.list('org-b', ['equipe']), { equipe: ['OUTRA ORGANIZAÇÃO'] })
+  const before = fs.readFileSync(file, 'utf8')
+  assert.throws(() => store.merge('org-a', [{ field: 'equipe', value: 'NOVA' }, { field: 'status', value: 'LIVRE' }]))
+  assert.equal(fs.readFileSync(file, 'utf8'), before, 'lote inválido não grava parcialmente')
+})

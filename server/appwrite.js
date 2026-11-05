@@ -17,6 +17,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { eligibleCustomOptionFields, isEligibleCustomOptionField, STANDARD_OPTION_LIMITS } from './registrationOptions.js'
 
 // Garante leitura de .env em qualquer ambiente (Node 20.6+)
 try {
@@ -39,6 +40,7 @@ function getEnv() {
     athletesCol: process.env.APPWRITE_COLLECTION_ATHLETES || 'athletes',
     usersCol: process.env.APPWRITE_COLLECTION_USERS || 'user_profiles',
     auditsCol: process.env.APPWRITE_COLLECTION_AUDITS || 'audit_logs',
+    registrationOptionsCol: process.env.APPWRITE_COLLECTION_REGISTRATION_OPTIONS || 'registration_options',
   }
 }
 
@@ -100,6 +102,149 @@ export function getAthleteDocId(eventId, bibNumber) {
 export function getEventDocId(eventId) {
   const cleanEvent = String(eventId || '').trim().toLowerCase()
   return crypto.createHash('md5').update(`ev:${cleanEvent}`).digest('hex')
+}
+
+export const REGISTRATION_FIELDS_MAX_LENGTH = 16384
+
+function optionLabel(value) {
+  return value.normalize('NFKC').trim().replace(/\s+/gu, ' ')
+}
+
+function optionIdentity(value) {
+  return optionLabel(value).toLocaleUpperCase('pt-BR')
+}
+
+function validOptionScope(scope) {
+  return typeof scope === 'string' && scope !== '__principal__' && scope.length <= 256 && !/[\p{Cc}\p{Cf}]/u.test(scope)
+}
+
+function validRegistrationOption(field, value) {
+  if (typeof field !== 'string' || field.length > 160 || typeof value !== 'string' || /[\p{Cc}\p{Cf}]/u.test(value)) return false
+  const standard = Object.hasOwn(STANDARD_OPTION_LIMITS, field)
+  if (!standard && !(field.startsWith('custom:') && isEligibleCustomOptionField({ key: field, type: 'custom' }))) return false
+  const label = optionLabel(value)
+  const limit = standard ? STANDARD_OPTION_LIMITS[field] : 128
+  return Boolean(label && label.length <= limit && !/^(?:[-—–]+|sem equipe|selecione\b.*|selecionar\b.*|adicionar\b.*|__.*__)$/iu.test(label))
+}
+
+export function getRegistrationOptionDocId(scope, field, value) {
+  return crypto.createHash('sha256').update(JSON.stringify([scope, field, optionIdentity(value)])).digest('hex').slice(0, 36)
+}
+
+export async function fetchRegistrationOptionsFromAppwrite(scope) {
+  if (!isAppwriteEnabled()) return { ok: false, skipped: true }
+  if (!validOptionScope(scope)) return { ok: false, status: 400, error: 'Organização inválida.' }
+  const { databaseId, registrationOptionsCol } = getEnv()
+  const base = `/databases/${encodeURIComponent(databaseId)}/collections/${encodeURIComponent(registrationOptionsCol)}/documents`
+  const options = []
+  let cursor = ''
+  const seenCursors = new Set()
+  while (true) {
+    const queries = [
+      { method: 'equal', attribute: 'scope_id', values: [scope || '__principal__'] },
+      { method: 'limit', values: [100] },
+      { method: 'orderAsc', attribute: '$id' },
+      ...(cursor ? [{ method: 'cursorAfter', values: [cursor] }] : []),
+    ]
+    const result = await api(`${base}${formatQueries(queries)}`)
+    if (result.status !== 200 || !Array.isArray(result.data?.documents)) {
+      return { ok: false, status: result.status, error: 'Não foi possível consultar o catálogo no banco.' }
+    }
+    const docs = result.data.documents
+    for (const doc of docs) {
+      if (doc.scope_id !== (scope || '__principal__') || !validRegistrationOption(doc.field, doc.value)) {
+        return { ok: false, status: 503, error: 'O banco retornou uma opção incompatível com o catálogo.' }
+      }
+      options.push({ field: doc.field, value: doc.value })
+    }
+    if (docs.length < 100) return { ok: true, options }
+    cursor = docs.at(-1)?.$id
+    if (typeof cursor !== 'string' || !cursor || seenCursors.has(cursor)) {
+      return { ok: false, status: 503, error: 'Paginação inválida do catálogo no banco.' }
+    }
+    seenCursors.add(cursor)
+  }
+}
+
+export async function persistRegistrationOptionToAppwrite(scope, field, value) {
+  if (!isAppwriteEnabled()) return { ok: false, skipped: true }
+  if (!validOptionScope(scope) || !validRegistrationOption(field, value)) {
+    return { ok: false, status: 400, error: 'Opção de cadastro inválida.' }
+  }
+  const label = optionLabel(value)
+  const { databaseId, registrationOptionsCol } = getEnv()
+  const base = `/databases/${encodeURIComponent(databaseId)}/collections/${encodeURIComponent(registrationOptionsCol)}/documents`
+  const documentId = getRegistrationOptionDocId(scope, field, label)
+  const created = await api(base, {
+    method: 'POST',
+    body: JSON.stringify({
+      documentId,
+      permissions: [],
+      data: { scope_id: scope || '__principal__', field, value: label, created_at: new Date().toISOString() },
+    }),
+  })
+  if (created.status === 201) return { ok: true, value: label, created: true }
+  if (created.status === 409) {
+    const existing = await api(`${base}/${documentId}`)
+    const doc = existing.data
+    if (existing.status === 200 && doc?.scope_id === (scope || '__principal__') && doc.field === field &&
+      validRegistrationOption(doc.field, doc.value) && optionIdentity(doc.value) === optionIdentity(label)) {
+      return { ok: true, value: doc.value, created: false }
+    }
+    return { ok: false, status: existing.status === 200 ? 503 : existing.status, error: 'Não foi possível confirmar a opção existente no banco.' }
+  }
+  return { ok: false, status: created.status, error: 'Não foi possível salvar a opção no banco.' }
+}
+
+function registrationFieldText(value, limit) {
+  if (typeof value !== 'string' || /[\p{Cc}\p{Cf}]/u.test(value) || value.length > limit) throw new Error('Campo de cadastro inválido.')
+  return value.trim()
+}
+
+function registrationCustomFieldText(value) {
+  if (value === null) return ''
+  if (!['string', 'number', 'boolean'].includes(typeof value) || (typeof value === 'number' && !Number.isFinite(value))) throw new Error('Campo de cadastro inválido.')
+  const text = String(value)
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u.test(text) || text.length > REGISTRATION_FIELDS_MAX_LENGTH) throw new Error('Campo de cadastro inválido.')
+  return text.trim()
+}
+
+function serializeRegistrationFields(athlete, metadata) {
+  const fields = {}
+  if (athlete.nacionalidade !== undefined && athlete.nacionalidade !== null) {
+    const nationality = registrationFieldText(athlete.nacionalidade, 64)
+    if (nationality) fields.nacionalidade = nationality
+  }
+  if (athlete.customFields !== undefined && athlete.customFields !== null) {
+    if (typeof athlete.customFields !== 'object' || Array.isArray(athlete.customFields)) throw new Error('Campos de cadastro inválidos.')
+    const eligible = eligibleCustomOptionFields({ ...metadata, athletes: [athlete] })
+    const customFields = Object.fromEntries(eligible.filter((key) => Object.hasOwn(athlete.customFields, key)).map((key) => [key, registrationCustomFieldText(athlete.customFields[key])]))
+    if (Object.keys(customFields).length) fields.customFields = customFields
+  }
+  // Omitir o atributo mantém o contrato anterior e preserva extras remotos
+  // quando uma aba antiga salva um atleta que ainda não conhece esses campos.
+  if (Object.keys(fields).length === 0) return undefined
+  const json = JSON.stringify(fields)
+  if (json.length > REGISTRATION_FIELDS_MAX_LENGTH) throw new Error('Campos de cadastro excedem o limite do banco.')
+  return json
+}
+
+function deserializeRegistrationFields(raw) {
+  if (typeof raw !== 'string' || raw.length > REGISTRATION_FIELDS_MAX_LENGTH) return {}
+  try {
+    const fields = JSON.parse(raw)
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return {}
+    const restored = {}
+    if (typeof fields.nacionalidade === 'string') restored.nacionalidade = registrationFieldText(fields.nacionalidade, 64)
+    if (fields.customFields && typeof fields.customFields === 'object' && !Array.isArray(fields.customFields)) {
+      restored.customFields = Object.fromEntries(Object.entries(fields.customFields)
+        .filter(([key]) => isEligibleCustomOptionField({ key: `custom:${key}`, customKey: key, type: 'custom' }))
+        .map(([key, value]) => [key, registrationCustomFieldText(value)]))
+    }
+    return restored
+  } catch {
+    return {}
+  }
 }
 
 // ============================================================
@@ -276,9 +421,10 @@ export async function fetchEventsFromAppwrite() {
 // OPERAÇÕES DE ATLETAS (athletes)
 // ============================================================
 
-function mapLocalAthleteToAppwrite(eventId, atleta) {
+function mapLocalAthleteToAppwrite(eventId, atleta, metadata = {}) {
   const safeNumero = String(atleta.numero ?? atleta.bib_number ?? '').trim()
   const safeNome = String(atleta.nome ?? atleta.name ?? '').trim().toUpperCase()
+  const registrationFields = serializeRegistrationFields(atleta, metadata)
 
   return {
     event_id: String(eventId || '').trim(),
@@ -303,6 +449,7 @@ function mapLocalAthleteToAppwrite(eventId, atleta) {
     collected_by: atleta.entreguePara ? 'TERCEIRO' : (atleta.collected_by || 'PROPRIO_ATLETA'),
     third_party_name: String(atleta.entreguePara || atleta.third_party_name || '').slice(0, 128),
     third_party_doc: String(atleta.terceiroDoc || atleta.third_party_doc || '').slice(0, 64),
+    ...(registrationFields !== undefined ? { registration_fields: registrationFields } : {}),
   }
 }
 
@@ -328,6 +475,7 @@ function mapAppwriteDocToLocalAthlete(doc) {
     entreguePor: doc.operator_name || '',
     entreguePara: doc.third_party_name || '',
     terceiroDoc: doc.third_party_doc || '',
+    ...deserializeRegistrationFields(doc.registration_fields),
   }
 }
 
@@ -349,7 +497,7 @@ function sentFor(eventId) {
   return sent
 }
 
-export async function persistAthletesToAppwrite(eventId, athletes) {
+export async function persistAthletesToAppwrite(eventId, athletes, metadata = {}) {
   if (!isAppwriteEnabled() || !eventId || !Array.isArray(athletes) || athletes.length === 0) {
     return { ok: false, skipped: true }
   }
@@ -360,19 +508,24 @@ export async function persistAthletesToAppwrite(eventId, athletes) {
 
   // Mesmo nº de peito gera o mesmo documento: vale o último, como já valia no Appwrite.
   const latest = new Map()
+  let invalidCount = 0
   for (const atleta of athletes) {
-    const payload = mapLocalAthleteToAppwrite(safeEventId, atleta)
-    const docId = getAthleteDocId(safeEventId, payload.bib_number)
-    latest.delete(docId)
-    latest.set(docId, { docId, payload, hash: JSON.stringify(payload) })
+    try {
+      const payload = mapLocalAthleteToAppwrite(safeEventId, atleta, metadata)
+      const docId = getAthleteDocId(safeEventId, payload.bib_number)
+      latest.delete(docId)
+      latest.set(docId, { docId, payload, hash: JSON.stringify(payload) })
+    } catch {
+      invalidCount++
+    }
   }
   const pending = [...latest.values()].filter((item) => sent.get(item.docId) !== item.hash)
-  if (pending.length === 0) return { ok: true, total: athletes.length, successCount: 0, errorCount: 0 }
+  if (pending.length === 0) return { ok: true, total: athletes.length, successCount: 0, errorCount: invalidCount }
 
   console.log(`[appwrite] Sincronizando ${pending.length} de ${athletes.length} atletas do evento ${safeEventId}...`)
 
   let successCount = 0
-  let errorCount = 0
+  let errorCount = invalidCount
   const CONCURRENCY = 10
 
   for (let i = 0; i < pending.length; i += CONCURRENCY) {

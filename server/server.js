@@ -14,7 +14,7 @@ import { createSessionStore } from './sessionStore.js'
 import { deployCheckTokenFile } from './deployCheck.js'
 import { createEmergencyLinksStore, EMERGENCY_CODE } from './emergencyLinks.js'
 import { preserveDeletedAthlete, preserveDeletedEventAthletes } from './clientBase.js'
-import { createRegistrationOptionsStore, eligibleCustomOptionFields, RegistrationOptionError, STANDARD_OPTION_LIMITS } from './registrationOptions.js'
+import { cleanRegistrationOption, createRegistrationOptionsStore, eligibleCustomOptionFields, RegistrationOptionError, STANDARD_OPTION_LIMITS } from './registrationOptions.js'
 import {
   athleteKey,
   athleteRef,
@@ -43,9 +43,11 @@ import {
   deleteEventFromAppwrite,
   fetchAthletesFromAppwrite,
   fetchEventsFromAppwrite,
+  fetchRegistrationOptionsFromAppwrite,
   isAppwriteEnabled,
   persistAthletesToAppwrite,
   persistEventToAppwrite,
+  persistRegistrationOptionToAppwrite,
   updateAthleteStatusInAppwrite,
 } from './appwrite.js'
 
@@ -1096,7 +1098,8 @@ function mirrorAthletesToAppwrite(eventId, athletes) {
       while (mirror.latest) {
         const snapshot = mirror.latest
         mirror.latest = null
-        const result = await persistAthletesToAppwrite(eventId, snapshot)
+        const metadata = loadAthletesForEvent(eventId) || {}
+        const result = await persistAthletesToAppwrite(eventId, snapshot, { schema: metadata.schema, healthFields: metadata.healthFields })
         if ((!result.ok && !result.skipped) || result.errorCount > 0) {
           console.warn(`[server] Espelho Appwrite incompleto para evento ${eventId}.`)
         }
@@ -1301,21 +1304,37 @@ function registrationOptionsFailure(res, error) {
   })
 }
 
-app.get('/api/events/:eventId/registration-options', requireAuth, (req, res) => {
+function registrationOptionsDatabaseEnabled() {
+  if (process.env.APPWRITE_ENABLED === 'false') return false
+  if (isAppwriteEnabled()) return true
+  if (process.env.APPWRITE_ENABLED === 'true' || process.env.APPWRITE_ENDPOINT || process.env.APPWRITE_PROJECT_ID || process.env.APPWRITE_API_KEY) {
+    throw new RegistrationOptionError('A conexão com o banco de opções não está configurada. Contate a administração.', 503)
+  }
+  return false
+}
+
+app.get('/api/events/:eventId/registration-options', requireAuth, async (req, res) => {
   const context = registrationOptionsContext(req, res)
   if (!context) return
   try {
+    const database = registrationOptionsDatabaseEnabled()
+    if (database) {
+      const remote = await fetchRegistrationOptionsFromAppwrite(context.scope)
+      if (!remote.ok) throw new RegistrationOptionError('Não foi possível carregar as opções do banco. Tente novamente.', 503)
+      registrationOptions.merge(context.scope, remote.options)
+    }
     res.json({
       ok: true,
       options: registrationOptions.list(context.scope, context.fields),
       customFields: context.customFields,
+      persistence: database ? 'appwrite' : 'local',
     })
   } catch (error) {
     return registrationOptionsFailure(res, error)
   }
 })
 
-app.post('/api/events/:eventId/registration-options', requireAuth, (req, res) => {
+app.post('/api/events/:eventId/registration-options', requireAuth, async (req, res) => {
   const context = registrationOptionsContext(req, res)
   if (!context) return
   if (!EDIT_DELIVERED_ROLES.includes(req.session.role)) {
@@ -1329,11 +1348,21 @@ app.post('/api/events/:eventId/registration-options', requireAuth, (req, res) =>
     return res.status(400).json({ ok: false, message: 'Este campo não permite cadastrar opções compartilhadas.' })
   }
   try {
-    const result = registrationOptions.add(context.scope, field, value)
+    const cleanValue = cleanRegistrationOption(field, value)
+    const database = registrationOptionsDatabaseEnabled()
+    let remote
+    if (database) {
+      remote = await persistRegistrationOptionToAppwrite(context.scope, field, cleanValue)
+      if (!remote.ok) throw new RegistrationOptionError('A opção não foi confirmada no banco. Tente novamente.', 503)
+    }
+    const local = registrationOptions.add(context.scope, field, remote?.value ?? cleanValue)
+    const result = remote ? { field, value: remote.value, created: remote.created } : local
     return res.status(result.created ? 201 : 200).json({
       ok: true,
       ...result,
       options: registrationOptions.list(context.scope, context.fields),
+      customFields: context.customFields,
+      persistence: database ? 'appwrite' : 'local',
     })
   } catch (error) {
     return registrationOptionsFailure(res, error)

@@ -81,7 +81,7 @@ function fieldLimit(field) {
   throw new RegistrationOptionError('Este campo não permite cadastrar opções.')
 }
 
-function cleanOption(field, value) {
+export function cleanRegistrationOption(field, value) {
   const limit = fieldLimit(field)
   if (typeof value !== 'string' || CONTROL_CHARACTERS.test(value)) {
     throw new RegistrationOptionError('Informe uma opção em texto, sem caracteres de controle.')
@@ -106,7 +106,7 @@ function validateState(state) {
       if (!Array.isArray(labels)) throw new Error('Lista de opções inválida.')
       const seen = new Set()
       for (const label of labels) {
-        if (cleanOption(field, label) !== label || seen.has(optionIdentity(label))) throw new Error('Opção inválida ou repetida.')
+        if (cleanRegistrationOption(field, label) !== label || seen.has(optionIdentity(label))) throw new Error('Opção inválida ou repetida.')
         seen.add(optionIdentity(label))
       }
       fieldLimit(field)
@@ -135,6 +135,19 @@ export function createRegistrationOptionsStore(dataDir) {
     }
   }
 
+  function write(next) {
+    const temp = `${file}.${crypto.randomUUID()}.tmp`
+    try {
+      fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 })
+      fs.writeFileSync(temp, JSON.stringify(next), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+      fs.renameSync(temp, file)
+    } catch {
+      throw unavailable()
+    } finally {
+      try { fs.rmSync(temp, { force: true }) } catch {}
+    }
+  }
+
   return {
     list(scope = '', fields = Object.keys(STANDARD_OPTION_LIMITS)) {
       const key = scopeKey(scope)
@@ -147,7 +160,7 @@ export function createRegistrationOptionsStore(dataDir) {
     },
     add(scope, field, value) {
       const key = scopeKey(scope)
-      const label = cleanOption(field, value)
+      const label = cleanRegistrationOption(field, value)
       // Leitura e gravação síncronas mantêm duas inclusões do processo web
       // serializadas, inclusive quando chegam de eventos diferentes.
       const next = read()
@@ -156,17 +169,23 @@ export function createRegistrationOptionsStore(dataDir) {
       const duplicate = existing.find((item) => optionIdentity(item) === optionIdentity(label))
       if (duplicate !== undefined) return { field, value: duplicate, created: false }
       options[field] = [...existing, label]
-      const temp = `${file}.${crypto.randomUUID()}.tmp`
-      try {
-        fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 })
-        fs.writeFileSync(temp, JSON.stringify(next), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
-        fs.renameSync(temp, file)
-      } catch {
-        throw unavailable()
-      } finally {
-        try { fs.rmSync(temp, { force: true }) } catch {}
-      }
+      write(next)
       return { field, value: label, created: true }
+    },
+    merge(scope, entries) {
+      const key = scopeKey(scope)
+      const incoming = entries.map(({ field, value }) => ({ field, value: cleanRegistrationOption(field, value) }))
+      const next = read()
+      const options = Object.hasOwn(next.scopes, key) ? next.scopes[key] : (next.scopes[key] = {})
+      let added = 0
+      for (const { field, value } of incoming) {
+        const labels = Object.hasOwn(options, field) ? options[field] : []
+        if (labels.some((item) => optionIdentity(item) === optionIdentity(value))) continue
+        options[field] = [...labels, value]
+        added += 1
+      }
+      if (added) write(next)
+      return added
     },
   }
 }

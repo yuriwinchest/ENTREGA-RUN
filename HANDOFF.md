@@ -10,21 +10,21 @@
 
 ## Última atualização
 
+- **Quando/autor/fase:** 2026-11-04 · Codex/Tony com subagentes Codex · Fase A; intervalo `a951d09..HEAD` deste marco; publicação autorizada pelo Yuri.
+- **Pedido/arquivos:** ação dentro da lista, banco obrigatório e publicar; CreatableSelect/hook, store/rotas/conector Appwrite/testes, provisionador aditivo, Docker/CI/deploy e docs/opcoes-cadastro-global-2026-11-04.md.
+- **Validação:** client 90/90, server 102/102; lint 0 erros/4 avisos anteriores, build e Bash sintaxe ok; UI desktop/mobile375, Enter/Escape/Cancelar e seleção anterior confirmados; DB fake com falha/retry/reidratação e extras sem saúde.
+- **Riscos/pendências:** publicação ainda não executada neste commit; schema será preparado antes do switch com snapshot e --check. Safari/iPhone físico e homologação do PO pendentes.
+- **Continuidade:** AI Memory indisponível nas ferramentas; sincronização pendente local. Catálogo Appwrite confirmado antes de sucesso; cache JSON recuperável; rollback conserva dados e schema aditivo.
+- **Próximo:** publicar candidato pelo CI autorizado, acompanhar saúde/integridade e registrar SHA/run reais.
+
+## Penúltima atualização
+
+
 - **Quando/autor/fase:** 2026-11-04 · Codex/Tony, backend Kastiel e QA/Vitor por agentes Codex · Fase A; intervalo `2c06646..HEAD` deste marco.
 - **Pedido/arquivos:** catálogo global por organização e criação manual; server registrationOptions/rotas/testes, client CreatableSelect/hook/API/OperacaoPage, CI e hash do backup.
 - **Validação:** client 90/90; server 86/86; lint 0 erros (4 avisos existentes), build ok, Bash sintaxe e diff check ok; navegador sintético comprovou 7 campos, reuso, reabertura, erro, dedup e rede lenta.
 - **Riscos/pendências:** Yuri rejeitou ação abaixo dos campos; próximo marco mover para dentro da lista. Appwrite herdado não espelha nacionalidade/customFields; JSON operacional preserva ambos.
 - **Próximo:** ajuste visual solicitado, validar desktop/mobile e documentar deploy. Nenhum push main ou deploy autorizado/executado.
-
-## Penúltima atualização
-
-
-- **Quando/autor/fase:** 2026-11-04 · Codex/Tony · Fase A; marco de especificação, intervalo `5ef586d..HEAD` deste commit.
-- **Pedido:** opções manuais globais nas listas de cadastro do Entregas-run; mesmos editores; regras fechadas; preparar publicação posterior.
-- **Arquivos:** `.specify/`, skills Spec Kit e `specs/001-opcoes-cadastro-global/`; checkout original preservado, branch `codex/opcoes-cadastro-global`.
-- **Validação:** referência main atualizada; Specify 1.0.6 e integration status OK; escopo esclarecido pelo Yuri e propostas refinadas por Ulisses.
-- **Riscos/pendências:** implementação e testes ainda pendentes; Appwrite atual não espelha nacionalidade/customFields, JSON operacional os preserva.
-- **Próximo:** implementar catálogo por organização, editor inline, testes e plano; sem publicação autorizada.
 
 
 ## Estado atual (verificado em 2026-09-28)
@@ -47,6 +47,5 @@
 
 ## Últimas entregas (mais recente primeiro; anteriores em `docs/handoff/2026-10.md`)
 
+- 2026-11-04 · Codex/Tony · Catálogo no Appwrite e ação dentro da lista; publicação autorizada em andamento.
 - 2026-11-03 · Claude Code · Novo atleta sem número obrigatório; excluir atleta na aba Atletas.
-- 2026-10-31 · Claude Code · Excluir evento não apaga mais atleta nem contato (base de clientes).
-

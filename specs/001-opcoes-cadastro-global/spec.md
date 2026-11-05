@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/opcoes-cadastro-global`
 **Created**: 2026-11-04
-**Status**: Especificada; esclarecimentos respondidos pelo PO.
+**Status**: Implementação e validação; Yuri autorizou publicação em 2026-11-04.
 **Input**: Yuri solicita cadastro manual nas listas, com persistência e integração completa; confirmou Entregas-run, todos eventos e mesmos editores do cadastro.
 
 ## User Scenarios & Testing
@@ -17,6 +17,8 @@ Como editor de atleta, quero adicionar uma equipe, modalidade, categoria, kit, t
 1. Ao cadastrar uma opção válida, ela é selecionada após confirmação da gravação.
 2. Em falha de conexão/gravação, o texto é preservado e aparece erro sem anunciar sucesso.
 3. Ao reabrir atleta salvo, o valor permanece e integra os mesmos processos das opções anteriores.
+4. O acesso à criação está dentro da lista; nenhum botão extra fica abaixo do campo.
+5. Falha de confirmação no banco mantém o diálogo aberto com texto e erro, sem sucesso falso.
 
 ### User Story 2 - Reutilizar entre eventos (Priority: P1)
 
@@ -48,14 +50,14 @@ Texto vazio, Unicode equivalente, controles, texto longo, catálogo indisponíve
 
 ### Functional Requirements
 
-- **FR-001**: oferecer Adicionar opção em toda lista de cadastro elegível no novo atleta e edição.
-- **FR-002**: persistir cada adição independentemente do atleta, compartilhando entre eventos da organização.
+- **FR-001**: oferecer Adicionar opção como último item dentro de toda lista de cadastro elegível no novo atleta e edição.
+- **FR-002**: persistir cada adição no banco independentemente do atleta, compartilhando entre eventos da organização.
 - **FR-003**: selecionar só após gravação confirmada; permitir cancelar e repetir em erro.
 - **FR-004**: conservar o fluxo de gravação, tabela, exportação, entrega e sincronização existente.
 - **FR-005**: deduplicar espaços/Unicode/caixa; preservar primeira grafia; não perder adições concorrentes.
 - **FR-006**: verificar identidade, papel e evento no servidor; preservar isolamento administrativo.
 - **FR-007**: excluir enums operacionais, saúde/PCD e identificadores da criação livre.
-- **FR-008**: incluir catálogo no backup e entregar plano de publicação e rollback sem publicar.
+- **FR-008**: incluir catálogo no backup e entregar plano de publicação e rollback; publicar após os testes conforme autorização posterior do Yuri.
 
 ### Key Entities
 
@@ -76,3 +78,5 @@ Texto vazio, Unicode equivalente, controles, texto longo, catálogo indisponíve
 ## Assumptions and clarifications
 
 Respostas do Yuri: Entregas-run; listas de cadastro abertas e regras fechadas; todos eventos; mesmos editores. A abrangência respeita a separação de organizações existente. Compartilham-se rótulos, sem inscrições ou estoque. Texto livre sem opções continua texto livre. Saúde/PCD e identificação não publicam valores no catálogo.
+
+Correções do PO em 2026-11-04: ação dentro da lista, sem links abaixo dos campos; dados novos obrigatoriamente no banco. Autorização expressa posterior: continuar e publicar após testes.

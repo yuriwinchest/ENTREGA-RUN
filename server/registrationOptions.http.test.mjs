@@ -43,11 +43,43 @@ test('opções de cadastro no HTTP: autorização, catálogo por organização, 
   ]
   fs.writeFileSync(path.join(dir, 'athletes_a-1.json'), JSON.stringify({ eventId: 'a-1', athletes: initialAthletes, schema, healthFields: [{ key: 'ALERGIA', label: 'Alergia', publico: false }], listRevision: 0 }))
   const appwriteCalls = []
+  const remoteOptions = new Map()
+  let catalogUnavailable = false
   const fakeAppwrite = http.createServer(async (req, res) => {
     const chunks = []
     for await (const chunk of req) chunks.push(chunk)
     const body = Buffer.concat(chunks).toString()
-    appwriteCalls.push({ method: req.method, url: req.url, body: body ? JSON.parse(body) : {} })
+    const parsed = body ? JSON.parse(body) : {}
+    appwriteCalls.push({ method: req.method, url: req.url, body: parsed })
+    if (/\/collections\/registration_options\/documents/.test(req.url)) {
+      const url = new URL(req.url, 'http://localhost')
+      let status = 200
+      let data = {}
+      if (catalogUnavailable) {
+        status = 503
+        data = { message: 'Appwrite local simulado indisponível' }
+      } else if (req.method === 'POST') {
+        if (remoteOptions.has(parsed.documentId)) status = 409
+        else {
+          status = 201
+          data = { $id: parsed.documentId, ...parsed.data }
+          remoteOptions.set(parsed.documentId, data)
+        }
+      } else if (url.pathname.endsWith('/documents')) {
+        const queries = [...url.searchParams.entries()].filter(([key]) => key.startsWith('queries')).map(([, value]) => JSON.parse(value))
+        const scope = queries.find((query) => query.method === 'equal' && query.attribute === 'scope_id')?.values[0]
+        const cursor = queries.find((query) => query.method === 'cursorAfter')?.values[0]
+        const docs = [...remoteOptions.values()].filter((doc) => doc.scope_id === scope).sort((a, b) => a.$id.localeCompare(b.$id))
+        const start = cursor ? docs.findIndex((doc) => doc.$id === cursor) + 1 : 0
+        data = { documents: docs.slice(start, start + 100), total: docs.length }
+      } else {
+        data = remoteOptions.get(url.pathname.split('/').at(-1))
+        if (!data) { status = 404; data = {} }
+      }
+      res.writeHead(status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(data))
+      return
+    }
     res.writeHead(req.method === 'POST' ? 201 : 200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(req.method === 'GET' ? { documents: [], collections: [], total: 0 } : {}))
   })
@@ -71,6 +103,7 @@ test('opções de cadastro no HTTP: autorização, catálogo por organização, 
         APPWRITE_ENABLED: 'true', APPWRITE_ENDPOINT: `http://127.0.0.1:${fakeAppwrite.address().port}/v1`,
         APPWRITE_PROJECT_ID: 'isolated-test', APPWRITE_API_KEY: 'fake-key-only-for-local-tests',
         APPWRITE_DATABASE_ID: 'options-test', APPWRITE_COLLECTION_ATHLETES: 'athletes', APPWRITE_COLLECTION_EVENTS: 'events',
+        APPWRITE_COLLECTION_REGISTRATION_OPTIONS: 'registration_options',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -125,6 +158,8 @@ test('opções de cadastro no HTTP: autorização, catálogo por organização, 
     await t.test('opção é global na organização e principal usa o catálogo do evento, sem aceitar escopo forjado', async () => {
       const added = await request(route(), 'POST', { field: 'equipe', value: 'Café Run', teamId: 'org-b', scope: 'org-b' }, tokens.principal)
       assert.equal(added.status, 201)
+      assert.equal(added.data.persistence, 'appwrite')
+      assert.ok([...remoteOptions.values()].some((doc) => doc.scope_id === 'org-a' && doc.field === 'equipe' && doc.value === 'Café Run'), 'cadastro confirmou a opção na coleção do banco')
       assert.ok((await request(route('a-2'), 'GET', undefined, tokens['leader-a'])).data.options.equipe.includes('Café Run'))
       for (const [id, token] of [['b-1', tokens['leader-b']], ['legacy', tokens.principal]]) {
         const result = await request(route(id), 'GET', undefined, token)
@@ -162,16 +197,53 @@ test('opções de cadastro no HTTP: autorização, catálogo por organização, 
       for (const value of values.slice(0, 3)) assert.ok(options.includes(value), value)
     })
 
+    await t.test('falha remota não confirma criação nem deixa opção só no arquivo local', async () => {
+      const file = path.join(dir, 'registration_options.json')
+      const before = fs.readFileSync(file, 'utf8')
+      catalogUnavailable = true
+      try {
+        const failed = await request(route(), 'POST', { field: 'equipe', value: 'NÃO CONFIRMADA NO BANCO' }, tokens['leader-a'])
+        assert.equal(failed.status, 503)
+        assert.equal(failed.data.ok, false)
+        assert.equal(fs.readFileSync(file, 'utf8'), before)
+        assert.equal((await request(route(), 'GET', undefined, tokens['leader-a'])).status, 503)
+      } finally {
+        catalogUnavailable = false
+      }
+      assert.equal([...remoteOptions.values()].some((doc) => doc.value === 'NÃO CONFIRMADA NO BANCO'), false)
+    })
+
+    await t.test('commit remoto com falha no cache retorna erro e retry recupera o mesmo registro', async () => {
+      const file = path.join(dir, 'registration_options.json')
+      const previous = `${file}.saved`
+      fs.renameSync(file, previous)
+      fs.mkdirSync(file)
+      try {
+        const failed = await request(route(), 'POST', { field: 'equipe', value: 'CONFIRMADA NO BANCO' }, tokens['leader-a'])
+        assert.equal(failed.status, 503)
+        assert.equal([...remoteOptions.values()].filter((doc) => doc.value === 'CONFIRMADA NO BANCO').length, 1)
+      } finally {
+        fs.rmdirSync(file)
+        fs.renameSync(previous, file)
+      }
+      const retry = await request(route(), 'POST', { field: 'equipe', value: 'CONFIRMADA NO BANCO' }, tokens['leader-a'])
+      assert.equal(retry.status, 200)
+      assert.equal(retry.data.created, false)
+      assert.ok(retry.data.options.equipe.includes('CONFIRMADA NO BANCO'))
+      assert.equal([...remoteOptions.values()].filter((doc) => doc.value === 'CONFIRMADA NO BANCO').length, 1)
+    })
+
     await t.test('salvar atleta percorre persistência operacional e espelho Appwrite com a nova equipe', async () => {
       const chosen = (await request(route(), 'GET', undefined, tokens['leader-a'])).data.options.equipe.find((value) => value === 'Café Run')
       const saved = await request('/api/events/a-1/athletes', 'POST', {
-        athletes: [{ ...initialAthletes[0], equipe: chosen, customFields: { ...initialAthletes[0].customFields, BATERIA: '09:00' } }],
+        athletes: [{ ...initialAthletes[0], equipe: chosen, nacionalidade: 'PORTUGAL', customFields: { ...initialAthletes[0].customFields, BATERIA: '09:00' } }],
         schema, listRevision: 0,
       }, tokens['supervisor-a'])
       assert.equal(saved.status, 200)
       const persisted = (await request('/api/events/a-1/athletes', 'GET', undefined, tokens['leader-a'])).data.athletes[0]
       assert.equal(persisted.equipe, 'Café Run')
       assert.equal(persisted.customFields.BATERIA, '09:00')
+      assert.equal(persisted.nacionalidade, 'PORTUGAL')
       assert.equal(persisted.status, 'PENDENTE')
       for (let i = 0; i < 100 && !appwriteCalls.some((call) => call.method === 'PATCH' && /\/collections\/athletes\/documents\//.test(call.url) && call.body.data?.team === 'Café Run'); i++) {
         await new Promise((resolve) => setTimeout(resolve, 25))
@@ -181,15 +253,22 @@ test('opções de cadastro no HTTP: autorização, catálogo por organização, 
       assert.equal(mirrored.body.data.event_id, 'a-1')
       assert.equal(mirrored.body.data.bib_number, '10')
       assert.equal(mirrored.body.data.status, 'PENDENTE')
+      const extras = JSON.parse(mirrored.body.data.registration_fields)
+      assert.equal(extras.nacionalidade, 'PORTUGAL')
+      assert.deepEqual(extras.customFields, { BATERIA: '09:00' })
+      assert.equal(mirrored.body.data.registration_fields.includes('ALERGIA'), false)
     })
 
-    await t.test('catálogo e atleta sobrevivem ao reinício sem criar outra inscrição', async () => {
+    await t.test('banco reidrata o catálogo sem arquivo local após reinício e mantém o atleta', async () => {
       await stop()
+      fs.unlinkSync(path.join(dir, 'registration_options.json'))
       await start()
       tokens['leader-a'] = await login('leader-a')
       const listed = await request(route('a-2'), 'GET', undefined, tokens['leader-a'])
       assert.ok(listed.data.options.equipe.includes('Café Run'))
       assert.ok(listed.data.options.equipe.includes('Equipe Dois'))
+      assert.equal(listed.data.persistence, 'appwrite')
+      assert.ok(fs.existsSync(path.join(dir, 'registration_options.json')), 'cache operacional foi reconstruído do banco')
       const athletes = (await request('/api/events/a-1/athletes', 'GET', undefined, tokens['leader-a'])).data.athletes
       assert.equal(athletes.length, 1)
       assert.equal(athletes[0].equipe, 'Café Run')

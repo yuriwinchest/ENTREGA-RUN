@@ -151,6 +151,17 @@ docker run --rm --network none --read-only -e "REQUIRED_EVENT_ID=$CRITICAL_EVENT
 sleep 3
 verify_backup_hashes
 echo 'Manifesto privado de atletas e entregas criado.'
+SCHEMA_BACKUP="$BACKUP_DIR/appwrite-schema-before-$SHORT_SHA-$(date -u +%Y%m%dT%H%M%SZ).json"
+docker run --rm --read-only --env-file "$APP_DIR/.env" \
+  "$IMAGE" node scripts/prepare-registration-options.mjs --snapshot-json > "$SCHEMA_BACKUP"
+[[ -s "$SCHEMA_BACKUP" ]] || { echo 'Snapshot do schema Appwrite vazio; deploy cancelado.' >&2; exit 1; }
+# Preparação aditiva: não apaga coleção, atributo, documento ou permissão.
+# A imagem anterior continua atendendo enquanto o Appwrite prepara o atributo.
+docker run --rm --read-only --env-file "$APP_DIR/.env" \
+  "$IMAGE" node scripts/prepare-registration-options.mjs --apply
+docker run --rm --read-only --env-file "$APP_DIR/.env" \
+  "$IMAGE" node scripts/prepare-registration-options.mjs --check
+echo 'Schema do catálogo e dos campos de cadastro preparado e conferido.'
 cat > "$OVERRIDE_FILE" <<EOF
 services:
   $SERVICE:

@@ -49,7 +49,7 @@ export default function useRegistrationOptions(eventId, enabled = true) {
         const merged = { ...options }
         for (const [key, values] of Object.entries(data.options || {})) merged[key] = mergeRegistrationOptions(options[key] || [], values)
         merged[field] = mergeRegistrationOptions(merged[field] || [], [data.value])
-        return { eventId, options: merged, customFields: current.eventId === eventId ? current.customFields : [] }
+        return { eventId, options: merged, customFields: data.customFields || (current.eventId === eventId ? current.customFields : []) }
       })
       setError('')
       return data.value
