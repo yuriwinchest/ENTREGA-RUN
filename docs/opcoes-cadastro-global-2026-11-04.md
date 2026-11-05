@@ -38,4 +38,15 @@ O rollback não remove coleção/atributo nem restaura snapshot sobre entregas m
 
 ## Continuidade
 
-AI Memory não está disponível nas ferramentas na etapa final; sincronização pendente registrada localmente, sem afirmar gravação. Fonte operacional de continuidade: HANDOFF.md e este relatório. Estado final da publicação e SHA serão registrados após o resultado real do GitHub Actions.
+AI Memory não está disponível nas ferramentas na etapa final; sincronização pendente registrada localmente, sem afirmar gravação. Fonte operacional de continuidade: HANDOFF.md e este relatório. Publicação registrada abaixo com o resultado real do GitHub Actions.
+
+## Publicação confirmada
+
+- Produto: commits 2c06646 (Spec Kit), a951d09 (fluxo funcional) e c1e29a2e4270accb2392099aec5573be828c17e6 (interface final + banco + deploy).
+- GitHub Actions: https://github.com/yuriwinchest/ENTREGA-RUN/actions/runs/41948089271 — validate, preflight e deploy concluídos com sucesso.
+- Concluído em 2026-11-04 às 22:24 (America/Sao_Paulo). Imagem release-c1e29a2e4270 saudável na primeira tentativa.
+- Snapshots privados conferidos por hash. Schema Appwrite: coleção registration_options privada, atributos scope_id/field/value/created_at, índice scope_id e athletes.registration_fields criados; --check terminou sem issues antes do switch.
+- Integridade confirmada no disco e na API: 3 eventos, 17.666 atletas, 2.113 entregas preservados. Não houve rollback nem inserção de dados fictícios em produção.
+- Verificação externa após deploy: HTTP 200 nos healthchecks dos dois domínios, Appwrite habilitado e diskWriteError null; catálogo sem sessão responde 401. HTML de produção serve index-CkZcu0yz.js com ação interna e diálogo da versão candidata.
+- Vitor revisou preparação/isolamento/rollback sem veto ao desenho; teste do escopo principal usa identificador não vazio __principal__ no banco. Suítes finais e CI/preflight passaram; publicação autorizada pelo PO.
+- Próximo: Yuri homologar pelo fluxo real. Safari/iPhone físico continuam sem teste; AI Memory indisponível nas ferramentas, sincronização pendente.

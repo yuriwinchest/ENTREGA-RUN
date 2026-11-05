@@ -5,3 +5,5 @@ registration_options.json: cache operacional versionado por escopo; merge append
 Campos padrão: equipe128, modalidade64, categoria64, kit64, camiseta32, nacionalidade64. Custom: custom:<chave estável> existente e elegível, opção nova até128 caracteres, sem saúde/PCD/identificação.
 Athletes.registration_fields: string JSON opcional até16384, guarda nacionalidade e customFields elegíveis. Valores importados legados não são truncados para o limite de rótulo novo. Ausência do atributo no payload legado preserva extras existentes no PATCH. O fluxo operacional local conserva os demais dados como antes.
 Sem exclusão/renomeação de opções ou regravação de atletas ao criar uma opção.
+
+No banco, o acervo principal usa scope_id __principal__ (não vazio); equipes mantêm o teamId gerado pelo servidor. O escopo reservado não é aceito como identificador de organização externa.

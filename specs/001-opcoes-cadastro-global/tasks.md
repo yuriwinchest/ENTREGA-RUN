@@ -29,7 +29,7 @@ Input: spec.md, plan.md, research.md, data-model.md, contracts/ e quickstart.md.
 - [x] T014 [P] Cobrir merge client em client/src/utils/registrationOptions.test.mjs.
 - [x] T015 [P] Incluir testes CI e hash catálogo em .github/workflows/deploy.yml e scripts/deploy-vps.sh.
 - [x] T016 Executar suítes, lint/build e navegador sintético; registrar evidências em docs/opcoes-cadastro-global-2026-11-04.md.
-- [ ] T017 Atualizar HANDOFF.md/AI Memory e commitar marcos; preparar publicação posterior publicar após autorização e testes.
+- [x] T017 Atualizar HANDOFF.md/AI Memory e commitar marcos; preparar publicação posterior publicar após autorização e testes.
 
 ## Dependencies and strategy
 
@@ -39,4 +39,6 @@ Root faz frontend; Kastiel backend; Teclide testes e Vitor preparação de deplo
 ## Complemento solicitado pelo PO
 - [x] T018 [US1] Mover ação para dentro da lista em client/src/components/CreatableSelect.jsx e validar teclado/desktop/mobile375.
 - [x] T019 [US2] Persistir catálogo Appwrite, reidratação e extras do atleta em server/appwrite.js e server/server.js; validar testes DB isolados.
-- [ ] T020 Preparar schema aditivo em scripts/prepare-registration-options.mjs e integrar snapshot/check ao deploy; publicar e verificar saúde/integridade após autorização do Yuri.
+- [x] T020 Preparar schema aditivo em scripts/prepare-registration-options.mjs e integrar snapshot/check ao deploy; publicar e verificar saúde/integridade após autorização do Yuri.
+
+Concluído: release c1e29a2, run41948089271 sucesso. AI Memory indisponível: pendência registrada no HANDOFF e relatório, sem afirmar sincronização. Homologação do Yuri segue pendente.

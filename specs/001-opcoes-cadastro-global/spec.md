@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/opcoes-cadastro-global`
 **Created**: 2026-11-04
-**Status**: Implementação e validação; Yuri autorizou publicação em 2026-11-04.
+**Status**: Publicada em 2026-11-04; homologação funcional do Yuri pendente.
 **Input**: Yuri solicita cadastro manual nas listas, com persistência e integração completa; confirmou Entregas-run, todos eventos e mesmos editores do cadastro.
 
 ## User Scenarios & Testing
